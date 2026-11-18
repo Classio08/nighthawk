@@ -12,7 +12,8 @@ Preferred sources (all free for commercial use):
 
 | Asset | Source URL | License | Author (if credit needed) | Used in |
 |---|---|---|---|---|
-| (none yet - everything in Milestone 0 is built from code shapes) | | | | |
+| zzfx 1.4.0 (npm package, code) | github.com/KilledByAPixel/ZzFX | MIT | Frank Force | `src/fx/audio.js` - all 20 sounds are generated from numbers, no audio files |
+| Everything else (guns, soldiers, buildings, ragdolls, particles) | built from box shapes in our own code | ours | | `src/render/*`, `src/fx/*` |
 
 ## Candidates (NOT downloaded yet, license must be re-checked on the author page first)
 

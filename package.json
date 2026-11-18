@@ -11,7 +11,8 @@
     "smoke": "node scripts/smoke.mjs",
     "server": "npm --prefix server start",
     "server:install": "npm --prefix server install",
-    "server:test": "npm --prefix server test"
+    "server:test": "npm --prefix server test",
+    "e2e": "node scripts/e2e.mjs"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +20,8 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
     "three": "^0.187.0",
-    "yuka": "^0.7.8"
+    "yuka": "^0.7.8",
+    "zzfx": "^1.4.0"
   },
   "devDependencies": {
     "vite": "^8.3.8"

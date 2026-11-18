@@ -1,290 +1,301 @@
-// NIGHTHAWK - technology proof.
-// Goal of this file: prove the whole stack works together, in one small readable place:
-//   three.js  = what you SEE        (rendering)
-//   Rapier    = what is SOLID       (physics, character controller, raycast shooting)
-//   Yuka      = what bots THINK     (state machine + steering)
-// The real game will split this into modules (see docs/ROADMAP.md).
+// NIGHTHAWK - game loop. This file only CONNECTS things:
+//   Simulation (rules, physics, bots)  ->  events  ->  sound / particles / decals / ragdolls / HUD
+//   Input (keys, mouse)                ->  cmd     ->  Simulation
+// Rules live in src/sim (no graphics there, so the multiplayer server can run the same code).
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
-import * as YUKA from 'yuka';
+import { Simulation, initPhysics } from './sim/world.js';
+import { WEAPONS, SLOT_ORDER } from './sim/weapons.js';
 import { Input } from './input/input.js';
-import { moveVector } from './input/move.js';
+import { WorldView } from './render/scene.js';
+import { FighterView } from './render/fighter.js';
+import { Viewmodel } from './render/viewmodel.js';
+import { RagdollWorld } from './render/ragdoll.js';
+import { RagdollView } from './render/ragdoll-view.js';
+import { Particles } from './fx/particles.js';
+import { Decals } from './fx/decals.js';
+import { Tracers } from './fx/tracers.js';
+import { CameraFx } from './fx/camerafx.js';
+import { audio } from './fx/audio.js';
+import { Hud } from './ui/hud.js';
 
-const GRAV = -22, SPEED = 7, SPRINT = 1.55, JUMP = 8.5, STEP = 1 / 60;
+const STEP = 1 / 60, BASE_FOV = 78;
 const $ = (id) => document.getElementById(id);
-const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const params = new URLSearchParams(location.search);
+const AUTOSTART = params.has('autostart');          // used by the automatic browser test: skips the click-to-play screen
 
-async function main() {
-  await RAPIER.init();
+const canvas = $('game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 600);
+camera.rotation.order = 'YXZ';
+const viewmodel = new Viewmodel(camera);
+const camfx = new CameraFx();
+const input = new Input(canvas);
+const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
+addEventListener('resize', resize); resize();
 
-  /* ---------- three.js ---------- */
-  const canvas = $('game');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xcdbf9d);
-  scene.fog = new THREE.Fog(0xcdbf9d, 40, 230);
-  const camera = new THREE.PerspectiveCamera(75, 1, 0.05, 500);
-  camera.rotation.order = 'YXZ';
-  scene.add(camera);
-  scene.add(new THREE.HemisphereLight(0xd6e6ff, 0x8a7752, 1.0));
-  const sun = new THREE.DirectionalLight(0xfff0d0, 1.3);
-  sun.position.set(60, 100, 30);
-  scene.add(sun);
-  const resize = () => {
-    renderer.setSize(innerWidth, innerHeight, false);
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-  };
-  addEventListener('resize', resize); resize();
+/** everything that belongs to ONE match (recreated by PLAY AGAIN) */
+let G = null;
+const cmd = { yaw: 0, pitch: 0, forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false };
+let hud = null;
+let paused = false, started = false;
+const tmp = new THREE.Vector3();
 
-  const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
-
-  /* ---------- physics world ---------- */
-  const world = new RAPIER.World({ x: 0, y: GRAV, z: 0 });
-  world.timestep = STEP;
-
-  // ground (visual + solid)
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat(0xc4ab76));
-  ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
-  world.createCollider(RAPIER.ColliderDesc.cuboid(200, 0.5, 200).setTranslation(0, -0.5, 0));
-
-  // static buildings/cover (also registered as obstacles for the bots' steering)
-  const obstacles = [];
-  const addWall = (x, z, w, h, d, color) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
-    m.position.set(x, h / 2, z); scene.add(m);
-    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, h / 2, z));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2), body);
-    const ob = new YUKA.GameEntity();
-    ob.position.set(x, 0, z); ob.boundingRadius = Math.hypot(w, d) / 2 + 0.5;
-    obstacles.push(ob);
-  };
-  const cols = [0x8d9aa8, 0xa2764f, 0x7f8c6b, 0xb7a98a];
-  for (let i = 0; i < 16; i++) {
-    const x = rnd(-80, 80), z = rnd(-80, 60);
-    if (Math.hypot(x, z - 8) < 14) continue;
-    addWall(x, z, rnd(5, 14), rnd(3, 9), rnd(5, 14), cols[i % 4]);
-  }
-
-  // dynamic crates: shove them, shoot them, blow them up
-  const crates = [];
-  const addCrate = (x, y, z) => {
-    const s = 1.2;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), mat(0x8b6a3f));
-    scene.add(m);
-    const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(s / 2, s / 2, s / 2).setRestitution(0.1).setFriction(0.8).setDensity(0.6), body);
-    crates.push({ body, mesh: m });
-  };
-  for (let row = 0; row < 4; row++)
-    for (let i = 0; i < 4 - row; i++) addCrate(-4 + i * 1.3 + row * 0.65, 0.61 + row * 1.22, -6);
-
-  /* ---------- player: kinematic capsule + Rapier character controller ---------- */
-  const pBody = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 1.0, 8));
-  const pCol = world.createCollider(RAPIER.ColliderDesc.capsule(0.5, 0.4), pBody); // 1.8 m tall
-  const cc = world.createCharacterController(0.02);
-  cc.enableAutostep(0.45, 0.2, true);
-  cc.enableSnapToGround(0.3);
-  cc.setApplyImpulsesToDynamicBodies(true);
-  let yaw = 0, pitch = 0, vy = 0, grounded = false;
-
-  // first-person gun (viewmodel) glued to the camera
-  const gun = new THREE.Group();
-  const gm = mat(0x1a1d24);
-  const part = (w, h, d, x, y, z, m = gm) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); gun.add(b); return b; };
-  part(0.07, 0.1, 0.5, 0, 0, 0); part(0.04, 0.04, 0.32, 0, 0.02, -0.4, mat(0x2d323b)); part(0.05, 0.16, 0.08, 0, -0.12, 0.08); part(0.06, 0.12, 0.2, 0, -0.03, 0.3);
-  const flash = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffdd88 }));
-  flash.position.set(0, 0.02, -0.62); flash.visible = false; gun.add(flash);
-  gun.scale.setScalar(0.6);
-  gun.position.set(0.2, -0.17, -0.5);
-  camera.add(gun);
-
-  /* ---------- bots: Yuka brain + Rapier body ---------- */
-  const botByHandle = new Map();
-  const target = new YUKA.Vector3(); // always = player position
-  const ctx = { obstacles, target };
-
-  class Wander extends YUKA.State {
-    enter(o) { o.steering.clear(); o.steering.add(new YUKA.WanderBehavior(1.5, 8, 2)); o.steering.add(new YUKA.ObstacleAvoidanceBehavior(ctx.obstacles)); o.maxSpeed = 2.2; }
-    execute(o) { if (o.position.distanceTo(ctx.target) < 28) o.stateMachine.changeTo('chase'); }
-  }
-  class Chase extends YUKA.State {
-    enter(o) { o.steering.clear(); o.steering.add(new YUKA.SeekBehavior(ctx.target)); o.steering.add(new YUKA.ObstacleAvoidanceBehavior(ctx.obstacles)); }
-    execute(o) {
-      const d = o.position.distanceTo(ctx.target);
-      o.maxSpeed = d < 7 ? 0.6 : 3.8;
-      if (d > 40) o.stateMachine.changeTo('wander');
-    }
-  }
-  class Bot extends YUKA.Vehicle {
-    constructor() {
-      super();
-      this.maxSpeed = 2.2; this.boundingRadius = 0.6; this.hp = 100;
-      this.stateMachine = new YUKA.StateMachine(this);
-      this.stateMachine.add('wander', new Wander());
-      this.stateMachine.add('chase', new Chase());
-      this.stateMachine.changeTo('wander');
-    }
-    update(delta) { super.update(delta); this.stateMachine.update(); this.position.y = 0.9; this.velocity.y = 0; return this; }
-  }
-
-  const entities = new YUKA.EntityManager();
-  const bots = [];
-  const botGeo = [new THREE.BoxGeometry(0.7, 1.0, 0.45), new THREE.SphereGeometry(0.28, 10, 8)];
-  const spawnBot = (b) => {
-    b.position.set(rnd(-60, 60), 0.9, rnd(-60, 20));
-    if (b.position.distanceTo(target) < 25) b.position.x += 40;
-    b.hp = 100;
-  };
-  for (let i = 0; i < 8; i++) {
-    const b = new Bot(); spawnBot(b);
-    b.mesh = new THREE.Group();
-    const body = new THREE.Mesh(botGeo[0], mat(0xb85c5c)); body.position.y = -0.05;
-    const head = new THREE.Mesh(botGeo[1], mat(0xd9c3a0)); head.position.y = 0.72;
-    b.mesh.add(body, head); b.bodyMat = body.material; scene.add(b.mesh);
-    b.rb = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(b.position.x, 0.9, b.position.z));
-    const col = world.createCollider(RAPIER.ColliderDesc.capsule(0.5, 0.4), b.rb);
-    botByHandle.set(col.handle, b);
-    entities.add(b); bots.push(b);
-  }
-
-  /* ---------- shooting (hitscan via Rapier raycast), grenades, effects ---------- */
-  const input = new Input(canvas);
-  let kills = 0, fireT = 0, kick = 0, flashT = 0, resetT = 0;
-  const tracers = [], grenades = [], booms = [];
-  const tracerMat = new THREE.LineBasicMaterial({ color: 0xffe9a8 });
-  const dir = new THREE.Vector3(), org = new THREE.Vector3();
-
-  const killBot = (b) => { kills++; spawnBot(b); };
-  const hurtBot = (b, dmg) => {
-    b.hp -= dmg; b.bodyMat.emissive.setScalar(0.8); b.flashT = 0.1;
-    if (b.hp <= 0) killBot(b);
-  };
-
-  function shoot() {
-    camera.getWorldDirection(dir);
-    org.copy(camera.position);
-    const spread = 0.004;
-    dir.x += rnd(-spread, spread); dir.y += rnd(-spread, spread); dir.z += rnd(-spread, spread); dir.normalize();
-    const hit = world.castRay(new RAPIER.Ray(org, dir), 250, true, undefined, undefined, pCol);
-    const t = hit ? hit.timeOfImpact : 250;
-    const end = org.clone().addScaledVector(dir, t);
-    if (hit) {
-      const bot = botByHandle.get(hit.collider.handle);
-      if (bot) hurtBot(bot, 34);
-      const rb = hit.collider.parent();
-      if (rb && rb.isDynamic()) rb.applyImpulseAtPoint({ x: dir.x * 4, y: dir.y * 4, z: dir.z * 4 }, end, true);
-    }
-    const start = org.clone().addScaledVector(dir, 0.8).add(new THREE.Vector3(0.1, -0.12, 0).applyQuaternion(camera.quaternion));
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([start, end]), tracerMat);
-    scene.add(line); tracers.push({ line, life: 0.06 });
-    kick = 1; flashT = 0.04;
-  }
-
-  function throwGrenade() {
-    camera.getWorldDirection(dir);
-    const p = camera.position;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), mat(0x2c3a2a));
-    scene.add(m);
-    const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(p.x + dir.x, p.y + dir.y, p.z + dir.z).setLinvel(dir.x * 15, dir.y * 15 + 4, dir.z * 15));
-    world.createCollider(RAPIER.ColliderDesc.ball(0.15).setRestitution(0.55).setFriction(0.6), body);
-    grenades.push({ body, mesh: m, t: 0 });
-  }
-
-  function explode(pos) {
-    const R = 9;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.9 }));
-    m.position.set(pos.x, pos.y, pos.z); scene.add(m); booms.push({ m, life: 0.35 });
-    for (const c of crates) {
-      const q = c.body.translation(), dx = q.x - pos.x, dy = q.y - pos.y, dz = q.z - pos.z, d = Math.hypot(dx, dy, dz) || 1;
-      if (d < R) { const k = 14 * (1 - d / R); c.body.applyImpulse({ x: dx / d * k, y: dy / d * k + k * 0.6, z: dz / d * k }, true); }
-    }
-    for (const b of bots) {
-      const d = Math.hypot(b.position.x - pos.x, b.position.z - pos.z);
-      if (d < R) hurtBot(b, 110 * (1 - d / R));
-    }
-  }
-
-  function resetScene() { // R key: put everything back
-    pBody.setTranslation({ x: 0, y: 1.0, z: 8 }, true); vy = 0; yaw = 0; pitch = 0;
-    crates.forEach((c, i) => c.body.setTranslation({ x: -4 + (i % 4) * 1.3, y: 0.7 + Math.floor(i / 4) * 1.3, z: -6 }, true));
-    bots.forEach(spawnBot);
-  }
-
-  /* ---------- main loop: fixed physics step + smooth rendering ---------- */
-  let acc = 0, last = performance.now(), fpsT = 0, fpsN = 0;
-  const time = new YUKA.Time();
-
-  function step() {
-    const mv = moveVector(yaw, input.readMove().forward, input.readMove().strafe);
-    const im = input.readMove();
-    const sp = SPEED * (im.sprint ? SPRINT : 1);
-    if (grounded && im.jump) vy = JUMP;
-    vy += GRAV * STEP;
-    if (grounded && vy < 0) vy = 0;
-    cc.computeColliderMovement(pCol, { x: mv.x * sp * STEP, y: vy * STEP, z: mv.z * sp * STEP });
-    const m = cc.computedMovement(); grounded = cc.computedGrounded();
-    const t = pBody.translation();
-    pBody.setNextKinematicTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
-
-    // bots: Yuka thinks, Rapier body follows
-    target.set(t.x, 0.9, t.z);
-    entities.update(STEP);
-    for (const b of bots) b.rb.setNextKinematicTranslation({ x: b.position.x, y: 0.9, z: b.position.z });
-
-    world.step();
-  }
-
-  function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    time.update();
-
-    const look = input.readLook(dt);
-    yaw += look.yaw; pitch = Math.max(-1.45, Math.min(1.45, pitch + look.pitch));
-    if (input.wasPressed('KeyG')) throwGrenade();
-    if (input.wasPressed('KeyR')) resetScene();
-
-    acc += dt;
-    while (acc >= STEP) { step(); acc -= STEP; }
-
-    // auto fire
-    fireT -= dt;
-    if (input.fire && fireT <= 0) { shoot(); fireT = 0.11; }
-
-    // sync visuals from physics
-    const p = pBody.translation();
-    camera.position.set(p.x, p.y + 0.7, p.z);
-    camera.rotation.set(pitch, yaw, 0);
-    for (const c of crates) { const q = c.body.translation(), r = c.body.rotation(); c.mesh.position.set(q.x, q.y, q.z); c.mesh.quaternion.set(r.x, r.y, r.z, r.w); }
-    for (const b of bots) {
-      b.mesh.position.set(b.position.x, b.position.y, b.position.z);
-      if (b.velocity.length() > 0.2) b.mesh.rotation.y = Math.atan2(b.velocity.x, b.velocity.z);
-      if (b.flashT > 0) { b.flashT -= dt; if (b.flashT <= 0) b.bodyMat.emissive.setScalar(0); }
-    }
-    for (let i = grenades.length - 1; i >= 0; i--) {
-      const g = grenades[i], q = g.body.translation(); g.t += dt; g.mesh.position.set(q.x, q.y, q.z);
-      if (g.t > 2.2) { explode(q); scene.remove(g.mesh); world.removeRigidBody(g.body); grenades.splice(i, 1); }
-    }
-    for (let i = booms.length - 1; i >= 0; i--) { const b = booms[i]; b.life -= dt; b.m.scale.setScalar(1 + (0.35 - b.life) * 22); b.m.material.opacity = Math.max(0, b.life / 0.35); if (b.life <= 0) { scene.remove(b.m); booms.splice(i, 1); } }
-    for (let i = tracers.length - 1; i >= 0; i--) { const t = tracers[i]; t.life -= dt; if (t.life <= 0) { scene.remove(t.line); t.line.geometry.dispose(); tracers.splice(i, 1); } }
-    kick = Math.max(0, kick - dt * 10);
-    gun.position.z = -0.5 + kick * 0.05; gun.rotation.x = kick * 0.05;
-    if (flashT > 0) { flashT -= dt; flash.visible = flashT > 0; }
-
-    // HUD
-    $('click').style.display = (input.locked || input.lockFailed) ? 'none' : 'block';
-    $('bots').textContent = bots.length; $('kills').textContent = kills;
-    fpsN++; fpsT += dt; if (fpsT >= 0.5) { $('fps').textContent = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
-
-    renderer.render(scene, camera);
-    input.endFrame();
-    requestAnimationFrame(frame);
-  }
-  // debug handle for automated tests
-  window.__nh = { world, pBody, bots, crates, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, input, shoot };
-  requestAnimationFrame(frame);
+function disposeScene(scene) {
+  scene.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    const m = o.material; if (m) { for (const x of Array.isArray(m) ? m : [m]) { if (x.map) x.map.dispose(); x.dispose(); } }
+  });
 }
 
-main();
+async function newMatch() {
+  if (G) { G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
+  const seed = params.get('seed') ? +params.get('seed') : undefined;
+  const sim = await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms' });
+  const scene = new THREE.Scene(); scene.add(camera);
+  const world = new WorldView(scene, sim);
+  const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
+  particles.onBloodLand = (x, z) => decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4);
+  const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
+  const views = new Map();
+  for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
+  const p = sim.player;
+  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.slot = 0;
+  G = { sim, scene, world, particles, decals, tracers, rag, ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
+    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
+  if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
+  hud.hideEnd();
+  viewmodel.root.visible = true;
+  window.__nh = { G, sim, cmd, input, hud, camera, audio };     // handles for the automatic browser test
+  return G;
+}
+
+/* =========================  events from the simulation -> effects  ========================= */
+
+function angleTo(p, x, z) { return Math.atan2(-(x - p.x), -(z - p.z)); }
+
+function handleEvents() {
+  const { sim, particles, decals, tracers, views } = G, p = sim.player;
+  for (const e of sim.drainEvents()) {
+    switch (e.t) {
+      case 'fire': {
+        const f = sim.fighters[e.by], w = WEAPONS[e.w];
+        audio.play(e.w, e.by === p.id ? { vol: 1 } : { x: f.x, z: f.z, maxD: w.noise * 1.6 });
+        if (e.by === p.id) {
+          viewmodel.kick(w); camfx.add(0.05 + w.kick * 0.045);
+          const k = (p.ads ? 0.55 : 1);
+          cmd.pitch = clamp(cmd.pitch + w.recoilUp * k, -1.5, 1.5); cmd.yaw += (Math.random() - 0.5) * 2 * w.recoilSide * k; G.recoil += w.recoilUp * k;
+          particles.casing(camera.position.x + Math.cos(cmd.yaw) * 0.25, camera.position.y - 0.15, camera.position.z - Math.sin(cmd.yaw) * 0.25, Math.cos(cmd.yaw), -Math.sin(cmd.yaw));
+        } else {
+          const v = views.get(e.by); if (v) v.shotFlash();
+          if (Math.hypot(f.x - p.x, f.z - p.z) < 70) hud.ping(f.x, f.z);
+        }
+        break;
+      }
+      case 'shot': {
+        const f = sim.fighters[e.by];
+        if (e.by === p.id) { viewmodel.guns[p.cur].userData.muzzle.getWorldPosition(tmp); }
+        else { const v = views.get(e.by); if (v) v.muzzleWorld(tmp); else tmp.set(e.ox, e.oy, e.oz); }
+        tracers.add(tmp.x, tmp.y, tmp.z, e.ex, e.ey, e.ez, e.by === p.id ? 0xfff2b0 : 0xffc27a);
+        if (e.hit === 'world') {
+          decals.hole(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz);
+          particles.sparks(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz, 5); particles.dust(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz, 3);
+        }
+        void f; break;
+      }
+      case 'hit': {
+        const t = sim.fighters[e.target];
+        particles.blood(e.x, e.y, e.z, e.dx, e.dy, e.dz, e.killed ? 18 : e.head ? 12 : 8, e.cause === 'explosion' ? 1.6 : 1);
+        const v = views.get(e.target); if (v) v.flash();
+        if (e.target === p.id) {
+          hud.hurtFlash(clamp(0.25 + e.dmg / 60, 0.25, 0.9)); camfx.add(clamp(0.2 + e.dmg / 90, 0.2, 0.7));
+          audio.play('hurt', { vol: 0.9 });
+          if (e.cause === 'bullet') hud.damageFrom(cmd.yaw - angleTo(p, e.sx, e.sz));
+        } else {
+          audio.play('hurt', { x: t.x, z: t.z, vol: 0.55, maxD: 40 });
+          if (e.by === p.id) { hud.hitmarker(e.killed, e.head); audio.play(e.killed ? 'kill' : e.head ? 'headshot' : 'hit', { vol: 0.9 }); }
+        }
+        break;
+      }
+      case 'kill': {
+        const t = sim.fighters[e.target], you = e.by === p.id, me = e.target === p.id;
+        const wName = WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.cause === 'zone' ? 'THE ZONE' : 'FALL');
+        hud.addFeed(e.byName === 'The zone' ? `<b>THE ZONE</b> ✕ ${e.name}` : `<b>${e.byName}</b> [${wName}${e.head ? ' ✦' : ''}] ${e.name}`, you || me);
+        particles.blood(e.x, e.y + 0.3, e.z, e.dx, e.dy + 0.2, e.dz, 24, 1.3);
+        G.decals.stain(e.x, 0.02, e.z, 0, 1, 0, 1.1);
+        const pw = e.cause === 'explosion' ? 2.3 : e.w === 'shotgun' ? 1.8 : e.w === 'dmr' ? 1.5 : 1;
+        const rg = G.rag.spawn({ x: e.x, y: e.y - 0.9, z: e.z, yaw: t.yaw, vx: e.vx, vz: e.vz, dx: e.dx, dy: e.dy, dz: e.dz, power: pw, head: e.head });
+        G.ragViews.push(new RagdollView(G.scene, rg, t.color, t.id, G.rag.life));
+        const v = views.get(e.target); if (v) { v.dispose(); views.delete(e.target); }
+        if (you) { hud.hitmarker(true, e.head); audio.play('kill', { vol: 1 }); hud.message(`ELIMINATED ${e.name.toUpperCase()}`, '#ffcf4d', 1.6); }
+        if (me) { G.deadT = performance.now(); G.killer = e.byName; viewmodel.root.visible = false; camfx.add(0.8); }
+        break;
+      }
+      case 'explosion': {
+        particles.explosion(e.x, e.y, e.z, e.r);
+        decals.holes.add(e.x, 0.03, e.z, 0, 1, 0, 3.6);
+        audio.play('explosion', { x: e.x, z: e.z, maxD: 160, vol: 1.2 });
+        const d = Math.hypot(e.x - p.x, e.z - p.z);
+        camfx.add(clamp(1 - d / 32, 0, 1) * 0.9);
+        if (d < 10 && p.alive) hud.whiteFlash(0.7 * (1 - d / 10));
+        break;
+      }
+      case 'reload': {
+        const f = sim.fighters[e.by];
+        audio.play(e.phase === 'start' ? 'reload1' : 'reload2', e.by === p.id ? { vol: 1 } : { x: f.x, z: f.z, maxD: 35, vol: 0.8 });
+        break;
+      }
+      case 'dry': if (e.by === p.id) audio.play('dry'); break;
+      case 'switch': if (e.by === p.id) audio.play('switch'); break;
+      case 'throw': { const f = sim.fighters[e.by]; audio.play('throw', e.by === p.id ? {} : { x: f.x, z: f.z, maxD: 45 }); break; }
+      case 'end': {
+        G.over = true;
+        if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(e), 1200); }
+        else { audio.play('lose'); setTimeout(() => hud.showEnd(e, G.killer), 1900); }
+        if (document.pointerLockElement) document.exitPointerLock();
+        break;
+      }
+      default: break;
+    }
+  }
+}
+
+/* =========================  per-frame update  ========================= */
+
+function handleInput(dt) {
+  const { sim } = G, p = sim.player;
+  if (!p.alive) { input.dx = 0; input.dy = 0; input.endFrame(); return; }
+  const w = WEAPONS[p.cur];
+  const sens = 1 - 0.5 * G.adsK * (1 - w.adsFov / 100);                      // aim slower while zoomed
+  const look = input.readLook(dt, sens);
+  G.lookYaw = look.yaw; G.lookPitch = look.pitch;
+  cmd.yaw += look.yaw; cmd.pitch = clamp(cmd.pitch + look.pitch, -1.5, 1.5);
+  Object.assign(cmd, input.readMove());
+  cmd.fire = input.fire; cmd.ads = input.ads;
+  if (input.wasPressed('KeyR')) cmd.reload = true;
+  if (input.wasPressed('KeyG')) cmd.grenade = true;
+  const slot = input.readSlot(); if (slot) cmd.slot = slot;
+  const wheel = input.takeWheel();
+  if (wheel) { const i = SLOT_ORDER.indexOf(p.cur); cmd.slot = ((i + (wheel > 0 ? 1 : -1) + SLOT_ORDER.length) % SLOT_ORDER.length) + 1; }
+  input.endFrame();
+  // recoil recovery: the view settles back down a bit when you stop shooting
+  if (!input.fire && p.fireT <= 0 && G.recoil > 0) { const r = Math.min(G.recoil, G.recoil * 4 * dt + 0.0006); cmd.pitch -= r * 0.6; G.recoil -= r; }
+}
+
+function updateCamera(dt, alpha) {
+  const { sim } = G, p = sim.player, w = WEAPONS[p.cur];
+  const shake = camfx.update(dt);
+  if (p.alive) {
+    const x = lerp(G.prev.x, G.cur.x, alpha), y = lerp(G.prev.y, G.cur.y, alpha), z = lerp(G.prev.z, G.cur.z, alpha);
+    camera.position.set(x, y + 0.72, z);
+    G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
+    camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
+    const targetFov = lerp(BASE_FOV + (p.sprinting ? 6 : 0), w.adsFov, G.adsK);
+    G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
+  } else {
+    // death cam: slowly orbit the ragdoll
+    const rv = G.ragViews[G.ragViews.length - 1];
+    const tp = rv?.torso() ?? G.lastTorso ?? { x: p.x, y: 1, z: p.z }; G.lastTorso = tp;
+    G.deathCamT += dt; const a = G.deathCamT * 0.35 + 0.8;
+    camera.position.set(tp.x + Math.sin(a) * 4.2, tp.y + 2.6, tp.z + Math.cos(a) * 4.2);
+    camera.lookAt(tp.x, tp.y + 0.3, tp.z);
+    G.fov = lerp(G.fov, BASE_FOV, 1 - Math.exp(-6 * dt));
+  }
+  if (Math.abs(camera.fov - G.fov) > 0.01) { camera.fov = G.fov; camera.updateProjectionMatrix(); }
+}
+
+let fpsSmooth = 60, last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  fpsSmooth = lerp(fpsSmooth, 1 / Math.max(dt, 1e-4), 0.05);
+  if (!G || !started) { return; }
+  const { sim } = G, p = sim.player;
+
+  if (!paused) {
+    handleInput(dt);
+    G.acc += dt;
+    while (G.acc >= STEP) {
+      G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
+      sim.step(STEP, cmd);
+      G.cur = { x: p.x, y: p.y, z: p.z };
+      G.acc -= STEP;
+    }
+    handleEvents();
+  }
+  const alpha = paused ? 1 : G.acc / STEP;
+
+  // ---- derive animation/visual state ----
+  const w = WEAPONS[p.cur], wasAds = G.adsK;
+  G.adsK = clamp(G.adsK + (p.ads && p.alive ? 1 : -1) * dt / w.adsTime, 0, 1);
+  void wasAds;
+  updateCamera(dt, alpha);
+  audio.setListener(camera.position.x, camera.position.z, cmd.yaw);
+  const moving = p.speedH > 1.2;
+  if (p.alive) {
+    viewmodel.update(dt, {
+      weapon: p.cur, adsTime: w.adsTime, ads: p.ads, sprint: p.sprinting && p.speedH > 3, grounded: p.grounded, speed: p.speedH,
+      lookYaw: G.lookYaw || 0, lookPitch: G.lookPitch || 0,
+      reloadK: p.reloadT > 0 ? 1 - p.reloadT / w.reload : -1, switchK: p.switchT > 0 ? p.switchT / 0.32 : 0,
+    });
+    G.lookYaw = 0; G.lookPitch = 0;
+    // player footsteps
+    if (p.grounded && p.speedH > 2) { G.stepT -= dt; if (G.stepT <= 0) { G.stepT = p.sprinting ? 0.27 : 0.4; audio.play('step', { vol: p.ads ? 0.4 : 1 }); } } else G.stepT = 0.1;
+  }
+
+  // fighters, ragdolls, effects
+  for (const v of G.views.values()) {
+    v.update(dt, Math.hypot(v.f.x - camera.position.x, v.f.z - camera.position.z));
+    if (v.stepped) audio.play('step', { x: v.f.x, z: v.f.z, maxD: 38, vol: 0.9 });
+  }
+  if (!paused) {
+    G.rag.update(dt);
+    G.world.update(dt, camera.position.x, camera.position.z);
+    G.particles.update(dt); G.tracers.update(dt);
+  }
+  for (let i = G.ragViews.length - 1; i >= 0; i--) { const rv = G.ragViews[i]; if (!G.rag.list.includes(rv.rag)) { rv.dispose(); G.ragViews.splice(i, 1); } else rv.update(); }
+
+  // zone announcements
+  const z = sim.zone, key = `${z.phase}${z.shrinking}`;
+  if (key !== G.lastZone) {
+    if (G.lastZone !== '' && p.alive) {
+      if (z.shrinking) { hud.message('ZONE IS CLOSING', '#ff4d4d', 2); audio.play('zone'); }
+      else { hud.message('NEW ZONE MARKED', '#ffffff', 2); audio.play('zone', { vol: 0.6, rate: 1.3 }); }
+    }
+    G.lastZone = key;
+  }
+
+  // crosshair spread in pixels (matches what the bullets really do)
+  const spreadRad = (p.ads ? w.spreadAds : w.spreadHip * (moving ? 1.35 : 1)) + p.bloom;
+  const spreadPx = Math.tan(spreadRad) * (innerHeight / 2) / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  hud.update(dt, sim, p, clamp(spreadPx, 0, 120), G.adsK, fpsSmooth);
+
+  renderer.render(G.scene, camera);
+}
+
+/* =========================  start / pause / play again  ========================= */
+
+function showOv(id, on) { $(id).classList.toggle('show', on); }
+
+async function beginPlay() {
+  audio.unlock();
+  if (!started) { started = true; await newMatch(); }
+  showOv('start', false); showOv('pause', false); paused = false;
+  if (!AUTOSTART) input.lock();
+}
+
+input.onLockChange = (locked) => {
+  if (!started || !G || G.over || AUTOSTART) return;
+  if (!locked) { paused = true; showOv('pause', true); } else { paused = false; showOv('pause', false); }
+};
+$('playbtn').addEventListener('click', beginPlay);
+$('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
+$('againbtn').addEventListener('click', async () => { audio.unlock(); showOv('end', false); await newMatch(); paused = false; if (!AUTOSTART) input.lock(); });
+
+(async function boot() {
+  await initPhysics();
+  requestAnimationFrame(frame);
+  if (AUTOSTART) { input.lockFailed = true; await beginPlay(); }
+})();

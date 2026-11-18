@@ -38,7 +38,9 @@ npm run dev
 ```
 Open the address it prints (usually http://localhost:5173) in Chrome. Click the screen to play.
 
-**Controls:** `WASD` move, `Shift` sprint, `Space` jump, mouse aim, click fire, `G` grenade, `R` reset. If the mouse will not lock, use the arrow keys to look.
+**Controls:** `WASD` move, `Shift` sprint, `Space` jump, mouse aim, **left click fire**, **right click aim down sights**, `R` reload, `1`-`6` or mouse wheel switch weapon, `G` grenade, `Esc` pause. If the mouse will not lock, use the arrow keys to look.
+
+**What you are playing:** a 16-fighter battle royale. You and 15 bots (the other seven operators + Recruits) spawn spread across a desert map. A red zone shrinks every ~40 seconds; stand outside it and you take damage. Last one alive wins. Bots see you with real line-of-sight, hear gunfire, take cover, throw grenades and also fight *each other*.
 
 **Stop the game:** click the terminal and press `Ctrl + C`.
 
@@ -56,6 +58,7 @@ It starts a real server, joins two fake players and prints PASS/FAIL lines. To r
 
 ```powershell
 npm test         # unit tests (movement directions, including the A/D fix)
+npm test         # 25 automatic tests of the game rules (weapons, bots, zone, ragdolls, springs...)
 npm run smoke    # physics + AI engine checks, no browser needed
 npm run build    # makes the website files in the dist folder
 ```
@@ -65,13 +68,17 @@ npm run build    # makes the website files in the dist folder
 | Folder | What is in it |
 |---|---|
 | `src/` | the game code |
+| `src/sim/` | **the game rules** (no graphics): fighters, weapons, bots, zone, map. Also runs on the server later |
+| `src/render/` | what you see: world, soldiers, guns, ragdolls (three.js) |
+| `src/fx/` | sound, particles, bullet holes, screen shake |
+| `src/ui/` | HUD and minimap |
 | `src/input/` | keyboard, mouse, movement maths (touch controls plug in here later) |
 | `data/` | operators and weapons as plain data (`operators.json`) |
-| `docs/` | design, roadmap, tech stack, notes from the old chat |
+| `docs/` | design, roadmap, tech stack, `COMBAT_SYSTEMS.md` (how the fighting works + what to tune), notes from the old chat |
 | `assets/` | models, textures, sounds (empty for now, see `ASSETS.md`) |
 | `public/` | files copied as-is into the website (favicon) |
 | `server/` | the multiplayer server (Colyseus + Rapier), has its own installs |
-| `scripts/` | helper scripts (`smoke.mjs`) |
+| `scripts/` | helper scripts (`smoke.mjs`, `e2e.mjs`) |
 | `tests/` | automatic tests |
 
 ## Rules for this project

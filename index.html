@@ -6,13 +6,60 @@
 <title>NIGHTHAWK</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <style>
-  html,body{margin:0;height:100%;background:#0b0e13;overflow:hidden;font-family:system-ui,sans-serif;user-select:none;touch-action:none}
+  :root{--accent:#ffcf4d;--panel:rgba(8,11,16,.62);--red:#ff4d4d;--green:#5be37a}
+  html,body{margin:0;height:100%;background:#0b0e13;overflow:hidden;font-family:ui-monospace,Consolas,Menlo,monospace;user-select:none;touch-action:none}
   #game{position:fixed;inset:0;width:100%;height:100%;display:block}
-  #hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 0 4px #000}
-  #cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ff5b5b;box-shadow:0 0 0 2px rgba(0,0,0,.5)}
-  #info{position:absolute;left:12px;top:10px;font-size:13px;line-height:1.5;opacity:.9}
-  #stats{position:absolute;right:12px;top:10px;font-size:13px;text-align:right}
-  #click{position:absolute;left:50%;top:60%;transform:translateX(-50%);padding:8px 16px;border-radius:999px;background:rgba(0,0,0,.55);font-size:14px;letter-spacing:1px}
+  #hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 1px 3px #000}
+  #vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 45%,rgba(160,0,0,.85) 100%);opacity:0}
+  #zonevig{position:absolute;inset:0;box-shadow:inset 0 0 120px 30px rgba(255,60,40,.55);opacity:0}
+  #flash{position:absolute;inset:0;background:#fff;opacity:0}
+  /* crosshair: four ticks that spread while moving/firing */
+  #cross{position:absolute;left:50%;top:50%;width:0;height:0}
+  #cross i{position:absolute;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.55);width:2px;height:8px;margin:-4px 0 0 -1px}
+  #cross i.h{width:8px;height:2px;margin:-1px 0 0 -4px}
+  #cross i.dot{width:3px;height:3px;margin:-1.5px 0 0 -1.5px;border-radius:50%;background:#ff5b5b}
+  #hitm{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0}
+  #hitm i{position:absolute;width:3px;height:11px;background:#fff;margin:-5px 0 0 -1px;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
+  #hitm i:nth-child(1){transform:rotate(45deg) translateY(-14px)}#hitm i:nth-child(2){transform:rotate(-45deg) translateY(-14px)}
+  #hitm i:nth-child(3){transform:rotate(135deg) translateY(-14px)}#hitm i:nth-child(4){transform:rotate(-135deg) translateY(-14px)}
+  #hitm.kill i{background:var(--red);width:4px;height:14px}
+  #dmg{position:absolute;left:50%;top:50%;width:0;height:0}
+  #dmg i{position:absolute;left:-60px;top:-150px;width:120px;height:46px;transform-origin:60px 150px;background:radial-gradient(ellipse at 50% 100%,rgba(255,30,30,.9),rgba(255,30,30,0) 70%);opacity:0}
+  .box{background:var(--panel);border:1px solid rgba(255,255,255,.12);border-radius:6px}
+  #topl{position:absolute;left:12px;top:10px;display:flex;flex-direction:column;gap:6px}
+  #counts{display:flex;gap:6px}
+  #counts div{padding:5px 10px;font-size:13px;letter-spacing:1px}
+  #counts b{font-size:18px;color:var(--accent)}
+  #mini{width:150px;height:150px;display:block}
+  #zone{position:absolute;left:50%;top:10px;transform:translateX(-50%);padding:5px 14px;font-size:13px;letter-spacing:2px;text-align:center}
+  #zone.warn{color:var(--red);border-color:var(--red)}
+  #fps{position:absolute;right:12px;top:10px;font-size:11px;opacity:.55;text-align:right}
+  #feed{position:absolute;right:12px;top:34px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;font-size:12px}
+  #feed div{padding:3px 8px;background:var(--panel);border-radius:4px;animation:fin .15s ease-out}
+  #feed .you{border-left:3px solid var(--accent)} #feed b{color:var(--accent)}
+  @keyframes fin{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+  #hp{position:absolute;left:14px;bottom:14px;width:240px;padding:8px 10px}
+  #hp .bar{height:12px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-top:4px}
+  #hp .fill{height:100%;width:100%;background:var(--green);transition:width .08s linear}
+  #hp .row{display:flex;justify-content:space-between;font-size:12px;letter-spacing:1px}
+  #hpn{font-size:20px;font-weight:bold}
+  #ammo{position:absolute;right:14px;bottom:14px;min-width:190px;padding:8px 12px;text-align:right}
+  #wname{font-size:12px;letter-spacing:2px;color:var(--accent)}
+  #mag{font-size:34px;font-weight:bold;line-height:1.05}#mag small{font-size:16px;opacity:.7}
+  #nades{font-size:12px;opacity:.85}
+  #rl{height:4px;background:rgba(255,255,255,.15);margin-top:5px;border-radius:2px;overflow:hidden;opacity:0}#rl i{display:block;height:100%;width:0;background:var(--accent)}
+  #slots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:5px}
+  #slots div{padding:4px 8px;font-size:11px;letter-spacing:1px;opacity:.55}
+  #slots div.on{opacity:1;border-color:var(--accent);color:var(--accent)}
+  #msg{position:absolute;left:50%;top:66%;transform:translateX(-50%);font-size:18px;letter-spacing:3px;color:var(--red);opacity:0;text-align:center}
+  .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(5,8,12,.78);color:#fff;text-align:center;pointer-events:auto;z-index:5}
+  .ov.show{display:flex}
+  .ov h1{margin:0;font-size:46px;letter-spacing:8px;color:var(--accent)}
+  .ov h2{margin:0;font-size:34px;letter-spacing:6px}
+  .ov p{margin:0;opacity:.85;font-size:14px;line-height:1.7}
+  .btn{pointer-events:auto;cursor:pointer;padding:12px 30px;border:2px solid var(--accent);color:var(--accent);background:rgba(0,0,0,.4);font:inherit;font-size:16px;letter-spacing:4px;border-radius:4px}
+  .btn:hover{background:var(--accent);color:#000}
+  #stats-end{display:flex;gap:26px;font-size:14px}#stats-end b{display:block;font-size:30px;color:var(--accent)}
   #rotate{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:#0b0e13;color:#ffcf4d;font-size:22px;letter-spacing:3px;text-align:center}
   @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
 </style>
@@ -20,10 +67,35 @@
 <body>
 <canvas id="game"></canvas>
 <div id="hud">
-  <div id="cross"></div>
-  <div id="info">NIGHTHAWK · tech proof<br>WASD move · Shift sprint · Space jump<br>Mouse aim · Click fire · G grenade · R reset</div>
-  <div id="stats"><span id="fps">0</span> fps<br>bots: <span id="bots">0</span> · kills: <span id="kills">0</span></div>
-  <div id="click">CLICK TO PLAY</div>
+  <div id="zonevig"></div><div id="vig"></div><div id="flash"></div>
+  <div id="dmg"></div>
+  <div id="cross"><i class="dot"></i><i id="cu"></i><i id="cd"></i><i id="cl" class="h"></i><i id="cr" class="h"></i></div>
+  <div id="hitm"><i></i><i></i><i></i><i></i></div>
+  <div id="topl">
+    <div id="counts"><div class="box">ALIVE <b id="alive">16</b></div><div class="box">KILLS <b id="kills">0</b></div></div>
+    <canvas id="mini" class="box" width="150" height="150"></canvas>
+  </div>
+  <div id="zone" class="box">ZONE</div>
+  <div id="fps"><span id="fpsn">0</span> fps</div>
+  <div id="feed"></div>
+  <div id="slots"></div>
+  <div id="msg"></div>
+  <div id="hp" class="box"><div class="row"><span id="opname">OPERATOR</span><span id="hpn">100</span></div><div class="bar"><div class="fill" id="hpbar"></div></div></div>
+  <div id="ammo" class="box"><div id="wname">AR-91</div><div id="mag">30 <small>/ 150</small></div><div id="nades">GRENADES 2</div><div id="rl"><i></i></div></div>
+</div>
+
+<div id="start" class="ov show">
+  <h1>NIGHTHAWK</h1>
+  <p>16 fighters · one shrinking zone · last one standing</p>
+  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim<br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; Esc pause</p>
+  <button class="btn" id="playbtn">CLICK TO PLAY</button>
+</div>
+<div id="pause" class="ov"><h2>PAUSED</h2><p>Click RESUME or press Esc again to keep playing.</p><button class="btn" id="resumebtn">RESUME</button></div>
+<div id="end" class="ov">
+  <h1 id="endtitle">ELIMINATED</h1>
+  <p id="endsub"></p>
+  <div id="stats-end"><div><b id="e-place">#1</b>PLACE</div><div><b id="e-kills">0</b>KILLS</div><div><b id="e-time">0:00</b>SURVIVED</div></div>
+  <button class="btn" id="againbtn">PLAY AGAIN</button>
 </div>
 <div id="rotate">ROTATE YOUR PHONE<br><small>landscape only</small></div>
 <script type="module" src="/src/main.js"></script>
