@@ -59,7 +59,7 @@ Wooden crates break after enough damage and drop their stacked neighbours. Red b
 | Airdrop | falls for 9 s, then one fighter within 2.8 m for 2.5 s opens it | `contracts.js` consts `FALL_T`, `OPEN_T`, `OPEN_R` |
 | Hardpoint | circle r=9, hold it alone for 14 s (cumulative) | `HOLD_T`, `HP_R` |
 | Bounty | the current top killer is marked for 50 s; the killer gets +50 hp and a mortar charge | `_bounty` |
-| Relay uplink | secure the relay alone for 7 s, then remain alone for a 10 s intel upload; contested pauses progress and abandonment slowly decays it | `_uplink`, `ARM_T`, `UPLOAD_T` |
+| Relay uplink | secure the relay alone for 7 s, then remain alone for a 10 s intel upload; contested pauses progress and abandonment slowly decays it. Existing garrison guards redeploy to defend the site and return to their outpost when it ends | `_uplink`, `alertGarrison`, `restoreGarrison`, `ARM_T`, `UPLOAD_T` |
 | Order | the first three contracts are airdrop, hardpoint, bounty, then random (including relay uplink); at most 2 active; the first at about 24 s | `Contracts._spawn`, `opts.contractStart` |
 | Mortar | every 3rd kill in a row, or any contract, gives a charge (max 2). `T` calls 7 shells (radius 7, 100 damage) at the spot you look at, at least 16 m away | `callMortar`, `_stepStrikes` in `world.js` |
 | Weather | chosen from the match seed; changes view distance and how far shots are heard | `weather.js` (`hearing`, `sight`) |
