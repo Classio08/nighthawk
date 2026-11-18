@@ -8,7 +8,7 @@ Drop into a small shrinking map with 15 other fighters, pick up weapons, use you
 - **Bots fill the lobby.** The game is fun on day one with zero servers. Real players are added later without changing the game.
 - **Small map, fast zone.** PUBG's tension without PUBG's 30 minutes of walking.
 - **COD's identity** comes from the operators: eight characters, each with one ability and a signature weapon.
-- **Simple textures.** Flat colors and low-poly shapes. Cheap to make, loads fast, runs on weak laptops, and is easy to read in a fight.
+- **Realistic but performance-conscious visuals.** Use believable proportions, PBR materials and detailed hero assets with LODs, shared materials, compressed textures and modular environment kits to retain browser performance.
 
 ## Core loop
 1. Pick an operator (and a cosmetic).
