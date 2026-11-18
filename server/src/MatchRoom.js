@@ -2,6 +2,7 @@
 // takes inputs from players, and tells everybody what happened. Players can never say "I hit him" - only "I pressed fire".
 import { Room } from '@colyseus/core';
 import { Simulation, OPERATORS } from '../../src/sim/world.js';
+import { skinOk } from '../../src/sim/weapons.js';
 import { sanitizeCmd, repeatCmd } from '../../src/sim/cmd.js';
 import { STEP, SNAP_EVERY, packSnapshot, packRoster, unpackCmd } from '../../src/net/protocol.js';
 
@@ -32,7 +33,7 @@ export class MatchRoom extends Room {
   }
 
   onJoin(client, options) {
-    this.lobby.set(client.sessionId, { client, name: cleanName(options?.name), operator: String(options?.operator ?? '') });
+    this.lobby.set(client.sessionId, { client, name: cleanName(options?.name), operator: String(options?.operator ?? ''), skin: skinOk(options?.skin) });
     if (this.lobby.size >= this.maxClients) this._start();
     else this._sendLobby();
   }
@@ -64,7 +65,7 @@ export class MatchRoom extends Room {
     for (const [sid, p] of this.lobby) {
       let op = OPERATORS.find((o) => o.id === p.operator && !used.has(o.id)) ?? OPERATORS.find((o) => !used.has(o.id));
       if (!op) op = OPERATORS[humans.length % OPERATORS.length];
-      used.add(op.id); humans.push({ operator: op.id, name: p.name, sessionId: sid });
+      used.add(op.id); humans.push({ operator: op.id, name: p.name, skin: p.skin, sessionId: sid });
     }
     const seed = (Math.random() * 1e9) | 0;
     this.sim = await Simulation.create({ seed, bots: Math.max(0, this.cfg.total - humans.length), humans, propsFixed: true });

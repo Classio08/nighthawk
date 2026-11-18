@@ -4,7 +4,7 @@
 // Rules live in src/sim (no graphics there, so the multiplayer server can run the same code).
 import * as THREE from 'three';
 import { Simulation, initPhysics } from './sim/world.js';
-import { WEAPONS, SLOT_ORDER } from './sim/weapons.js';
+import { WEAPONS, SLOT_ORDER, RELOAD_STAGES, SKINS, skinOk } from './sim/weapons.js';
 import { Input } from './input/input.js';
 import { WorldView } from './render/scene.js';
 import { FighterView } from './render/fighter.js';
@@ -15,6 +15,8 @@ import { Particles } from './fx/particles.js';
 import { Decals } from './fx/decals.js';
 import { Tracers } from './fx/tracers.js';
 import { CameraFx } from './fx/camerafx.js';
+import { MagDrops } from './fx/mags.js';
+import { tickSkins, skinReact, SKIN_INFO } from './render/skins.js';
 import { audio } from './fx/audio.js';
 import { Hud } from './ui/hud.js';
 
@@ -27,6 +29,10 @@ const AUTOSTART = params.has('autostart');
 const DEFAULT_SERVER = import.meta.env?.VITE_SERVER_URL ?? (['localhost', '127.0.0.1'].includes(location.hostname) ? `ws://${location.hostname}:2567` : '');
 const ONLINE_URL = params.get('online') || DEFAULT_SERVER;        // ?online=ws://host:2567 overrides
 const FAKE_LAG = +(params.get('lag') ?? 0);                         // ?lag=120 simulates 120 ms of round-trip lag (for testing)          // used by the automatic browser test: skips the click-to-play screen
+
+/* weapon skin: picked on the start screen, remembered in the browser, ?skin=magma overrides (for testing) */
+let SKIN = null;
+try { SKIN = skinOk(params.get('skin') ?? localStorage.getItem('nh_skin')); } catch { /* private mode */ }
 
 const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -56,17 +62,19 @@ function disposeScene(scene) {
 async function newMatch(online = null) {
   if (G) { G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms' });
+  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms', skin: SKIN });
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
   particles.onBloodLand = (x, z) => decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4);
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
+  const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
   const views = new Map();
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
   const p = sim.player;
+  viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, particles, decals, tracers, rag, ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
+  G = { sim, net: online, scene, world, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
@@ -76,6 +84,19 @@ async function newMatch(online = null) {
 }
 
 /* =========================  events from the simulation -> effects  ========================= */
+
+/** the old magazine falls out of the gun (cosmetic physics, see fx/mags.js) */
+const magV = new THREE.Vector3(), magVel = new THREE.Vector3();
+function dropMag(f, mine, empty) {
+  if (!G || G.over) return;
+  const sim = G.sim;
+  if (mine) viewmodel.magWorld(magV);
+  else { const v = G.views.get(f.id); if (!v) return; v.gunWorld(magV); magV.y -= 0.12; }
+  const yaw = mine ? cmd.yaw : f.yaw, c = Math.cos(yaw), s = Math.sin(yaw);
+  magVel.set(c * 0.9 + (Math.random() - 0.5) * 0.6, -0.8, -s * 0.9 + (Math.random() - 0.5) * 0.6);          // out to the right and down
+  G.mags.drop(magV, magVel, empty);
+  void sim;
+}
 
 function angleTo(p, x, z) { return Math.atan2(-(x - p.x), -(z - p.z)); }
 
@@ -124,6 +145,7 @@ function handleEvents() {
       }
       case 'kill': {
         const t = sim.fighters[e.target], you = e.by === p.id, me = e.target === p.id;
+        if (you) skinReact(0.7);
         const wName = WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.cause === 'zone' ? 'THE ZONE' : 'FALL');
         hud.addFeed(e.byName === 'The zone' ? `<b>THE ZONE</b> ✕ ${e.name}` : `<b>${e.byName}</b> [${wName}${e.head ? ' ✦' : ''}] ${e.name}`, you || me);
         particles.blood(e.x, e.y + 0.3, e.z, e.dx, e.dy + 0.2, e.dz, 24, 1.3);
@@ -146,8 +168,16 @@ function handleEvents() {
         break;
       }
       case 'reload': {
-        const f = sim.fighters[e.by];
-        audio.play(e.phase === 'start' ? 'reload1' : 'reload2', e.by === p.id ? { vol: 1 } : { x: f.x, z: f.z, maxD: 35, vol: 0.8 });
+        const f = sim.fighters[e.by], mine = e.by === p.id;
+        const snd = (name, vol = 1, rate = 1) => audio.play(name, mine ? { vol, rate } : { x: f.x, z: f.z, maxD: 35, vol: 0.8 * vol, rate });
+        if (e.phase === 'start') {
+          // reload in stages: release the magazine -> (it drops) -> new magazine goes in -> (empty gun only) charge the weapon
+          const st = RELOAD_STAGES[e.empty ? 'empty' : 'tactical'], T = e.time * 1000, now = performance.now();
+          snd('reload1');
+          G.later.push({ at: now + T * st.drop, fn: () => dropMag(f, mine, e.empty) });
+          G.later.push({ at: now + T * st.insert, fn: () => snd('magin', 1, 0.95 + Math.random() * 0.1) });
+          if (e.empty) G.later.push({ at: now + T * st.charge, fn: () => snd('charge') });
+        } else if (!e.empty) snd('reload2', 0.6);
         break;
       }
       case 'dry': if (e.by === p.id) audio.play('dry'); break;
@@ -245,7 +275,7 @@ function frame(now) {
     viewmodel.update(dt, {
       weapon: p.cur, adsTime: w.adsTime, ads: p.ads, sprint: p.sprinting && p.speedH > 3, grounded: p.grounded, speed: p.speedH,
       lookYaw: G.lookYaw || 0, lookPitch: G.lookPitch || 0,
-      reloadK: p.reloadT > 0 ? 1 - p.reloadT / w.reload : -1, switchK: p.switchT > 0 ? p.switchT / 0.32 : 0,
+      reloadK: p.reloadT > 0 ? 1 - p.reloadT / (p.reloadTot || w.reload) : -1, reloadEmpty: p.reloadEmpty, switchK: p.switchT > 0 ? p.switchT / 0.32 : 0,
     });
     G.lookYaw = 0; G.lookPitch = 0;
     // player footsteps
@@ -260,8 +290,10 @@ function frame(now) {
   if (!paused) {
     G.rag.update(dt);
     G.world.update(dt, camera.position.x, camera.position.z);
-    G.particles.update(dt); G.tracers.update(dt);
+    G.particles.update(dt); G.tracers.update(dt); G.mags.update(dt);
+    for (let i = G.later.length - 1; i >= 0; i--) if (now >= G.later[i].at) { const j = G.later.splice(i, 1)[0]; j.fn(); }
   }
+  tickSkins(now / 1000, dt);
   for (let i = G.ragViews.length - 1; i >= 0; i--) { const rv = G.ragViews[i]; if (!G.rag.list.includes(rv.rag)) { rv.dispose(); G.ragViews.splice(i, 1); } else rv.update(); }
 
   // zone announcements
@@ -309,7 +341,7 @@ async function beginOnline() {
   const ticket = joining = {};                         // so CANCEL can abandon this attempt
   try {
     const { NetSim } = await import('./net/netsim.js');          // the multiplayer code is only downloaded when you go online
-    const net = await NetSim.join(ONLINE_URL, { name, operator: params.get('op') ?? 'roms', lag: FAKE_LAG,
+    const net = await NetSim.join(ONLINE_URL, { name, operator: params.get('op') ?? 'roms', skin: SKIN, lag: FAKE_LAG,
       onLobby: (m) => { $('lobbytxt').textContent = `${m.n} player${m.n === 1 ? '' : 's'} in the lobby · starting in ${m.left} s`; } });
     if (joining !== ticket) { net.dispose(); return; }
     started = true; await newMatch(net);
@@ -325,6 +357,18 @@ async function beginOnline() {
 $('onlinebtn').addEventListener('click', beginOnline);
 $('lobbycancel').addEventListener('click', () => { joining = null; showOv('lobby', false); showOv('start', true); });
 try { $('namebox').value = localStorage.getItem('nh_name') ?? ''; } catch { /* ignore */ }
+/* weapon skin chips on the start screen */
+{
+  const box = $('skins');
+  const chips = [[null, 'STOCK', '#20242b'], ...SKINS.map((id) => [id, SKIN_INFO[id].label, SKIN_INFO[id].css])];
+  for (const [id, label, css] of chips) {
+    const b = document.createElement('button'); b.className = 'skin'; b.textContent = label; b.style.background = css; b.dataset.skin = id ?? '';
+    b.onclick = () => { SKIN = id; try { if (id) localStorage.setItem('nh_skin', id); else localStorage.removeItem('nh_skin'); } catch { /* ignore */ } mark(); };
+    box.appendChild(b);
+  }
+  const mark = () => box.querySelectorAll('.skin').forEach((b) => b.classList.toggle('on', (b.dataset.skin || null) === SKIN));
+  mark();
+}
 $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);

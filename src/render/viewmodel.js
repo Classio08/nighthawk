@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { Spring } from './spring.js';
 import { makeGun, GUN_IDS } from './guns.js';
+import { RELOAD_STAGES } from '../sim/weapons.js';
+import { skinReact } from './skins.js';
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -14,9 +16,8 @@ export class Viewmodel {
   constructor(camera) {
     this.root = new THREE.Group();
     camera.add(this.root);
-    this.guns = {};
-    for (const id of GUN_IDS) { const g = makeGun(id); g.scale.setScalar(SCALE); g.visible = false; this.root.add(g); this.guns[id] = g; }
-    this.cur = null;
+    this.guns = {}; this.skin = null; this.cur = null;
+    this._build();
     // muzzle flash: two crossed quads, shown for ~0.05 s
     const fm = new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, depthWrite: false, side: THREE.DoubleSide });
     this.flash = new THREE.Group();
@@ -28,9 +29,27 @@ export class Viewmodel {
     this.sx = new Spring(90, 11); this.sy = new Spring(90, 11);          // sway position
     this.rx = new Spring(110, 12); this.ry = new Spring(90, 11); this.rz = new Spring(90, 11); // sway rotation
     this.kz = new Spring(220, 17); this.krx = new Spring(180, 13);       // recoil: push back + muzzle climb
-    this.adsT = 0; this.sprintT = 0; this.bobT = 0; this.bobAmp = 0; this.landDip = new Spring(160, 12);
+    this.prevK = -1; this.adsT = 0; this.sprintT = 0; this.bobT = 0; this.bobAmp = 0; this.landDip = new Spring(160, 12);
     this.wasGrounded = true;
   }
+
+  _build() {
+    for (const id of GUN_IDS) { const g = makeGun(id, undefined, this.skin); g.scale.setScalar(SCALE); g.visible = false; this.root.add(g); this.guns[id] = g; }
+  }
+
+  /** change the cosmetic skin (null = plain). Rebuilds the guns, which only happens when a match starts. */
+  setSkin(skin) {
+    skin = skin || null;
+    if (skin === this.skin) return;
+    const was = this.cur;
+    if (was) this.guns[was].userData.muzzle.remove(this.flash);
+    for (const id of GUN_IDS) { const g = this.guns[id]; this.root.remove(g); g.traverse((o) => { if (o.isMesh && o.geometry !== undefined && g.userData.skin) o.geometry.dispose(); }); }
+    this.skin = skin; this.cur = null; this._build();
+    if (was) this.setWeapon(was);
+  }
+
+  /** world position of the magazine well (where the dropped magazine starts) */
+  magWorld(out) { const g = this.guns[this.cur]; const m = g?.userData.mag; if (!m) return g ? g.getWorldPosition(out) : out; m.getWorldPosition(out); out.y -= 0.05; return out; }
 
   setWeapon(id) {
     if (this.cur === id) return;
@@ -40,6 +59,7 @@ export class Viewmodel {
 
   /** call when the player fires a shot */
   kick(w) {
+    skinReact(0.12);
     this.kz.impulse(w.kick * 1.15);
     this.krx.impulse(w.kick * 2.4);
     this.ry.impulse((Math.random() - 0.5) * w.kick * 1.2);
@@ -78,8 +98,26 @@ export class Viewmodel {
     const bobK = this.bobAmp * (1 - a * 0.85) * (1 + sp * 0.8);
     const bobX = Math.cos(this.bobT) * 0.009 * bobK, bobY = Math.abs(Math.sin(this.bobT)) * 0.012 * bobK;
 
-    // reload dip, weapon raise
-    let rl = 0; if (s.reloadK >= 0) rl = Math.sin(Math.PI * clamp(s.reloadK, 0, 1));
+    // reload: gun tilts away (rl), the magazine drops out, a new one slides in, an EMPTY gun is charged at the end
+    const k = s.reloadK, stg = RELOAD_STAGES[s.reloadEmpty ? 'empty' : 'tactical'];
+    const sstep = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+    let rl = 0, rack = 0;
+    if (k >= 0) {
+      rl = sstep(0, 0.14, k) * (1 - sstep(0.88, 1, k));
+      if (s.reloadEmpty || s.weapon === 'shotgun') { const c = s.reloadEmpty ? stg.charge : 0.82; rack = Math.sin(Math.PI * clamp((k - c) / 0.14, 0, 1)); }
+      if (this.prevK >= 0 && this.prevK < stg.insert && k >= stg.insert) { this.kz.impulse(-0.55); this.krx.impulse(-0.4); }    // magazine seats: a thump
+    }
+    this.prevK = k;
+    const mag = g.userData.mag;
+    if (mag) {
+      const base = mag.userData.base;
+      let off = 0, vis = true;
+      if (k >= 0) {
+        if (k >= stg.drop && k < stg.insert - 0.14) { off = -sstep(stg.drop, stg.drop + 0.07, k) * 0.3; vis = k < stg.drop + 0.05; }          // slides out and is gone
+        else if (k >= stg.insert - 0.14 && k < stg.insert) off = -(1 - sstep(stg.insert - 0.14, stg.insert, k)) * 0.22;                     // new one comes up from below
+      }
+      mag.position.set(base.x, base.y + off, base.z); mag.visible = vis;
+    }
     const sw = s.switchK;                                         // 1 -> 0 while raising
 
     const adsY = -g.userData.adsY * SCALE;
@@ -88,7 +126,8 @@ export class Viewmodel {
     let z = lerp(lerp(HIP.z, SPRINT.z, sp), -0.5, a);
     x += this.sx.step(dt) + bobX; y += this.sy.step(dt) + bobY * -1 + this.landDip.step(dt) * 0.03;
     y -= rl * 0.16 + sw * sw * 0.32;
-    z += this.kz.step(dt) * 0.03 - 0.0;
+    z += this.kz.step(dt) * 0.03 + rack * 0.07;
+    x -= rack * 0.02;
 
     g.position.set(x, y, z);
     g.rotation.set(

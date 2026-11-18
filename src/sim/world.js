@@ -5,7 +5,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as YUKA from 'yuka';
 import operatorData from '../../data/operators.json' with { type: 'json' };
 import { makeRng } from './rng.js';
-import { WEAPONS, SLOT_ORDER, damageAt } from './weapons.js';
+import { WEAPONS, SLOT_ORDER, reloadTime, magCap, skinOk, SKINS, damageAt } from './weapons.js';
 import { buildMap, pickSpawns, findFreeSpot } from './map.js';
 import { Squad } from './squad.js';
 import { pickPersonality } from './personality.js';
@@ -39,7 +39,7 @@ export class Fighter {
     this.ads = false; this.sprinting = false;
     this.weapons = {}; this.cur = op.weapon;
     for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve };
-    this.fireT = 0; this.reloadT = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
+    this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
     this.nades = 2; this.nadeT = 0;
     this.noHurtT = 0; this.zoneAcc = 0;
     this.brain = null; this.rb = null; this.col = null;
@@ -50,13 +50,13 @@ export class Fighter {
   exportSelf() {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
-      fireT: this.fireT, reloadT: this.reloadT, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
+      fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
       nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
     for (const k of SLOT_ORDER) { this.weapons[k].ammo = s.w[k][0]; this.weapons[k].reserve = s.w[k][1]; }
-    this.fireT = s.fireT; this.reloadT = s.reloadT; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
+    this.fireT = s.fireT; this.reloadT = s.reloadT; this.reloadTot = s.rt ?? 1; this.reloadEmpty = !!s.re; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
     this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
   }
@@ -112,14 +112,14 @@ export class Simulation {
     }
 
     // fighters: humans first (ids 0..H-1), then bots. Offline = 1 human. Online = everybody in the room.
-    const humans = this.opts.humans ?? [{ operator: this.opts.operator ?? 'roms' }];
+    const humans = this.opts.humans ?? [{ operator: this.opts.operator ?? 'roms', skin: this.opts.skin }];
     const nBots = this.opts.bots ?? 15;
     const spawns = pickSpawns(this.map, humans.length + nBots, this.rng);
     this.humans = []; const usedOps = new Set();
     humans.forEach((h, i) => {
       const op = OPERATORS.find((o) => o.id === h.operator) ?? OPERATORS[i % OPERATORS.length];
       const f = this._addFighter(i, h.name ?? op.name, op, true, spawns[i]);
-      f.sessionId = h.sessionId ?? null; this.humans.push(f); usedOps.add(op.id);
+      f.sessionId = h.sessionId ?? null; f.skin = skinOk(h.skin); this.humans.push(f); usedOps.add(op.id);
     });
     this.player = this.humans[0] ?? null;        // "the" local player (offline / client prediction). null on a pure server
     const botOps = OPERATORS.filter((o) => !usedOps.has(o.id));
@@ -130,6 +130,7 @@ export class Simulation {
         : { id: `recruit${i}`, name: `Recruit-${String(i - botOps.length + 1).padStart(2, '0')}`, color: colors[i % colors.length], hp: 100, speed: 9.5, weapon: generic[i % generic.length] };
       const f = this._addFighter(humans.length + i, op.name, op, false, spawns[humans.length + i] ?? { x: this.rng.range(-60, 60), z: this.rng.range(-60, 60) });
       f.brain = new BotBrain(this, f, this.rng.range(0.35, 0.9), pickPersonality(this.rng, i));
+      f.skin = ((f.id * 2654435761 + (this.opts.seed ?? 0) * 97) >>> 0) % 100 < 34 ? SKINS[(f.id * 7 + (this.opts.seed ?? 0)) % SKINS.length] : null;   // not rng(): keeps the dice sequence unchanged
     }
     this.squads = [];
     if (this.opts.squads !== false) this._makeSquads(this.fighters.filter((f) => f.brain));
@@ -311,15 +312,16 @@ export class Simulation {
     if (f.reloadT > 0) {
       f.reloadT -= dt;
       if (f.reloadT <= 0) {
-        const take = Math.min(w.mag - st.ammo, st.reserve);
+        // tactical reload keeps the chambered round (mag + 1); an empty gun just gets a full magazine
+        const cap = f.reloadEmpty ? w.mag : magCap(w, 1), take = Math.min(cap - st.ammo, st.reserve);
         st.ammo += take; st.reserve -= take; f.reloadT = 0;
-        this.emit({ t: 'reload', by: f.id, phase: 'end', w: w.id });
+        this.emit({ t: 'reload', by: f.id, phase: 'end', w: w.id, empty: f.reloadEmpty });
       }
       f.wasFiring = wantFire; return;
     }
     if ((wantReload || (wantFire && st.ammo <= 0)) && st.ammo < w.mag && st.reserve > 0) {
-      f.reloadT = w.reload; f.shotsInBurst = 0;
-      this.emit({ t: 'reload', by: f.id, phase: 'start', w: w.id, time: w.reload });
+      f.reloadEmpty = st.ammo <= 0; f.reloadTot = f.reloadT = reloadTime(w, st.ammo); f.shotsInBurst = 0;
+      this.emit({ t: 'reload', by: f.id, phase: 'start', w: w.id, time: f.reloadT, empty: f.reloadEmpty, left: st.ammo });
       f.wasFiring = wantFire; return;
     }
     const trigger = wantFire && (w.auto || !f.wasFiring);

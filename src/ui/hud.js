@@ -70,7 +70,7 @@ export class Hud {
       this.slotEls.forEach((d, i) => d.classList.toggle('on', SLOT_ORDER[i] === p.cur));
     }
     e.mag.style.color = st.ammo <= w.mag * 0.25 ? '#ff6b6b' : '#fff';
-    if (p.reloadT > 0) { e.rl.style.opacity = 1; e.rl.firstChild.style.width = `${(1 - p.reloadT / w.reload) * 100}%`; } else e.rl.style.opacity = 0;
+    if (p.reloadT > 0) { e.rl.style.opacity = 1; e.rl.firstChild.style.width = `${(1 - p.reloadT / (p.reloadTot || w.reload)) * 100}%`; } else e.rl.style.opacity = 0;
     // crosshair
     const gap = (spread + 3) * (1 - adsK * 0.9);
     e.cu.style.transform = `translateY(${-gap}px)`; e.cd.style.transform = `translateY(${gap}px)`;

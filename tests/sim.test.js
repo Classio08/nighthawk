@@ -71,7 +71,7 @@ test('shooting: a hit hurts, a headshot hurts more, ammo drops, empty weapon rel
   assert.ok(body > 20 && body < head, `body ${body} should be less than head ${head}`);
   // empty -> auto reload
   p.weapons.pistol.ammo = 0; cmd.fire = true; run(sim, 0.1, cmd); cmd.fire = false;
-  assert.ok(p.reloadT > 0, 'trigger on empty starts the reload'); run(sim, 1.5, cmd);
+  assert.ok(p.reloadT > 0, 'trigger on empty starts the reload'); run(sim, 1.9, cmd);
   assert.equal(p.weapons.pistol.ammo, 15);
 });
 

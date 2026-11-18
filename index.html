@@ -60,6 +60,10 @@
   .btn{pointer-events:auto;cursor:pointer;padding:12px 30px;border:2px solid var(--accent);color:var(--accent);background:rgba(0,0,0,.4);font:inherit;font-size:16px;letter-spacing:4px;border-radius:4px}
   .btn:hover{background:var(--accent);color:#000}
   #namebox{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:14px;padding:8px 12px;border-radius:4px;text-align:center;width:200px;letter-spacing:2px;user-select:text}
+  #skins{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;pointer-events:auto;max-width:560px}
+  #skins small{width:100%;opacity:.6;font-size:11px;letter-spacing:3px}
+  .skin{pointer-events:auto;cursor:pointer;width:62px;height:34px;border-radius:4px;border:2px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:9px;letter-spacing:1px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;text-shadow:0 1px 2px #000,0 0 3px #000;background:#20242b}
+  .skin:hover{border-color:#fff}.skin.on{border-color:var(--accent);box-shadow:0 0 10px var(--accent)}
   #stats-end{display:flex;gap:26px;font-size:14px}#stats-end b{display:block;font-size:30px;color:var(--accent)}
   #rotate{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:#0b0e13;color:#ffcf4d;font-size:22px;letter-spacing:3px;text-align:center}
   @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
@@ -92,6 +96,7 @@
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <input id="namebox" maxlength="16" placeholder="your callsign" spellcheck="false" autocomplete="off" />
+  <div id="skins"><small>WEAPON SKIN</small></div>
   <p id="onlinemsg" style="min-height:1.4em;color:var(--red)"></p>
 </div>
 <div id="lobby" class="ov"><h2>FINDING A MATCH</h2><p id="lobbytxt">connecting...</p><p style="opacity:.6;font-size:12px">empty slots are filled with bots, so you always get a full match</p><button class="btn" id="lobbycancel">CANCEL</button></div>

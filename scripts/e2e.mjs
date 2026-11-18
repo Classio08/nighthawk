@@ -80,7 +80,7 @@ const hold = async (page, code, ms) => { await page.keyboard.down(code); await w
   check('R starts a reload', (await state(page)).reloadT > 0);
   await wait(4200);
   const sR = await state(page);
-  check('reload refills the magazine', sR.ammo === 80 && sR.reloadT === 0, `ammo=${sR.ammo}`);
+  check('reload refills the magazine (tactical reload keeps the chambered round: 80 + 1)', sR.ammo === 81 && sR.reloadT === 0, `ammo=${sR.ammo}`);
 
   // grenade
   await tp(page, 'player', 0, 60);

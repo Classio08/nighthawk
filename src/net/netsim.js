@@ -18,7 +18,7 @@ const lerpAngle = (a, b, t) => { let d = (b - a) % (Math.PI * 2); if (d > Math.P
 /** a fighter that somebody else controls: just numbers that we fill from snapshots */
 class RemoteFighter {
   constructor(r) {
-    this.id = r.id; this.name = r.name; this.color = r.color; this.maxHp = r.hp; this.hp = r.hp; this.human = !!r.human; this.npc = !!r.npc; this.isPlayer = false;
+    this.id = r.id; this.name = r.name; this.color = r.color; this.maxHp = r.hp; this.hp = r.hp; this.human = !!r.human; this.npc = !!r.npc; this.skin = r.skin ?? null; this.reloadTot = 1; this.reloadEmpty = false; this.isPlayer = false;
     this.op = OPERATORS.find((o) => o.id === r.op) ?? { id: r.op, name: r.name, color: r.color, hp: r.hp, speed: 9.5, weapon: r.weapon };
     this.alive = true; this.kills = 0; this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.speedH = 0; this.grounded = true; this.ads = false; this.sprinting = false; this.cur = r.weapon; this.reloadT = 0;
@@ -27,7 +27,7 @@ class RemoteFighter {
   get eyeY() { return this.y + 0.72; }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -65,9 +65,9 @@ export class NetSim {
   }
 
   /** open a connection, join a match room and resolve once the server has built the match (lobby countdown included) */
-  static async join(url, { name = 'Operator', operator = 'roms', lag = 0, onLobby, now } = {}) {
+  static async join(url, { name = 'Operator', operator = 'roms', skin = null, lag = 0, onLobby, now } = {}) {
     const { Client } = await import('@colyseus/sdk');
-    const room = await new Client(url).joinOrCreate('match', { name, operator });
+    const room = await new Client(url).joinOrCreate('match', { name, operator, skin });
     const ns = new NetSim(room, { lag, now }); ns.onLobby = onLobby;
     await ns._wait;
     return ns;
@@ -77,7 +77,7 @@ export class NetSim {
     this.welcome = w; this.myId = w.id;
     // the predictor: SAME seed and map => identical walls and crates, but only my fighter, no bots and no zone damage
     const me = w.roster[w.id];
-    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name }], propsFixed: true, predictor: true });
+    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true });
     const pl = this.predictor.player; pl.rngKey = w.id; pl.yaw = w.self.yaw;
     pl.importSelf(w.self); this.predictor.world.propagateModifiedBodyPositionsToColliders();
     this.map = this.predictor.map; this.crates = this.predictor.crates;

@@ -61,7 +61,7 @@ export class FighterView {
 
   _gun(id) {
     let g = this.guns[id];
-    if (!g) { g = makeGun(id); g.scale.setScalar(0.9); g.position.set(0.15, -0.1, -0.5); this.aim.add(g); this.guns[id] = g; }
+    if (!g) { g = makeGun(id, undefined, this.f.skin); g.scale.setScalar(0.9); g.position.set(0.15, -0.1, -0.5); this.aim.add(g); this.guns[id] = g; }
     return g;
   }
 
@@ -95,6 +95,8 @@ export class FighterView {
 
   flash() { this.hurtT = 0.12; }
   shotFlash() { this.flashMesh.visible = true; this.flashT = 0.05; this.flashMesh.rotation.z = Math.random() * 6; }
+  /** world position of the gun (where a dropped magazine starts) */
+  gunWorld(out) { const g = this.guns[this.gunId]; if (g) { this.root.updateWorldMatrix(true, true); const m = g.userData.mag ?? g; m.getWorldPosition(out); } else out.set(this.f.x, this.f.y, this.f.z); return out; }
   /** world position of the barrel tip */
   muzzleWorld(out = this.muzzleV) { const g = this.guns[this.gunId]; if (g) { this.root.updateWorldMatrix(true, true); g.userData.muzzle.getWorldPosition(out); } return out; }
 
