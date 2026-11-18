@@ -19,7 +19,8 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 | Vehicles | Built first pass | Buggies + bikes, E to enter, roadkill, bots drive, server-authoritative with prediction; unit, netcode and browser tests |
 | Loot and inventory | Built first pass | Guns, ammo, armor LV1-3, medkits, death drops, airdrop crates, hot-zone loot at named places; server-authoritative pickups |
 | Map | Greybox | Kavari Basin: Basin Yard, Dry River, Relay Ridge, Forward Outpost, Extraction Pad with minimap labels; still blocks, no real art |
-| Operators | Picker built | Eight operators selectable with stats; abilities (Q) still to implement |
+| Operators | Abilities built | Eight operators selectable; all eight active abilities (Q) work, server-validated, bots use them; art and passives still to do |
+| Movement | Crouch + fall damage built | C crouch, fall damage; slide, mantle/vault and melee still to do |
 | Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
 | Monetisation | Not implemented | Platform adapters and policy review required |
 | Production deployment | Pending | Deploy and test with players on separate networks; load tests outstanding |
@@ -39,7 +40,7 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 | # | Milestone | Done when | Status |
 |---|---|---|---|
 | 7 | **Production multiplayer validation** | Deploy server to a test VPS; friend joins from another network; reconnect, packet loss, jitter, 2/8/16 clients and many-room tests documented | NEXT (needs you: a VPS) |
-| 8 | **Operator abilities + movement polish** | Eight active abilities (server-validated, cooldown HUD, bots use them); crouch/slide, fall damage, melee; accessibility controls | IN PROGRESS |
+| 8 | **Operator abilities + movement polish** | Eight active abilities (server-validated, cooldown HUD, bots use them), crouch, fall damage DONE (Stage 9); slide, mantle/vault, melee and accessibility controls still open | IN PROGRESS |
 | 9 | **First real visual slice** | One CC0 PBR ground set integrated; one modular environment kit; one realistic GLB operator with shared rig, LODs and animation; browser performance measured | NEXT (needs asset downloads) |
 | 10 | **One complete map** | Kavari Basin vertical slice with three routes per POI, cover, navmesh/AI, story props, weather presets and a working extraction point | PLANNED (greybox exists) |
 | 11 | **Mission modes** | Extraction contracts and a short Black Site social-deduction PvPvE mode with evidence, sabotage, counterplay and replayable objectives | PLANNED |

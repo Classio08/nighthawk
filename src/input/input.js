@@ -70,6 +70,7 @@ export class Input {
       strafe: (this.down('KeyD') ? 1 : 0) - (this.down('KeyA') ? 1 : 0),
       jump: this.down('Space'),
       sprint: this.down('ShiftLeft') || this.down('ShiftRight'),
+      crouch: this.down('KeyC'),
     };
   }
 

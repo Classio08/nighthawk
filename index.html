@@ -45,6 +45,11 @@
   #hpn{font-size:20px;font-weight:bold}
   #arm{height:7px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-top:4px}#armbar{height:100%;width:0;background:#58a6ff;transition:width .08s linear}
   #kit{font-size:11px;letter-spacing:1px;margin-top:5px;opacity:.9;display:flex;justify-content:space-between}
+  #abil{position:absolute;left:262px;bottom:14px;width:122px;padding:8px 10px}
+  #abil .row{display:flex;justify-content:space-between;font-size:12px;letter-spacing:1px}#abil b{color:#ffd24d}
+  #abil .bar{height:8px;background:rgba(255,255,255,.14);border-radius:3px;overflow:hidden;margin-top:5px}#abil i{display:block;height:100%;width:100%;background:#ffd24d}
+  #abil small{display:block;margin-top:4px;font-size:10px;letter-spacing:1px;opacity:.75;min-height:12px}
+  #abil.ready i{box-shadow:0 0 8px #ffd24d}#abil.on{border-color:#ffd24d}
   #heal{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);width:200px;display:none;text-align:center;font-size:12px;letter-spacing:3px;color:#5be37a}
   #heal .bar{height:6px;background:rgba(255,255,255,.18);border-radius:3px;overflow:hidden;margin-top:4px}#heal i{display:block;height:100%;width:0;background:#5be37a}
   #pk{position:absolute;right:14px;bottom:118px;text-align:right;font-size:12px;letter-spacing:1px;display:flex;flex-direction:column;gap:3px;align-items:flex-end}
@@ -102,6 +107,7 @@
   <div id="slots"></div>
   <div id="msg"></div>
   <div id="hp" class="box"><div class="row"><span id="opname">OPERATOR</span><span id="hpn">100</span></div><div class="bar"><div class="fill" id="hpbar"></div></div><div id="arm"><div id="armbar"></div></div><div id="kit"><span id="armn"></span><span id="medn"></span></div></div>
+  <div id="abil" class="box"><div class="row"><span id="abname">ABILITY</span><b>Q</b></div><div class="bar"><i id="abbar"></i></div><small id="abtxt"></small></div>
   <div id="heal"><span>HEALING</span><div class="bar"><i></i></div></div>
   <div id="pk"></div>
   <div id="ammo" class="box"><div id="wname">AR-91</div><div id="mag">30 <small>/ 150</small></div><div id="nades">GRENADES 2</div><div id="rl"><i></i></div></div>
@@ -110,7 +116,7 @@
 <div id="start" class="ov show">
   <h1>NIGHTHAWK</h1>
   <p>16 fighters · one shrinking zone · last one standing</p>
-  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim<br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E enter / exit buggy &amp; bike</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
+  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim<br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E enter / exit buggy &amp; bike</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
   <p style="font-size:12px;opacity:.7">You land with a pistol: <b>loot guns, armor and medkits</b> (walk over them) &middot; grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>

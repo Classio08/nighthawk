@@ -23,6 +23,8 @@ import { BotBrain } from './bot.js';
 export const GRAV = -22;
 export const OPERATORS = operatorData.operators;
 const EYE = 0.72;               // eye height above the capsule centre (capsule centre is 0.9 above the feet)
+const EYE_C = 0.2;              // ...and when crouching (eyes about 1.1 m above the ground)
+const FALL_SAFE = 12, FALL_DMG = 7;       // landing faster than 12 m/s (a ~3.3 m drop) hurts: 7 HP per extra m/s. A normal jump lands at 8.2 m/s, so jumping is always free.
 const BASE_SPEED = 7;
 const JUMP = 8.2;
 const REGEN_DELAY = 6, REGEN_RATE = 5, REGEN_CAP = 0.65;
@@ -43,7 +45,7 @@ export class Fighter {
     this.alive = true; this.kills = 0; this.veh = null; this.seat = -1;
     this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.vy = 0; this.grounded = false; this.speedH = 0; this.moveX = 0; this.moveZ = 0;
-    this.ads = false; this.sprinting = false;
+    this.ads = false; this.sprinting = false; this.crouch = false;
     this.weapons = {}; this.cur = op.weapon;
     for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve, have: true };
     this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.mortar = 0; this.streak = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
@@ -53,7 +55,7 @@ export class Fighter {
     this.noHurtT = 0; this.zoneAcc = 0;
     this.brain = null; this.rb = null; this.col = null;
   }
-  get eyeY() { return this.y + EYE; }
+  get eyeY() { return this.y + (this.crouch ? EYE_C : EYE); }
 
   /** loot matches: you start with a pistol and nothing else */
   loadoutLoot() {
@@ -71,13 +73,14 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
     for (const k of SLOT_ORDER) { this.weapons[k].ammo = s.w[k][0]; this.weapons[k].reserve = s.w[k][1]; }
     this.fireT = s.fireT; this.reloadT = s.reloadT; this.reloadTot = s.rt ?? 1; this.reloadEmpty = !!s.re; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
     if (s.hv !== undefined) { SLOT_ORDER.forEach((k, i) => { this.weapons[k].have = !!(s.hv & (1 << i)); }); this.armor = s.ar; this.armorLv = s.al; this.meds = s.md; this.healT = s.hl; }
+    this.crouch = !!s.cr;
     if (s.ab) { this.abCd = s.ab[0]; this.abT = s.ab[1]; this.dashT = s.ab[2]; this.dashVx = s.ab[3]; this.dashVz = s.ab[4]; this.stunT = s.ab[5]; }
     this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
@@ -351,11 +354,11 @@ export class Simulation {
 
   /** where was fighter `t` at tick `tick`? (current position if the tick is too old or unknown) */
   posAt(t, tick) {
-    if (tick >= this.tick) return { x: t.x, y: t.y, z: t.z, alive: t.alive };
+    if (tick >= this.tick) return { x: t.x, y: t.y, z: t.z, alive: t.alive, crouch: !!t.crouch };
     const h = this.hist[tick % HIST];
-    if (!h || h.tick !== tick) return { x: t.x, y: t.y, z: t.z, alive: t.alive };
+    if (!h || h.tick !== tick) return { x: t.x, y: t.y, z: t.z, alive: t.alive, crouch: !!t.crouch };
     const i = t.id * 4;
-    return { x: h.d[i], y: h.d[i + 1], z: h.d[i + 2], alive: h.d[i + 3] === 1 };
+    return { x: h.d[i], y: h.d[i + 1], z: h.d[i + 2], alive: h.d[i + 3] >= 1, crouch: h.d[i + 3] === 2 };
   }
 
   _record() {
@@ -363,7 +366,7 @@ export class Simulation {
     let h = this.hist[slot];
     if (!h || h.d.length !== n * 4) h = this.hist[slot] = { tick: 0, d: new Float32Array(n * 4) };
     h.tick = this.tick;
-    for (const f of this.fighters) { const i = f.id * 4; h.d[i] = f.x; h.d[i + 1] = f.y; h.d[i + 2] = f.z; h.d[i + 3] = f.alive ? 1 : 0; }
+    for (const f of this.fighters) { const i = f.id * 4; h.d[i] = f.x; h.d[i + 1] = f.y; h.d[i + 2] = f.z; h.d[i + 3] = f.alive ? (f.crouch ? 2 : 1) : 0; }
   }
 
   _fire(f) {
@@ -372,7 +375,7 @@ export class Simulation {
     st.ammo--; f.fireT = A?.fireMul ? w.rof / A.fireMul : w.rof;
     if (deadeye) f.abT = 0;                                       // Deadeye is ONE shot
     const moving = f.speedH > 1.2;
-    const base = f.ads ? w.spreadAds : w.spreadHip * (moving ? 1.35 : 1);
+    const base = (f.ads ? w.spreadAds : w.spreadHip * (moving ? 1.35 : 1)) * (f.crouch ? 0.78 : 1);      // crouching steadies the aim
     const spread = base + f.bloom;
     f.bloom = Math.min(w.bloomMax, f.bloom + w.bloom);
     const origin = { x: f.x, y: f.eyeY, z: f.z };
@@ -391,7 +394,7 @@ export class Simulation {
         if (o === f || !o.alive) continue;
         const q = this.posAt(o, viewTick);
         if (!q.alive) continue;
-        const t = rayCapsule(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, q.x, q.y - 0.5, q.z, q.y + 0.5, 0.4);
+        const t = rayCapsule(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, q.x, q.y - 0.5, q.z, q.y + (q.crouch ? 0.15 : 0.5), 0.4);   // a crouching target is a smaller target
         if (deadeye && t >= 0 && t < wallT) through.push({ o, q, t });                      // Deadeye: every body on the line, not just the first
         if (t >= 0 && t < tHit) { tHit = t; target = o; pos = q; }
       }
@@ -399,12 +402,12 @@ export class Simulation {
         ex: origin.x + dir.x * tHit, ey: origin.y + dir.y * tHit, ez: origin.z + dir.z * tHit, dx: dir.x, dy: dir.y, dz: dir.z, hit: null };
       if (target) {
         e.hit = 'fighter'; e.target = target.id;
-        const head = e.ey - (pos.y - 0.9) > 1.42;
+        const head = e.ey - (pos.y - 0.9) > (pos.crouch ? 1.12 : 1.42);
         const dmg = damageAt(w, tHit, head) * (deadeye ? A.shotMul : 1);
         this.damage(target, dmg, f, { head, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: e.ex, y: e.ey, z: e.ez, cause: 'bullet', pierce: deadeye });
         if (deadeye) for (const h of through.sort((a, b) => a.t - b.t)) {
           if (h.o === target) continue;
-          const hd = origin.y + dir.y * h.t - (h.q.y - 0.9) > 1.42;
+          const hd = origin.y + dir.y * h.t - (h.q.y - 0.9) > (h.q.crouch ? 1.12 : 1.42);
           this.damage(h.o, damageAt(w, h.t, hd) * A.shotMul * A.pierceMul, f, { head: hd, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: origin.x + dir.x * h.t, y: origin.y + dir.y * h.t, z: origin.z + dir.z * h.t, cause: 'bullet', pierce: true });
         }
       } else if (hit) {
@@ -624,9 +627,13 @@ export class Simulation {
     if (f.grounded && jump) f.vy = JUMP;
     f.vy += GRAV * dt;
     if (f.grounded && f.vy < 0) f.vy = -1;
+    const wasGrounded = f.grounded, vyIn = f.vy;
     this.cc.computeColliderMovement(f.col, { x: dx, y: f.vy * dt, z: dz });
     const m = this.cc.computedMovement();
     f.grounded = this.cc.computedGrounded();
+    if (!wasGrounded && f.grounded && vyIn < -FALL_SAFE && !this.opts.predictor && f.alive) {        // a hard landing hurts (server / solo sim only; armor does not help)
+      f.vy = -1; this.damage(f, (-vyIn - FALL_SAFE) * FALL_DMG, null, { cause: 'fall', x: f.x, y: f.y - 0.5, z: f.z });
+    }
     const t = f.rb.translation();
     const nx = t.x + m.x, ny = t.y + m.y, nz = t.z + m.z;
     f.rb.setNextKinematicTranslation({ x: nx, y: ny, z: nz });
@@ -646,10 +653,12 @@ export class Simulation {
     p.lagTicks = cmd.vt > 0 ? clamp(this.tick - cmd.vt, 0, MAX_LAG_TICKS) : 0;
     if (p.veh) { this._stepSeated(p, cmd, dt); return; }
     const w = WEAPONS[p.cur];
-    p.sprinting = !!cmd.sprint && cmd.forward > 0 && !cmd.ads;
+    p.crouch = !!cmd.crouch;                                                      // C (hold): lower, slower, steadier, harder to hit; no sprint or jump while crouched
+    p.sprinting = !!cmd.sprint && cmd.forward > 0 && !cmd.ads && !p.crouch;
     p.ads = !!cmd.ads && !p.sprinting && p.reloadT <= 0 && p.switchT <= 0;
     let sp = BASE_SPEED * (p.op.speed / 10) * w.moveMul;
     if (p.sprinting) sp *= 1.5; else if (p.ads) sp *= 0.62;
+    if (p.crouch) sp *= 0.5;
     if (p.reloadT > 0) sp *= 0.92;
     const act = activeAbility(p); if (act?.speedMul) sp *= act.speedMul;      // Cloak: faster
     if (cmd.ability) useAbility(this, p);                                     // Q: the operator's ability (the server validates cooldown / state)
@@ -658,7 +667,7 @@ export class Simulation {
     if (p.healT > 0 && (cmd.fire || cmd.reload || cmd.slot || cmd.grenade || cmd.use || p.sprinting)) p.healT = 0;
     if (p.healT > 0) sp *= 0.55;
     const { x: mx, z: mz } = moveVector(p.yaw, cmd.forward, cmd.strafe); // the one shared (and unit-tested) movement maths
-    this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump);
+    this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump && !p.crouch);
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
     if (cmd.mortar) this.callMortarFromView(p);
@@ -685,7 +694,7 @@ export class Simulation {
 
   /** a human sitting in a vehicle: the driver steers it (and cannot shoot), the passenger can shoot but not move */
   _stepSeated(p, cmd, dt) {
-    const v = p.veh; p.healT = 0;
+    const v = p.veh; p.healT = 0; p.crouch = false;
     if (cmd.use) { this.vehicles.leave(p); return; }
     p.sprinting = false; p.ads = !!cmd.ads && p.seat === 1 && p.reloadT <= 0 && p.switchT <= 0;
     if (p.seat === 0) v.input = { thr: cmd.forward, steer: cmd.strafe, brake: !!cmd.jump, boost: !!cmd.sprint };

@@ -15,12 +15,13 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 6 | Contracts (airdrop, hardpoint, bounty), mortar killstreak, weather and night, gore toggle | built | `contracts.js`, `weather.js`, `src/render/atmosphere.js` | `tests/contracts.test.js`, `scripts/e2e-stage6.mjs` |
 | 7 | Vehicles: arcade buggy (2 seats) and bike (1 seat), roadkill, bots that steal and drive | built | `src/sim/vehicles.js`, `src/render/vehicles-view.js` | `tests/vehicles.test.js`, `scripts/e2e-vehicles.mjs`, section 2c of `server/test/match.mjs` |
 | 8 | Loot: guns, ammo, armor, medkits and grenades on the ground, death drops, airdrop crates, bots that loot and heal | built | `src/sim/loot.js`, `src/render/loot-view.js` | `tests/loot.test.js`, `scripts/e2e-loot.mjs`, `scripts/e2e-online-loot.mjs`, section 4 of `server/test/match.mjs` |
+| 9 | Operator abilities (Q) for all 8 operators, crouch (C), fall damage | built | `src/sim/abilities.js`, `src/sim/world.js` | `tests/abilities.test.js`, `tests/movement.test.js`, `scripts/e2e-abilities.mjs`, section 5 of `server/test/match.mjs` |
 
-Run everything: `npm test` (91 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (128 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
-`WASD` move, `Shift` sprint, `Space` jump, mouse aim, left click fire, right click aim, `R` reload, `1`-`6` or wheel weapons, `G` grenade, **`T` mortar strike**, **`E` enter or leave a vehicle**, **`H` use a medkit**, `F` flashlight (night and storm only), `Esc` pause.
+`WASD` move, `Shift` sprint, **`C` crouch (hold)**, `Space` jump, **`Q` operator ability**, **`V` first/third person**, mouse aim, left click fire, right click aim, `R` reload, `1`-`6` or wheel weapons, `G` grenade, **`T` mortar strike**, **`E` enter or leave a vehicle**, **`H` use a medkit**, `F` flashlight (night and storm only), `Esc` pause.
 
 In a vehicle: `W/S` gas and reverse, `A/D` steer, `Space` handbrake, `Shift` boost. The driver cannot shoot. A passenger can (drive-by).
 
@@ -103,11 +104,35 @@ A loot match (the default in solo and on the server) starts every fighter with a
 - **Where to tune:** `ARMOR`, `ARMOR_ABSORB`, `MED_HEAL`, `HEAL_T`, `PICK_R` at the top of `src/sim/loot.js`; the item mix and the quality tiers in `_roll` / `_layout`; the regen cap in `step()` of `world.js`.
 - **Look:** `src/render/loot-view.js` (little low-poly shapes that spin and bob, a light ring on the floor, a beam on green / blue / gold items). Items further than 75 m are not drawn.
 
+## Stage 9: operator abilities, crouch, fall damage
+
+**Operator abilities (key `Q`).** Every operator in `data/operators.json` now has a working active ability, defined in `src/sim/abilities.js`. They are plain simulation rules, so the browser (solo), the server and the client predictor agree, and a cheating client can only ask: the server checks cooldown, stun, vehicle and health.
+
+| Operator | Ability | Cooldown | What it does | Counterplay |
+|---|---|---|---|---|
+| Roms | Overclock | 16 s | 5 s: fires 30% faster, takes 40% less bullet/blast damage | glows orange; the zone and falls are not reduced |
+| Shadow | Cloak | 15 s | 4 s: 30% faster; bots lose him beyond 9 m, other players see a faint ghost and no gun beyond 7 m | fully visible up close; firing still shows tracers |
+| Douglas | Trauma Kit | 13 s | +25 HP at once, then +14 HP/s for 5 s (refused at full health, no cooldown spent) | glows green; damage still lands |
+| Cliffhanger | Blast Dash | 9 s | dash 11 m forward (0.2 s), charge goes off where he lands (85 dmg, 5.5 m, owner immune) | dash is short and in a straight line; the blast has line-of-sight falloff |
+| Navy Blue | Deadeye | 11 s | next shot within 8 s: 3x damage, ignores armor, goes through bodies (60% on the second) | one shot only; he still needs to hit |
+| Rampol | Bulwark | 12 s | 5 s: takes 65% less bullet/blast damage | glows amber; no speed bonus |
+| Maetja | EMP Breach | 14 s | stuns every enemy within 24 m for 3 s: 30% speed, cannot shoot, jump, reload or heal | cyan flicker on the victims; squad-mates are immune |
+| Cleiseis | Crimson Rush | 10 s | dash 9 m; anyone touched takes 70, and anyone under 40% HP is finished | has to connect; dash is straight |
+
+- State on a fighter: `abCd` (cooldown left), `abT` (effect time left), `dashT/dashVx/dashVz` (dash), `stunT`. `moveFighter()` is the one choke point, so dashes and stuns work for humans and bots alike.
+- Bots press Q through `botUseAbility()` (4 times a second, never touching the sim RNG, so old deterministic tests are unchanged).
+- Network: `ability` is command flag 512; own state travels as `ab: [abCd, abT, dashT, dashVx, dashVz, stunT]` in the private self-state; everybody else sees the tells as snapshot flags `FF.ab/cloak/stun/dash`. The `ability` and `stun` events are server events. A predicting browser only runs the own-state part (cooldown, dash, stun) and never touches other fighters.
+- HUD: ability box (name, cooldown bar, READY / ACTIVE / STUNNED); the camera FOV kicks during a dash; fighters glow, fade or flicker (`src/render/fighter.js`).
+
+**Crouch (`C`, hold).** Half speed, no sprint, no jump, eyes about 1.1 m above the ground (camera glides), spread x0.78, and a smaller hitbox: the capsule top drops and the head height drops (lag compensation remembers the crouch flag per tick, so shots are judged on how the target looked to the shooter). Bots crouch while holding a cover position. Wire: command flag 1024, snapshot flag `FF.crouch`, self-state `cr`. Third-person bodies squat.
+
+**Fall damage.** Landing faster than 12 m/s (a drop of about 3.3 m) costs 7 HP per extra m/s (10 m about 60 HP, 25 m about 150 HP). A normal jump (8.2 m/s) is always free; armor does not help; only the server / solo sim applies it.
+
 ## What to look at next (open items)
 
 1. **Put the server on a VPS** and play a real match with a friend on another network (`docs/DEPLOY.md`). Everything so far was tested on one machine with fake lag.
 2. **Load test** with 16 real humans, and measure network bytes per player.
-3. Roadmap milestone 2: one real handcrafted arena, real weapon models and sounds from CC0 packs (`ASSETS.md`). (Loot, health and armor are done: Stage 8.)
+3. Roadmap milestone 2: one real handcrafted arena, real weapon models and sounds from CC0 packs (`ASSETS.md`). (Loot, health, armor: Stage 8. Abilities, crouch, fall damage: Stage 9.)
 4. Vehicle polish: engine sound mix, a respawn timer for wrecks, tyre tracks, a horn.
 5. Portal pass: cut the main bundle (about 5 MB, 1.9 MB gzipped) so the first load stays under the Poki target of 8 MB.
 

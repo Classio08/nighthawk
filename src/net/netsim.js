@@ -25,12 +25,12 @@ class RemoteFighter {
     this.alive = true; this.kills = 0; this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.speedH = 0; this.grounded = true; this.ads = false; this.sprinting = false; this.cur = r.weapon; this.reloadT = 0;
     this.weapons = {}; this.nades = 0; this.fireT = 0; this.switchT = 0; this.bloom = 0;
-    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false;      // operator ability tells (flags from the snapshot)
+    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false; this.crouch = false;      // operator ability tells (flags from the snapshot)
   }
-  get eyeY() { return this.y + 0.72; }
+  get eyeY() { return this.y + (this.crouch ? 0.2 : 0.72); }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit', 'crouch'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -42,7 +42,7 @@ class Me {
   get x() { return this.pl.x + this.net.err.x; }
   get y() { return this.pl.y + this.net.err.y; }
   get z() { return this.pl.z + this.net.err.z; }
-  get eyeY() { return this.y + 0.72; }
+  get eyeY() { return this.y + (this.crouch ? 0.2 : 0.72); }
 }
 for (const k of DELEGATED) Object.defineProperty(Me.prototype, k, { get() { return this.pl[k]; }, set(v) { this.pl[k] = v; } });
 // the ability tells for MY fighter come from my own predicted state (remote fighters get them as snapshot flags)

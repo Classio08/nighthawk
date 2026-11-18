@@ -38,7 +38,13 @@ const state = (page) => page.evaluate(() => {
   return { x: p.x, y: p.y, z: p.z, hp: p.hp, cur: p.cur, ammo: w.ammo, reserve: w.reserve, reloadT: p.reloadT, ads: p.ads, nades: p.nades, kills: p.kills,
     alive: s.aliveCount(), fov: n.camera.fov, pitch: n.cmd.pitch, yaw: n.cmd.yaw, st: s.state, holes: n.G.decals.holes.filled, ragdolls: n.G.rag.list.length, particles: n.G.particles.n };
 });
-const hold = async (page, code, ms) => { await page.keyboard.down(code); await wait(ms); await page.keyboard.up(code); await wait(150); };
+// hold a key for `ms` of GAME time (headless software rendering can drop to a few fps, so wall-clock holds would give the sim only a handful of ticks)
+const hold = async (page, code, ms) => {
+  const t0 = await page.evaluate(() => window.__nh.sim.time);
+  await page.keyboard.down(code);
+  await page.waitForFunction((t, d) => window.__nh.sim.time - t >= d, { timeout: 12000, polling: 50 }, t0, ms / 1000).catch(() => {});
+  await page.keyboard.up(code); await wait(150);
+};
 
 /* ---------- part 1: controls (no bots) ---------- */
 {
@@ -46,13 +52,13 @@ const hold = async (page, code, ms) => { await page.keyboard.down(code); await w
   // the map layout is seeded and changes whenever structures are added, so look for a spot with open ground in every direction instead of hard-coding one
   const spot = await page.evaluate(() => {
     const m = window.__nh.sim.map, free = (x, z) => !m.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + 1.5 && Math.abs(z - b.z) < b.d / 2 + 1.5);
-    for (let z = 70; z >= -70; z -= 5) for (const x of [0, 8, -8, 16, -16, 24, -24, 32, -32]) {
+    for (let z = 45; z >= -45; z -= 5) for (const x of [0, 8, -8, 16, -16, 24, -24, 32, -32]) {      // (well away from the map edge walls)
       let ok = true; for (let dx = -5; dx <= 5 && ok; dx += 2.5) for (let dz = 1; dz <= 10; dz += 2.5) if (!free(x + dx, z - dz) || !free(x + dx, z)) { ok = false; break; }
       if (ok) return { x, z };
     }
     return { x: 0, z: 60 };
   });
-  await tp(page, 'player', spot.x, spot.z); await wait(600);
+  await tp(page, 'player', spot.x, spot.z); await page.evaluate(() => { window.__nh.cmd.yaw = 0; window.__nh.cmd.pitch = 0; window.__nh.sim.player.yaw = 0; }); await wait(600);      // yaw 0: W is -z, D is +x
   const s0 = await state(page);
   check('player stands on the ground', s0.y > 0.8 && s0.y < 1.1, `y=${s0.y.toFixed(2)}`);
   await hold(page, 'KeyD', 800); const sD = await state(page);

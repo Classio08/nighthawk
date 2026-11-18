@@ -16,6 +16,12 @@ const st = () => page.evaluate(() => { const n = window.__nh, p = n.sim.player, 
 const a = await st();
 check('?op=shadow picks that operator', (a.op?.id ?? a.op) === 'shadow', String(a.op?.id ?? a.op));
 check('first-person: camera sits on the player', a.d < 0.3, `d=${a.d.toFixed(2)}`);
+// crouch (hold C): the eyes glide down about half a metre and come back up
+const eyeStand = (await st()).cy;
+await page.keyboard.down('KeyC'); await wait(700); const eyeCrouch = (await st()).cy; const crouching = await page.evaluate(() => window.__nh.sim.player.crouch);
+await page.keyboard.up('KeyC'); await wait(700); const eyeBack = (await st()).cy;
+check('C: hold to crouch, the camera drops', crouching === true && eyeStand - eyeCrouch > 0.35, `eye ${eyeStand.toFixed(2)} -> ${eyeCrouch.toFixed(2)}`);
+check('C released: stand back up', Math.abs(eyeBack - eyeStand) < 0.08, `eye back at ${eyeBack.toFixed(2)}`);
 await page.keyboard.press('KeyV'); await wait(500);
 const b = await st();
 check('V: third-person camera moves behind the player', b.d > 1.5 && b.d < 8, `d=${b.d.toFixed(2)}`);

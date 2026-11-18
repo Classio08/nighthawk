@@ -2,6 +2,7 @@
 // arms+gun follow the aim pitch, body bobs, hit flash, a name/health label above the head.
 import * as THREE from 'three';
 import { makeGun } from './guns.js';
+import { ABILITIES, isCloaked } from '../sim/abilities.js';
 
 const box = new THREE.BoxGeometry(1, 1, 1);
 const SKIN = [0xe0b48f, 0xc68c5e, 0x8d5a3a, 0x6b4128];
@@ -47,7 +48,7 @@ export class FighterView {
     this.lastHpDrawn = -1; this._drawLabel(1);
 
     this.phase = 0; this.hurtT = 0; this.visible = true; this.init = false; this.sx = f.x; this.sy = f.y; this.sz = f.z; this.stepSign = 1;
-    this.muzzleV = new THREE.Vector3();
+    this.muzzleV = new THREE.Vector3(); this.fade = 1; this.glow = '';
   }
 
   _drawLabel(frac) {
@@ -79,7 +80,9 @@ export class FighterView {
     const sgn = Math.sin(this.phase) >= 0 ? 1 : -1; this.stepped = sgn !== this.stepSign && f.grounded && f.speedH > 2; this.stepSign = sgn;
     const swing = Math.sin(this.phase) * 0.85 * sp;
     this.legs[0].rotation.x = swing; this.legs[1].rotation.x = -swing;
-    this.body.position.y = Math.abs(Math.sin(this.phase)) * 0.05 * sp;
+    const crouchK = f.crouch ? 1 : 0; this.cK = (this.cK ?? 0) + (crouchK - (this.cK ?? 0)) * (1 - Math.exp(-14 * dt));      // squat pose
+    this.body.position.y = Math.abs(Math.sin(this.phase)) * 0.05 * sp - 0.31 * this.cK;
+    for (const l of this.legs) { l.scale.y = 1 - 0.38 * this.cK; l.position.y = 0.82 * (1 - 0.38 * this.cK); }
     this.aim.rotation.x = clamp(f.pitch, -1.2, 1.2) + (f.sprinting ? 0.5 : 0) - (f.reloadT > 0 ? 0.5 : 0);
     this.body.rotation.x = f.sprinting ? 0.18 : 0;
     if (f.cur !== this.gunId) {
@@ -88,7 +91,19 @@ export class FighterView {
     }
     if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) this.flashMesh.visible = false; }
     if (this.hurtT > 0) { this.hurtT -= dt; const k = Math.max(0, this.hurtT / 0.12); for (const m of this.mats) m.emissive.setScalar(k * 0.8); }
-    const near = distToCam < 38;
+    // operator ability tells: Cloak shimmers away, Overclock/Bulwark/Trauma Kit glow in the ability colour, EMP stun flickers cyan
+    const cloaked = f.cloaked ?? isCloaked(f), on = f.abOn ?? (f.abT > 0), stunned = f.stunned ?? (f.stunT > 0), A = ABILITIES[f.op?.id];
+    const fade = cloaked ? (distToCam < 7 ? 0.45 : 0.12) : 1;
+    if (fade !== this.fade) { this.fade = fade; for (const m of this.mats) { m.transparent = fade < 1; m.opacity = fade; m.needsUpdate = true; } }
+    this.aim.visible = !(cloaked && distToCam > 7);                       // the gun gives a cloaked fighter away only up close
+    if (this.hurtT <= 0) {
+      const state = stunned ? 'stun' : on && A && !cloaked ? 'on' : '';
+      if (state === 'stun') { const k = 0.4 + 0.4 * Math.sin(performance.now() * 0.04); for (const m of this.mats) m.emissive.setRGB(0.1 * k, 0.9 * k, k); }
+      else if (state === 'on') { const k = 0.28 + 0.12 * Math.sin(performance.now() * 0.012); for (const m of this.mats) m.emissive.set(A.color).multiplyScalar(k); }
+      else if (this.glow) for (const m of this.mats) m.emissive.setScalar(0);
+      this.glow = state;
+    }
+    const near = distToCam < 38 && !(cloaked && distToCam > 9);
     this.label.visible = near && f.alive;
     if (near) { const frac = f.hp / f.maxHp; if (Math.abs(frac - this.lastHpDrawn) > 0.04) this._drawLabel(frac); }
   }

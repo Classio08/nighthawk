@@ -2,6 +2,7 @@
 import { WEAPONS, SLOT_ORDER } from '../sim/weapons.js';
 import { MAP_HALF } from '../sim/map.js';
 import { ARMOR, HEAL_T, MAX_MEDS } from '../sim/loot.js';
+import { ABILITIES } from '../sim/abilities.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -13,7 +14,7 @@ export class Hud {
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
       cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'),
-      arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'),
+      abil: $('abil'), abname: $('abname'), abbar: $('abbar'), abtxt: $('abtxt'), arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'),
     };
     this.mctx = this.el.mini.getContext('2d');
     this.hurt = 0; this.hitT = 0; this.msgT = 0; this.flashV = 0; this.pings = [];
@@ -115,9 +116,25 @@ export class Hud {
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { e.fps.textContent = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; e.ping.textContent = sim.rtt !== undefined ? ` · ${Math.round(sim.rtt)} ms` : ''; }
     this.drawLoot(sim, p);
+    this.drawAbility(p);
     this.drawContracts(sim, p);
     this.drawVehicle(sim, p);
     this.drawMini(dt, sim, p);
+  }
+
+  /** the operator ability box: name, cooldown bar, READY / ACTIVE / STUNNED */
+  drawAbility(p) {
+    const e = this.el, A = ABILITIES[p.op?.id];
+    if (!A) { e.abil.style.display = 'none'; return; }
+    e.abil.style.display = '';
+    if (e.abname.textContent !== A.name.toUpperCase()) e.abname.textContent = A.name.toUpperCase();
+    const stunned = p.stunT > 0, active = p.abT > 0 && !stunned, ready = p.abCd <= 0 && !stunned;
+    e.abil.classList.toggle('ready', ready); e.abil.classList.toggle('on', active || stunned);
+    const frac = stunned ? 0 : p.abCd > 0 ? 1 - p.abCd / A.cd : 1;
+    e.abbar.style.width = `${Math.max(0, Math.min(100, frac * 100))}%`;
+    e.abbar.style.background = stunned ? '#7df9ff' : active ? A.color : ready ? '#ffd24d' : '#8a8f98';
+    const txt = stunned ? 'STUNNED' : active ? (A.id === 'deadeye' ? 'NEXT SHOT READY' : `ACTIVE ${p.abT.toFixed(1)}s`) : ready ? 'READY' : `${Math.ceil(p.abCd)}s`;
+    if (e.abtxt.textContent !== txt) e.abtxt.textContent = txt;
   }
 
   /** armor bar, medkit count and the "healing..." progress (only in a loot match) */

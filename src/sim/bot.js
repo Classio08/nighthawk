@@ -310,7 +310,7 @@ export class BotBrain {
     const { sim, f } = this;
     const zone = sim.zone;
     this.noVehT = Math.max(0, (this.noVehT ?? 0) - dt);
-    if (f.veh) { this._drive(dt); return; }                       // sitting in a vehicle: a different kind of thinking
+    if (f.veh) { f.crouch = false; this._drive(dt); return; }                       // sitting in a vehicle: a different kind of thinking
     sim.tickHeal(f, dt); this.lootScanT -= dt;
     if (sim.opts.loot) { this.mainT -= dt; if (this.mainT <= 0) { this.mainT = 1; this._refreshMain(); } }
     this.hurtT += dt; this.lastSeenT += dt; this.heardT += dt;
@@ -580,6 +580,7 @@ export class BotBrain {
     if (this.state === 'cover' && !move) wantReload = f.weapons[f.cur].ammo < WEAPONS[f.cur].mag;
 
     f.ads = adsNow && !sprint && f.reloadT <= 0 && f.switchT <= 0;
+    f.crouch = this.state === 'cover' && !move && !sprint;                  // sitting behind cover: crouch (smaller target, steadier aim)
     f.sprinting = sprint && !tgt;
     if (f.ads) sp *= 0.62; else if (f.sprinting) sp *= 1.45; else if (sprint) sp *= 1.2;
     if (f.reloadT > 0) sp *= 0.92;

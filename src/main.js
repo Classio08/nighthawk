@@ -25,6 +25,7 @@ import { LootView } from './render/loot-view.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings } from './settings.js';
 import { thirdPersonCameraPosition } from './render/camera.js';
+import { ABILITIES } from './sim/abilities.js';
 
 const STEP = 1 / 60, BASE_FOV = 78;
 const $ = (id) => document.getElementById(id);
@@ -85,7 +86,7 @@ async function newMatch(online = null) {
   playerView.setVisible(thirdPerson && p.alive);
   playerView.label.visible = false;
   viewmodel.setSkin(p.skin);
-  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.slot = 0;
+  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
   G = { sim, net: online, scene, world, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
@@ -227,6 +228,16 @@ function handleEvents() {
         else if (e.phase === 'cancel') hud.message('HEAL INTERRUPTED', '#ff4d4d', 1.2);
         break;
       }
+      case 'ability': {
+        const mine = e.by === p.id;
+        if (e.kind === 'rush-hit') { audio.play('rushhit', { x: e.x, z: e.z, maxD: 30, vol: 1 }); if (mine) { camfx.add(0.5); hud.message(e.finish ? 'FINISHED' : 'STRIKE', '#ff3b5c', 0.8); } break; }
+        const A = Object.values(ABILITIES).find((a) => a.id === e.kind);
+        audio.play(e.kind === 'emp' ? 'emp' : e.kind === 'blastdash' || e.kind === 'rush' ? 'abilitydash' : 'ability', mine ? { vol: 0.9 } : { x: e.x, z: e.z, maxD: 45, vol: 0.8 });
+        if (mine && A) hud.message(A.name.toUpperCase(), A.color, 1.1);
+        if (e.kind === 'emp') { if (mine) camfx.add(0.6); particles.explosion(e.x, e.y + 0.4, e.z, 2.5); }
+        break;
+      }
+      case 'stun': if (e.target === p.id) { hud.message('EMP - YOU ARE STUNNED', '#7df9ff', 1.6); audio.play('stunned', { vol: 0.9 }); camfx.add(0.7); } break;
       case 'shell': G.cview.shell(e.x, e.z, e.eta ?? 1); audio.play('whistle', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); break;
       case 'explosion': {
         particles.explosion(e.x, e.y, e.z, e.r);
@@ -297,6 +308,14 @@ function handleInput(dt) {
     else if (p.veh) hud.message('GET OUT OF THE VEHICLE FIRST', '#ffffff', 1.2);
     else cmd.heal = true;
   }
+  if (input.wasPressed('KeyQ')) {                                          // operator ability: the server validates, we only explain why nothing happened
+    const A = ABILITIES[p.op?.id];
+    if (!A) { /* no ability for this operator */ } else if (p.veh) hud.message('GET OUT OF THE VEHICLE FIRST', '#ffffff', 1.2);
+    else if (p.stunT > 0) hud.message('YOU ARE STUNNED', '#7df9ff', 0.9);
+    else if (p.abCd > 0) hud.message(`${A.name.toUpperCase()} - ${Math.ceil(p.abCd)}s`, '#ff9d4d', 0.8);
+    else if (A.burst && p.hp >= p.maxHp) hud.message('ALREADY AT FULL HEALTH', '#ffffff', 1);
+    else cmd.ability = true;
+  }
   if (input.wasPressed('KeyT')) { if (p.mortar > 0) cmd.mortar = true; else hud.message(p.streak % 3 ? `MORTAR NEEDS 3 KILLS IN A ROW (${p.streak % 3}/3)` : 'NO MORTAR STRIKE - 3 KILLS IN A ROW OR A CONTRACT', '#ffffff', 1.4); }
   if (input.wasPressed('KeyF') && G.atmo.light) hud.message(G.atmo.toggleFlashlight() ? 'FLASHLIGHT ON' : 'FLASHLIGHT OFF', '#ffffff', 0.8);
   const slot = input.readSlot();
@@ -328,11 +347,12 @@ function updateCamera(dt, alpha) {
       camera.position.set(pos.x, pos.y, pos.z);
       camera.rotation.set(cmd.pitch * 0.72 + shake.pitch, cmd.yaw + shake.yaw, shake.roll);
     } else {
-      camera.position.set(x, y + 0.72, z);
+      G.eye = lerp(G.eye ?? 0.72, p.crouch ? 0.2 : 0.72, 1 - Math.exp(-14 * dt));        // the eyes glide down when you crouch
+      camera.position.set(x, y + G.eye, z);
       G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
       camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
     }
-    const targetFov = driving ? BASE_FOV + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(BASE_FOV + (p.sprinting ? 6 : 0), w.adsFov, G.adsK);
+    const targetFov = driving ? BASE_FOV + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(BASE_FOV + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0), w.adsFov, G.adsK);
     G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
   } else {
     // death cam: slowly orbit the ragdoll
@@ -357,11 +377,11 @@ function frame(now) {
   if (!paused || G.net) {                       // online, the world keeps running when you open the pause menu (you just stand still)
     if (!paused) handleInput(dt); else { input.dx = 0; input.dy = 0; input.endFrame(); }
     G.acc += dt;
-    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, mortar: false, use: false, heal: false, slot: 0 } : cmd;
+    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, crouch: false, reload: false, grenade: false, mortar: false, use: false, heal: false, ability: false, slot: 0 } : cmd;
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
       sim.step(STEP, keys);
-      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
+      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }

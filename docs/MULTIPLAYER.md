@@ -65,6 +65,11 @@ See `DEPLOY.md` for the step-by-step. Latency reality: a Johannesburg server giv
 - `H` is the `heal` command flag (bit 256). The `pickup` and `heal` events are server events; they are not in `OWN_EVENTS`, so you see each once.
 - `LOOT=0` on the server (or `createServer({ loot: false })`) gives the classic all-guns loadout; the `welcome` message carries `loot` so the browser's predictor matches.
 
+## Abilities, crouch and falls over the network (Stage 9)
+- `Q` is the `ability` command flag (bit 512), `C` is the `crouch` flag (bit 1024, held). The server runs `useAbility()` and decides everything about other fighters (EMP, blasts, strikes, healing); a predicting browser only keeps its OWN timers (cooldown, effect, dash, stun) so Q feels instant and a dash does not rubber-band.
+- Private self-state gets `ab: [abCd, abT, dashT, dashVx, dashVz, stunT]` and `cr`. Everyone else sees snapshot flags `FF.ab`, `FF.cloak`, `FF.stun`, `FF.dash`, `FF.crouch` on each fighter record (so a Cloak or a stun is visible without sending timers).
+- `ability` and `stun` are server events (not in `OWN_EVENTS`). Fall damage is server-only. Lag compensation stores a crouch bit per tick (`hist` value 2 = alive and crouching).
+
 ## Vehicles over the network (Stage 7)
 - The server drives the vehicles. Snapshots carry them as `vh` (id, kind, x, z, yaw, speed, hp, driver, passenger, dead, steering).
 - Every client has the same vehicles (same seed) inside its predictor. Their poses come from the snapshots; their colliders move with them, so your predicted walking bumps into the same things the server sees.

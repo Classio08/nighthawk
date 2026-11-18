@@ -187,5 +187,47 @@ A.leave(); await sleep(500);
   check('loot: a dead player\'s gear shows up on the ground for both clients (gun, armor, medkit)', ['weapon', 'armor', 'med'].every((t) => drops(A2).some((i) => i.type === t) && drops(B2).some((i) => i.type === t)), `A sees ${drops(A2).map((i) => i.type + ':' + i.sub).join(' ')} / B sees ${drops(B2).length}`);
   dA.stop(); dB.stop(); clearInterval(prot2); B2.leave(); A2.leave(); await sleep(300);
 }
+// ---- 5. operator abilities (a third server): Q is validated on the server, the cooldown/dash are predicted without rubber-banding, an EMP stun reaches the victim's own state, the tells ride the snapshots
+{
+  const PORT3 = PORT + 2, URL3 = `ws://localhost:${PORT3}`;
+  const server3 = createServer({ lobbySecs: 1, total: 4, loot: false, vehicles: false });
+  await server3.listen(PORT3);
+  const [A3, B3] = await Promise.all([NetSim.join(URL3, { name: 'Maetja', operator: 'maetja', lag: 80 }), NetSim.join(URL3, { name: 'Cliffhanger', operator: 'cliffhanger', lag: 0 })]);
+  const room3 = [...MatchRoom.instances].find((r) => r.sim && r.sim.fighters.some((f) => f.op.id === 'maetja' && f.human)), sim3 = room3.sim;
+  const prot3 = setInterval(() => { for (const h of sim3.humans) if (h.alive) h.hp = h.maxHp; }, 40);
+  const dA = drive(A3, () => ({})), dB = drive(B3, () => ({}));
+  await sleep(500);
+  const tp3 = (f, x, z) => { if (!f.alive) return; f.rb.setTranslation({ x, y: 0.9, z }, true); f.rb.setNextKinematicTranslation({ x, y: 0.9, z }); sim3.world.propagateModifiedBodyPositionsToColliders(); f.x = x; f.y = 0.9; f.z = z; };
+  const fA = sim3.fighters[A3.myId], fB = sim3.fighters[B3.myId];
+  for (const f of sim3.fighters) if (!f.human) { f.brain = null; tp3(f, -115 + f.id * 3, -115); }
+  const spot = [[30, 30], [-30, 30], [30, -30], [-30, -30], [60, 0], [-60, 0]].find(([x, z]) => sim3.fighters.every((f) => f.human || Math.hypot(f.x - x, f.z - z) > 40) && !sim3.map.boxes.some((b) => b.kind !== 'edge' && Math.abs(b.x - x) < b.w / 2 + 14 && Math.abs(b.z - z) < b.d / 2 + 14)) ?? [0, 0];
+  tp3(fA, spot[0], spot[1]); tp3(fB, spot[0], spot[1] - 12); await sleep(500);
+  A3.drainEvents(); B3.drainEvents();
+  // A (EMP Breach) presses Q once
+  let sentA = false; dA.fn = () => { if (!sentA) { sentA = true; return { ability: true }; } return {}; };
+  await sleep(160);
+  check('ability: A\'s own cooldown starts at once (predicted, no round trip)', A3.me.abCd > 13, `client abCd=${A3.me.abCd.toFixed(2)}`);
+  await sleep(500);
+  check('ability: the server accepted it (cooldown running) and stunned B, who is 12 m away', fA.abCd > 11 && fA.abCd < 14 && fB.stunT > 1, `server abCd=${fA.abCd.toFixed(2)} B stunT=${fB.stunT.toFixed(2)}`);
+  check('ability: B\'s own replicated state says stunned, and A sees B\'s stun flag on the snapshot', B3.me.stunT > 0.3 && A3.fighters[B3.myId].stunned === true, `B me.stunT=${B3.me.stunT.toFixed(2)} flag=${A3.fighters[B3.myId].stunned}`);
+  const evA = A3.drainEvents(), evB = B3.drainEvents();
+  check('ability: everybody hears the EMP once and B hears the stun', evA.filter((e) => e.t === 'ability' && e.kind === 'emp').length === 1 && evB.some((e) => e.t === 'stun' && e.target === B3.myId), `A ability events=${evA.filter((e) => e.t === 'ability').length} B stun=${evB.filter((e) => e.t === 'stun').length}`);
+  // a stunned B cannot shoot (the server refuses the trigger)
+  const gun = fB.cur, ammo0 = fB.weapons[gun].ammo; dB.fn = () => ({ fire: true }); await sleep(600); dB.fn = () => ({});
+  check('ability: a stunned B holds the trigger and nothing is fired', fB.weapons[gun].ammo === ammo0, `ammo ${ammo0} -> ${fB.weapons[gun].ammo}`);
+  // pressing Q again while cooling down must not reset or restart anything
+  const cd = fA.abCd; sentA = false; await sleep(150); const cd2 = fA.abCd;
+  check('ability: a second Q during the cooldown changes nothing (the server owns the cooldown)', cd2 <= cd && cd2 > cd - 0.8 && !A3.drainEvents().some((e) => e.t === 'ability'), `${cd.toFixed(2)} -> ${cd2.toFixed(2)}`);
+  dA.fn = () => ({});
+  // B (Blast Dash): the dash is predicted, the server agrees on where B ends up (no rubber band), the blast goes off
+  await sleep(2600);                                           // the stun is over
+  tp3(fB, spot[0] + 20, spot[1] - 20); await sleep(500); B3.drainEvents(); const x0 = fB.x, z0 = fB.z, corr0 = B3.stats.corrections;
+  let sentB = false; dB.fn = () => { if (!sentB) { sentB = true; return { ability: true, yaw: 0 }; } return { yaw: 0 }; };
+  await sleep(900);
+  const moved = Math.hypot(fB.x - x0, fB.z - z0), gap = Math.hypot(B3.me.x - fB.x, B3.me.z - fB.z);
+  check('ability: Blast Dash moves B about 11 m on the server and B\'s prediction ends up in the same place', moved > 6 && moved < 13 && gap < 0.8, `server moved ${moved.toFixed(1)} m, client gap ${gap.toFixed(2)} m, corrections ${B3.stats.corrections - corr0}`);
+  check('ability: the blast went off and B is not hurt by his own charge', B3.drainEvents().some((e) => e.t === 'explosion' && e.w === 'dash') && fB.hp >= fB.maxHp * 0.99);
+  dA.stop(); dB.stop(); clearInterval(prot3); B3.leave(); A3.leave(); await sleep(300);
+}
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll netcode checks passed');
 process.exit(failed ? 1 : 0);
