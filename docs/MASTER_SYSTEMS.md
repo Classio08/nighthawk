@@ -110,3 +110,20 @@ A loot match (the default in solo and on the server) starts every fighter with a
 3. Roadmap milestone 2: one real handcrafted arena, real weapon models and sounds from CC0 packs (`ASSETS.md`). (Loot, health and armor are done: Stage 8.)
 4. Vehicle polish: engine sound mix, a respawn timer for wrecks, tyre tracks, a horn.
 5. Portal pass: cut the main bundle (about 5 MB, 1.9 MB gzipped) so the first load stays under the Poki target of 8 MB.
+
+## Integration of the parallel ChatGPT branches (19 Nov 2026)
+
+ChatGPT worked on feature branches while Stage 8 was built; all of them were reviewed, merged into `main` as separate merge commits (so each can be reverted on its own) and re-tested together.
+
+| Branch | What it adds | Notes on the merge |
+|---|---|---|
+| `feature/threat-aware-bot-ai` | `scoreTargetCandidate`: bots weigh distance, who hurt them, who is shooting, wounded/isolated enemies, squad focus | clean |
+| `feature/reactive-ai-cover` | `shouldSeekCover`: cover when badly hurt, under fire, or mid risky reload | adjacent-hunk conflict with the above, both kept |
+| `feature/squad-command-ai` | `chooseSquadOrder` + `Squad.orderFor`: squad fallback/push orders from contact, health and pinner role | clean |
+| `feature/garrison-patrol-search` | `searchWaypoint`, guard patrol/search states, radio-driven investigation | clean |
+| `feature/operator-select` | operator picker on the start screen, `?op=` / saved choice, operator stats card | `main.js` conflict: kept `OPERATOR` plus the loot option |
+| `feature/third-person-camera` | V toggles first/third person, collision-safe boom camera, full-body player model | conflict with the vehicle chase camera: chase camera wins while driving, driver body hidden, gun hidden in third person |
+| `feature/kavari-basin-greybox` | five named places (Basin Yard, Dry River, Relay Ridge, Forward Outpost, Extraction Pad), POI structures, minimap labels | the new boxes moved the seeded filler layout, so two tests/e2e scripts that hard-coded a firing lane/spot now search for open ground; vehicles are off in the contracts test arena; named places get 5 guaranteed good loot items each (hot zones) |
+| docs branches | world bible, dual-camera design, asset specs, production readiness, performance budget, roadmap | their master plan is kept as `docs/MASTER_PRODUCT_PLAN.md`; this file stays the engineering log; README/ROADMAP/ASSETS were combined by hand |
+
+Checks after merging everything: 110 unit tests, engine smoke, server netcode test, and 9 browser scripts (`e2e*.mjs`, including the new `e2e-camera.mjs` for operator picker + third person + vehicle chase camera).
