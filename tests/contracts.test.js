@@ -1,4 +1,4 @@
-// Contracts (airdrop / hardpoint / bounty), the mortar killstreak, weather effects, and the wire format for them.
+// Contracts (airdrop / hardpoint / bounty / relay uplink), the mortar killstreak, weather effects, and wire formats.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/sim/world.js';
@@ -90,6 +90,22 @@ test('hardpoint: capture time only counts while exactly one fighter stands insid
   assert.ok(sim.drainEvents().some((e) => e.t === 'contract' && e.phase === 'done' && e.type === 'hardpoint' && e.by === p.id));
   // stepping out lets the timer fall back
   ct._spawn('hardpoint'); const d = ct.list[0]; tp(p, d.x, d.z); run(sim, 5); const hi = d.prog; tp(p, d.x + 40, d.z); run(sim, 5); assert.ok(d.prog < hi);
+});
+
+test('relay uplink mobilizes existing garrison guards and restores their original post when it ends', async () => {
+  const sim = await Simulation.create({ seed: 31, bots: 0, guards: 2, squads: false, contracts: false, weather: 'clear' });
+  const guards = sim.fighters.filter((f) => f.npc);
+  assert.equal(guards.length, 2);
+  const home = { ...guards[0].brain.post };
+  const homeRoute = guards[0].brain.patrolRoute;
+  sim.contracts.off = false; sim.contracts.nextAt = Infinity;
+  sim.contracts._spawn('uplink');
+  const c = sim.contracts.list[0];
+  assert.deepEqual(guards[0].brain.post, { x: c.x, z: c.z }, 'guards redeploy to the relay');
+  assert.notEqual(guards[0].brain.patrolRoute, homeRoute, 'guards receive a relay patrol route');
+  sim.contracts._end(c, 'expired');
+  assert.deepEqual(guards[0].brain.post, home, 'guards return to their outpost');
+  assert.equal(guards[0].brain.patrolRoute, homeRoute, 'original patrol route is restored');
 });
 
 test('relay uplink: secure first, then upload; contest pauses progress and completion pays out', async () => {
