@@ -69,6 +69,10 @@
   .ov p{margin:0;opacity:.85;font-size:14px;line-height:1.7}
   .btn{pointer-events:auto;cursor:pointer;padding:12px 30px;border:2px solid var(--accent);color:var(--accent);background:rgba(0,0,0,.4);font:inherit;font-size:16px;letter-spacing:4px;border-radius:4px}
   .btn:hover{background:var(--accent);color:#000}
+  #operatorbox{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:13px;padding:9px 12px;border-radius:4px;text-align:center;width:226px;letter-spacing:1px}
+  #operatorbox option{background:#111820;color:#fff}
+  #operatorinfo{max-width:360px;min-height:52px;padding:8px 12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-radius:4px;font-size:11px;line-height:1.55;letter-spacing:.5px}
+  #operatorinfo b{color:var(--accent)}
   #namebox{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:14px;padding:8px 12px;border-radius:4px;text-align:center;width:200px;letter-spacing:2px;user-select:text}
   #skins{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;pointer-events:auto;max-width:560px}
   #skins small{width:100%;opacity:.6;font-size:11px;letter-spacing:3px}
@@ -111,6 +115,9 @@
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <input id="namebox" maxlength="16" placeholder="your callsign" spellcheck="false" autocomplete="off" />
+  <label for="operatorbox" style="font-size:11px;letter-spacing:2px;opacity:.7">SELECT YOUR OPERATOR</label>
+  <select id="operatorbox" aria-label="Select operator"><option value="roms">ROMS · HEAVY GUNNER</option><option value="shadow">SHADOW · INFILTRATOR</option><option value="douglas">DOUGLAS · COMBAT MEDIC</option><option value="cliffhanger">CLIFFHANGER · DEMOLITIONS</option><option value="navy-blue">NAVY BLUE · MARKSMAN</option><option value="rampol">RAMPOL · BREACHER</option><option value="maetja">MAETJA · HACKER</option><option value="cleiseis">CLEISEIS · ASSASSIN</option></select>
+  <div id="operatorinfo" aria-live="polite"></div>
   <div id="skins"><small>WEAPON SKIN</small></div>
   <label style="pointer-events:auto;font-size:12px;letter-spacing:2px;opacity:.85;cursor:pointer"><input type="checkbox" id="goretoggle" style="vertical-align:middle;margin-right:6px">BLOOD &amp; GORE</label>
   <p id="onlinemsg" style="min-height:1.4em;color:var(--red)"></p>
