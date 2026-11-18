@@ -197,7 +197,7 @@ function handleEvents() {
           audio.play(e.type === 'airdrop' ? 'airdrop' : 'contract', { vol: 0.9 });
         } else if (e.phase === 'landed') { hud.message('AIRDROP LANDED', '#ffcf4d', 1.6); audio.play('contract', { x: e.x, z: e.z, maxD: 140, vol: 0.9 }); }
         else if (e.phase === 'armed') {
-          hud.message(e.by === p.id ? 'RELAY SECURED — DATA UPLOAD STARTED' : 'RELAY SECURED — DATA UPLOAD IN PROGRESS', '#53d9ff', 2.4);
+          hud.message(e.by === p.id ? 'RELAY SECURED — GARRISON RESPONSE INBOUND' : 'RELAY SECURED — GARRISON CLOSING ON UPLINK', '#53d9ff', 2.4);
           audio.play('contract', { x: e.x, z: e.z, maxD: 140, vol: 0.9 });
         } else if (e.phase === 'done') {
           if (e.by === p.id) { hud.message(e.type === 'bounty' ? 'BOUNTY COLLECTED  +50 HP  +MORTAR' : e.type === 'uplink' ? 'INTEL EXTRACTED  +35 HP  +MORTAR' : `${nice} CLAIMED  +MORTAR [T]`, '#5be37a', 2.4); audio.play('kill', { vol: 0.8, rate: 1.4 }); }
