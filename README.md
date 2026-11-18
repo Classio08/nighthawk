@@ -1,8 +1,8 @@
 # NIGHTHAWK
 
-A fast, addictive browser shooter: **COD-style operators and abilities + PUBG-style last-one-standing matches**, in short sessions, with simple low-poly looks and real physics. Web first (PC browsers), then mobile and a desktop download.
+A realistic browser tactical shooter built around an original fictional African-inspired special-operations unit. NIGHTHAWK combines responsive gunplay, squad tactics, AI-driven match stories and a Southern African-inspired setting. The visual direction is a realistic redesign with modern equipment; the current renderer still contains placeholder/block-built character and environment art. Web first, with mobile support planned.
 
-Status: **offline battle royale + online multiplayer are built and tested** (two real browsers against a real server, prediction, lag compensation), plus the first big systems wave: smart bots, reload and weapon skins, destructible cover and barrels, contracts, mortar strikes, weather and night, drivable buggies and bikes, and loot (guns, armor, medkits on the ground). Next: put the server on a VPS and test with a friend, then a real arena and real art. See `docs/ROADMAP.md` and `docs/MASTER_SYSTEMS.md`.
+Status: **offline battle royale + online multiplayer are built and tested** (two real browsers against a real server, prediction, lag compensation), plus the first big systems wave: smart bots (threat-aware targeting, cover, squad orders, guard patrols), reload and weapon skins, destructible cover and barrels, contracts, mortar strikes, weather and night, drivable buggies and bikes, loot (guns, armor, medkits on the ground), first-/third-person camera (V), an operator picker and the Kavari Basin greybox map with named places. This is **not yet a public production release**: external-network validation (VPS + friend test), load testing, realistic operator models and integrated PBR materials remain outstanding. See `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md` (what is built, stage by stage), `docs/MASTER_PRODUCT_PLAN.md` (ChatGPT's product/production plan), `docs/PRODUCTION_READINESS.md`, `docs/PERFORMANCE_BUDGET.md`, `docs/ASSET_CATALOG.md`, `docs/PHOTO_TO_TEXTURE_WORKFLOW.md`, `docs/VISUAL_ASSET_REVIEW.md` and `docs/CLAUDE_HANDOFF.md`.
 
 ---
 
@@ -76,7 +76,7 @@ npm run check          # all of the above in one go
 | `src/ui/` | HUD and minimap |
 | `src/input/` | keyboard, mouse, movement maths (touch controls plug in here later) |
 | `data/` | operators and weapons as plain data (`operators.json`) |
-| `docs/` | design, roadmap, tech stack, `COMBAT_SYSTEMS.md` (how the fighting works + what to tune), notes from the old chat |
+| `docs/` | verified roadmap, master systems, visual production, performance budgets, production gates and technical notes |
 | `assets/` | models, textures, sounds (empty for now, see `ASSETS.md`) |
 | `public/` | files copied as-is into the website (favicon) |
 | `server/` | the multiplayer server (Colyseus room that runs `src/sim`), its Dockerfile and test |

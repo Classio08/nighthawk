@@ -1,7 +1,7 @@
 {
   "name": "nighthawk",
   "version": "1.0.0",
-  "description": "NIGHTHAWK - browser battle-royale shooter starring the NDF Nighthawk unit",
+  "description": "NIGHTHAWK - realistic African-inspired browser battle-royale shooter with a fictional operator unit",
   "main": "index.js",
   "scripts": {
     "test": "node --test tests/*.test.js",

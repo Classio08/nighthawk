@@ -1,5 +1,5 @@
 {
-  "_note": "The 8 original NDF operators. Names are the original names. Surnames are deliberately not invented. Backstories are short and gender-neutral; edit freely. Roles/abilities carried over from the v0.2 prototype.",
+  "_note": "The 8 original NIGHTHAWK operators in a fictional African-inspired unit. Names are the original names. Surnames are deliberately not invented. Backstories are short and gender-neutral; edit freely. Roles/abilities carried over from the v0.2 prototype.",
   "operators": [
     { "id": "roms", "name": "Roms", "role": "Heavy Gunner", "weapon": "lmg", "hp": 170, "speed": 9, "color": "#d4a017",
       "ability": { "name": "Overclock", "text": "Fire rate up and damage resistance for 5s", "cooldown": 16 },
