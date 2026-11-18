@@ -191,6 +191,12 @@ export class Simulation {
     if (n <= 0) return;
     const post = findFreeSpot(this.map, this.rng, 0, 0, 26, 7);
     this.outpost = post;
+    // Separate deterministic stream: patrol setup must not perturb match RNG or loot rolls.
+    const patrolRng = makeRng(((this.seed | 0) * 65537 + 991) | 0);
+    const patrolRoute = Array.from({ length: 4 }, (_, i) => {
+      const a = i * Math.PI / 2;
+      return findFreeSpot(this.map, patrolRng, post.x + Math.cos(a) * 9, post.z + Math.sin(a) * 9, 2.8, 1.8);
+    });
     for (let i = 0; i < n; i++) {
       const spot = findFreeSpot(this.map, this.rng, post.x, post.z, 6, 2);
       const op = { id: `guard${i}`, name: `Garrison-0${i + 1}`, color: '#b05cff', hp: 140, speed: 9, weapon: 'smg' };
@@ -198,6 +204,8 @@ export class Simulation {
       f.npc = true; if (this.opts.loot) f.loadoutGuard();
       f.brain = new BotBrain(this, f, this.rng.range(0.55, 0.8), 'guard');
       f.brain.post = post; f.brain.leash = 16;
+      f.brain.patrolRoute = patrolRoute;
+      f.brain.patrolIndex = i % patrolRoute.length;
     }
   }
 
