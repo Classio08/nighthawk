@@ -32,7 +32,7 @@ Core pillars:
 5. Strong performance on ordinary laptops and mobile browsers.
 6. A creator-friendly identity, shareable match moments and ethical cosmetics economy.
 
-Proposed fiction: **Operation BLACKOUT / Sector 09**. A fictional private security network called AEGIS has sealed a remote coastal test zone after a classified communications/energy incident. Nighthawk operators, rival contractors and local security factions compete to recover evidence and extract. The shrinking hazard should be an in-world electromagnetic storm / containment perimeter, not a generic magic circle. Names, story and faction lore remain proposals until the owner approves them.
+Proposed fiction (not canon yet): **Operation BLACKOUT** takes place in the **Kavari Exclusion Zone**, with the first arena provisionally called **Kavari Basin / Sector 09**. A fictional private security consortium (working name: AEGIS) has sealed a remote proving ground after a classified communications/energy incident. Nighthawk operators, rival contractors and local security factions compete to recover evidence and extract. The shrinking hazard should be an in-world electromagnetic storm / containment perimeter, not a generic magic circle. The owner must approve the zone, operation, consortium and map names before they appear as established lore.
 
 ## 3. Game modes and repeatable match loops
 
