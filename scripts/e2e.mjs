@@ -87,7 +87,9 @@ const hold = async (page, code, ms) => { await page.keyboard.down(code); await w
   const g0 = await state(page);
   await page.keyboard.press('KeyG'); await wait(300);
   check('G throws a grenade', (await state(page)).nades === g0.nades - 1);
-  await wait(3200);
+  // wait for the bang itself (the fuse is 2.2 s of GAME time, which runs slower than the clock on a slow software-rendered machine)
+  await page.waitForFunction('window.__nh.sim.grenades.length === 0', { timeout: 20000 }).catch(() => {});
+  await wait(150);
   check('grenade explodes (particles appeared)', (await state(page)).particles > 20);
   await page.screenshot({ path: SHOT('nade') });
   await page.close();

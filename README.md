@@ -2,7 +2,7 @@
 
 A fast, addictive browser shooter: **COD-style operators and abilities + PUBG-style last-one-standing matches**, in short sessions, with simple low-poly looks and real physics. Web first (PC browsers), then mobile and a desktop download.
 
-Status: **Milestone 0 and the multiplayer spike are done** (movement, physics, shooting, grenades, AI bots, and a working multiplayer server test). Next: two real browsers in one match. See `docs/ROADMAP.md`.
+Status: **offline battle royale + online multiplayer (Milestone 1) are built and tested** (two real browsers against a real server, prediction, lag compensation). Next: put the server on a VPS and test with a friend, then the big gameplay wave. See `docs/ROADMAP.md`.
 
 ---
 
@@ -46,21 +46,22 @@ Open the address it prints (usually http://localhost:5173) in Chrome. Click the 
 
 ---
 
-## Try the multiplayer server test (optional, adds about 45 MB)
+## Play online (two windows on your own PC)
 
 ```powershell
-npm run server:install
-npm run server:test
+npm run server        # terminal 1: the game server (port 2567)
+npm run dev           # terminal 2: the game page
 ```
-It starts a real server, joins two fake players and prints PASS/FAIL lines. To run the server by itself: `npm run server` (it listens on port 2567).
+Open the page, type a callsign, press **PLAY ONLINE**, and open a second window and do the same within 15 seconds. Empty slots are filled with bots. Add `?lag=150` to one window's address to feel 150 ms of fake lag. Putting it on the internet: `docs/DEPLOY.md`.
 
 ## Check that everything works
 
 ```powershell
-npm test         # unit tests (movement directions, including the A/D fix)
-npm test         # 25 automatic tests of the game rules (weapons, bots, zone, ragdolls, springs...)
-npm run smoke    # physics + AI engine checks, no browser needed
-npm run build    # makes the website files in the dist folder
+npm test               # unit tests: movement, weapons, bots, zone, ragdolls, multiplayer rules, netcode maths
+npm run smoke          # physics + AI engine checks, no browser needed
+npm run server:test    # real server + two real clients with 120 ms fake lag (hits, prediction, leaving)
+npm run build          # makes the website files in the dist folder
+npm run check          # all of the above in one go
 ```
 
 ## Folders
@@ -68,7 +69,8 @@ npm run build    # makes the website files in the dist folder
 | Folder | What is in it |
 |---|---|
 | `src/` | the game code |
-| `src/sim/` | **the game rules** (no graphics): fighters, weapons, bots, zone, map. Also runs on the server later |
+| `src/sim/` | **the game rules** (no graphics): fighters, weapons, bots, zone, map. Runs in the browser (solo) AND on the server (online) |
+| `src/net/` | multiplayer: wire format and the browser-side prediction/interpolation (`netsim.js`) |
 | `src/render/` | what you see: world, soldiers, guns, ragdolls (three.js) |
 | `src/fx/` | sound, particles, bullet holes, screen shake |
 | `src/ui/` | HUD and minimap |
@@ -77,7 +79,7 @@ npm run build    # makes the website files in the dist folder
 | `docs/` | design, roadmap, tech stack, `COMBAT_SYSTEMS.md` (how the fighting works + what to tune), notes from the old chat |
 | `assets/` | models, textures, sounds (empty for now, see `ASSETS.md`) |
 | `public/` | files copied as-is into the website (favicon) |
-| `server/` | the multiplayer server (Colyseus + Rapier), has its own installs |
+| `server/` | the multiplayer server (Colyseus room that runs `src/sim`), its Dockerfile and test |
 | `scripts/` | helper scripts (`smoke.mjs`, `e2e.mjs`) |
 | `tests/` | automatic tests |
 

@@ -23,7 +23,10 @@ const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const params = new URLSearchParams(location.search);
-const AUTOSTART = params.has('autostart');          // used by the automatic browser test: skips the click-to-play screen
+const AUTOSTART = params.has('autostart');
+const DEFAULT_SERVER = import.meta.env?.VITE_SERVER_URL ?? (['localhost', '127.0.0.1'].includes(location.hostname) ? `ws://${location.hostname}:2567` : '');
+const ONLINE_URL = params.get('online') || DEFAULT_SERVER;        // ?online=ws://host:2567 overrides
+const FAKE_LAG = +(params.get('lag') ?? 0);                         // ?lag=120 simulates 120 ms of round-trip lag (for testing)          // used by the automatic browser test: skips the click-to-play screen
 
 const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -50,10 +53,10 @@ function disposeScene(scene) {
   });
 }
 
-async function newMatch() {
+async function newMatch(online = null) {
   if (G) { G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms' });
+  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms' });
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
@@ -63,12 +66,12 @@ async function newMatch() {
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
   const p = sim.player;
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.slot = 0;
-  G = { sim, scene, world, particles, decals, tracers, rag, ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
+  G = { sim, net: online, scene, world, particles, decals, tracers, rag, ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
   viewmodel.root.visible = true;
-  window.__nh = { G, sim, cmd, input, hud, camera, audio };     // handles for the automatic browser test
+  window.__nh = { G, sim, cmd, input, hud, camera, audio, net: online };     // handles for the automatic browser test
   return G;
 }
 
@@ -215,16 +218,18 @@ function frame(now) {
   if (!G || !started) { return; }
   const { sim } = G, p = sim.player;
 
-  if (!paused) {
-    handleInput(dt);
+  if (!paused || G.net) {                       // online, the world keeps running when you open the pause menu (you just stand still)
+    if (!paused) handleInput(dt); else { input.dx = 0; input.dy = 0; input.endFrame(); }
     G.acc += dt;
+    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, slot: 0 } : cmd;
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
-      sim.step(STEP, cmd);
+      sim.step(STEP, keys);
       cmd.reload = false; cmd.grenade = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }
+    if (G.net) G.net.update(dt);
     handleEvents();
   }
   const alpha = paused ? 1 : G.acc / STEP;
@@ -293,11 +298,42 @@ input.onLockChange = (locked) => {
   if (!locked) { paused = true; showOv('pause', true); } else { paused = false; showOv('pause', false); }
 };
 $('playbtn').addEventListener('click', beginPlay);
+
+/* ---- online: lobby -> match ---- */
+let joining = null;
+async function beginOnline() {
+  audio.unlock();
+  if (!ONLINE_URL) { $('onlinemsg').textContent = 'No game server set (use ?online=ws://host:2567)'; return; }
+  const name = ($('namebox').value || 'Operator').trim().slice(0, 16); try { localStorage.setItem('nh_name', name); } catch { /* private mode */ }
+  $('onlinemsg').textContent = ''; showOv('start', false); showOv('end', false); showOv('lobby', true); $('lobbytxt').textContent = 'connecting...';
+  const ticket = joining = {};                         // so CANCEL can abandon this attempt
+  try {
+    const { NetSim } = await import('./net/netsim.js');          // the multiplayer code is only downloaded when you go online
+    const net = await NetSim.join(ONLINE_URL, { name, operator: params.get('op') ?? 'roms', lag: FAKE_LAG,
+      onLobby: (m) => { $('lobbytxt').textContent = `${m.n} player${m.n === 1 ? '' : 's'} in the lobby · starting in ${m.left} s`; } });
+    if (joining !== ticket) { net.dispose(); return; }
+    started = true; await newMatch(net);
+    net.onClose = () => { if (G?.net === net && !G.over) { G.over = true; hud.message('DISCONNECTED FROM SERVER', '#ff4d4d', 4); setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); showOv('start', true); }, 2500); } };
+    showOv('lobby', false); showOv('pause', false); paused = false;
+    if (!AUTOSTART) input.lock();
+  } catch (err) {
+    if (joining !== ticket) return;
+    showOv('lobby', false); showOv('start', true);
+    $('onlinemsg').textContent = `Could not join a match: ${err?.message ?? err}`;
+  }
+}
+$('onlinebtn').addEventListener('click', beginOnline);
+$('lobbycancel').addEventListener('click', () => { joining = null; showOv('lobby', false); showOv('start', true); });
+try { $('namebox').value = localStorage.getItem('nh_name') ?? ''; } catch { /* ignore */ }
 $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
-$('againbtn').addEventListener('click', async () => { audio.unlock(); showOv('end', false); await newMatch(); paused = false; if (!AUTOSTART) input.lock(); });
+$('againbtn').addEventListener('click', async () => {
+  audio.unlock(); showOv('end', false);
+  if (G?.net) { const url = ONLINE_URL; G.net.dispose(); G.net = null; if (url) { await beginOnline(); return; } }
+  await newMatch(); paused = false; if (!AUTOSTART) input.lock();
+});
 
 (async function boot() {
   await initPhysics();
   requestAnimationFrame(frame);
-  if (AUTOSTART) { input.lockFailed = true; await beginPlay(); }
+  if (AUTOSTART) { input.lockFailed = true; await (params.has('online') ? beginOnline() : beginPlay()); }
 })();

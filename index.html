@@ -59,6 +59,7 @@
   .ov p{margin:0;opacity:.85;font-size:14px;line-height:1.7}
   .btn{pointer-events:auto;cursor:pointer;padding:12px 30px;border:2px solid var(--accent);color:var(--accent);background:rgba(0,0,0,.4);font:inherit;font-size:16px;letter-spacing:4px;border-radius:4px}
   .btn:hover{background:var(--accent);color:#000}
+  #namebox{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:14px;padding:8px 12px;border-radius:4px;text-align:center;width:200px;letter-spacing:2px;user-select:text}
   #stats-end{display:flex;gap:26px;font-size:14px}#stats-end b{display:block;font-size:30px;color:var(--accent)}
   #rotate{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:#0b0e13;color:#ffcf4d;font-size:22px;letter-spacing:3px;text-align:center}
   @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
@@ -76,7 +77,7 @@
     <canvas id="mini" class="box" width="150" height="150"></canvas>
   </div>
   <div id="zone" class="box">ZONE</div>
-  <div id="fps"><span id="fpsn">0</span> fps</div>
+  <div id="fps"><span id="fpsn">0</span> fps<span id="pingn"></span></div>
   <div id="feed"></div>
   <div id="slots"></div>
   <div id="msg"></div>
@@ -88,8 +89,12 @@
   <h1>NIGHTHAWK</h1>
   <p>16 fighters · one shrinking zone · last one standing</p>
   <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim<br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; Esc pause</p>
-  <button class="btn" id="playbtn">CLICK TO PLAY</button>
+  <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
+  <button class="btn" id="onlinebtn">PLAY ONLINE</button>
+  <input id="namebox" maxlength="16" placeholder="your callsign" spellcheck="false" autocomplete="off" />
+  <p id="onlinemsg" style="min-height:1.4em;color:var(--red)"></p>
 </div>
+<div id="lobby" class="ov"><h2>FINDING A MATCH</h2><p id="lobbytxt">connecting...</p><p style="opacity:.6;font-size:12px">empty slots are filled with bots, so you always get a full match</p><button class="btn" id="lobbycancel">CANCEL</button></div>
 <div id="pause" class="ov"><h2>PAUSED</h2><p>Click RESUME or press Esc again to keep playing.</p><button class="btn" id="resumebtn">RESUME</button></div>
 <div id="end" class="ov">
   <h1 id="endtitle">ELIMINATED</h1>

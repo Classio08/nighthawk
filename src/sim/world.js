@@ -29,7 +29,7 @@ export function initPhysics() { return (rapierReady ??= RAPIER.init()); }
 
 export class Fighter {
   constructor(id, name, op, human) {
-    this.id = id; this.name = name; this.op = op; this.human = human; this.isPlayer = human; this.placement = 0; this.lagTicks = 0;
+    this.id = id; this.name = name; this.op = op; this.human = human; this.isPlayer = human; this.placement = 0; this.lagTicks = 0; this.rngKey = id; this.shotN = 0;
     this.color = op.color; this.maxHp = op.hp; this.hp = op.hp;
     this.alive = true; this.kills = 0;
     this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
@@ -43,6 +43,21 @@ export class Fighter {
     this.brain = null; this.rb = null; this.col = null;
   }
   get eyeY() { return this.y + EYE; }
+
+  /** everything the owner's browser needs to rewind its prediction to the server's truth (sent only to that one player) */
+  exportSelf() {
+    const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
+    return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
+      fireT: this.fireT, reloadT: this.reloadT, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
+      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+  }
+  importSelf(s) {
+    this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
+    for (const k of SLOT_ORDER) { this.weapons[k].ammo = s.w[k][0]; this.weapons[k].reserve = s.w[k][1]; }
+    this.fireT = s.fireT; this.reloadT = s.reloadT; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
+    this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
+    if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
+  }
 }
 
 export class Simulation {
@@ -118,7 +133,8 @@ export class Simulation {
   }
 
   _addCrate(x, y, z) {
-    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z));
+    // online: crates are fixed (so every browser's prediction sees exactly the same world); offline: they fly around
+    const body = this.world.createRigidBody((this.opts.propsFixed ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic()).setTranslation(x, y, z));
     const col = this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.6, 0.6, 0.6).setRestitution(0.1).setFriction(0.8).setDensity(0.6), body);
     this.solid.add(col.handle);
     this.crates.push({ body, col });
@@ -171,13 +187,13 @@ export class Simulation {
 
   /* ---------------- shooting ---------------- */
 
-  _aimDir(f, spread) {
+  _aimDir(f, spread, rng = this.rng) {
     const cp = Math.cos(f.pitch);
     const d = { x: -Math.sin(f.yaw) * cp, y: Math.sin(f.pitch), z: -Math.cos(f.yaw) * cp };
     if (!spread) return d;
     const rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);                       // right vector
     const ux = -Math.sin(f.pitch) * -Math.sin(f.yaw), uy = Math.cos(f.pitch), uz = -Math.sin(f.pitch) * -Math.cos(f.yaw);
-    const a = this.rng() * Math.PI * 2, r = Math.sqrt(this.rng()) * spread;
+    const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * spread;
     const ox = Math.cos(a) * r, oy = Math.sin(a) * r;
     const x = d.x + rx * ox + ux * oy, y = d.y + uy * oy, z = d.z + rz * ox + uz * oy;
     const l = Math.hypot(x, y, z);
@@ -209,9 +225,11 @@ export class Simulation {
     const spread = base + f.bloom;
     f.bloom = Math.min(w.bloomMax, f.bloom + w.bloom);
     const origin = { x: f.x, y: f.eyeY, z: f.z };
+    f.shotN++;
     const viewTick = this.tick - f.lagTicks;           // lag compensation: judge people where the shooter SAW them
     for (let p = 0; p < w.pellets; p++) {
-      const dir = this._aimDir(f, spread);
+      // humans: the spread of every pellet is a pure function of (seed, who, which shot), so the shooter's browser rolls the SAME dice as the server
+      const dir = this._aimDir(f, spread, f.human ? makeRng((this.seed * 31 + f.rngKey * 1009 + f.shotN * 7 + p * 101) | 0) : this.rng);
       // 1) how far does the bullet fly before a wall / crate / floor stops it? (Rapier; fighters are NOT in this query)
       const ray = new RAPIER.Ray(origin, dir);
       const hit = this.world.castRayAndGetNormal(ray, w.range, true, undefined, undefined, f.col, undefined, (c) => this.solid.has(c.handle));
@@ -282,6 +300,7 @@ export class Simulation {
   throwGrenade(f, dir, speed = 15) {
     if (f.nades <= 0 || f.nadeT > 0) return false;
     f.nades--; f.nadeT = 1.2;
+    if (this.opts.predictor) { this.emit({ t: 'throw', by: f.id }); return true; }   // a predicting browser only plays the throw; the server owns the grenade
     const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(f.x + dir.x * 0.9, f.eyeY + dir.y * 0.9, f.z + dir.z * 0.9)
       .setLinvel(dir.x * speed, dir.y * speed + 3.5, dir.z * speed).setAngvel({ x: 6, y: 2, z: 3 }));
@@ -297,7 +316,7 @@ export class Simulation {
     this.emit({ t: 'explosion', x: p.x, y: p.y, z: p.z, r: GRENADE_R });
     for (const c of this.crates) {
       const q = c.body.translation(), dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, d = Math.hypot(dx, dy, dz) || 1;
-      if (d < GRENADE_R) { const k = 16 * (1 - d / GRENADE_R); c.body.applyImpulse({ x: dx / d * k, y: dy / d * k + k * 0.6, z: dz / d * k }, true); }
+      if (d < GRENADE_R && c.body.isDynamic()) { const k = 16 * (1 - d / GRENADE_R); c.body.applyImpulse({ x: dx / d * k, y: dy / d * k + k * 0.6, z: dz / d * k }, true); }
     }
     for (const f of this.fighters) {
       if (!f.alive) continue;
@@ -409,7 +428,7 @@ export class Simulation {
    */
   step(dt, input) {
     this.time += dt;
-    this.zone.update(dt);
+    if (!this.opts.predictor) this.zone.update(dt);
 
     let cmds = input;
     if (input && typeof input.yaw === 'number') cmds = this.player ? { [this.player.id]: input } : {};
@@ -422,7 +441,7 @@ export class Simulation {
     }
 
     for (const f of this.fighters) {
-      if (!f.alive) continue;
+      if (!f.alive || this.opts.predictor) continue;       // a predicting browser only simulates ITS player's movement/weapon; hp and zone come from the server
       if (f.brain) f.brain.update(dt);
       // health regen after a few seconds of peace (arcade feel)
       f.noHurtT += dt;

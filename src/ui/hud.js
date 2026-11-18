@@ -8,7 +8,7 @@ const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
 export class Hud {
   constructor(map) {
     this.el = {
-      alive: $('alive'), kills: $('kills'), zone: $('zone'), fps: $('fpsn'), feed: $('feed'), slots: $('slots'), msg: $('msg'),
+      alive: $('alive'), kills: $('kills'), zone: $('zone'), fps: $('fpsn'), ping: $('pingn'), feed: $('feed'), slots: $('slots'), msg: $('msg'),
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
       cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'),
@@ -88,7 +88,7 @@ export class Hud {
     for (const a of this.arrows) { a.t = Math.max(0, a.t - dt); a.el.style.opacity = Math.min(1, a.t * 1.5); a.el.style.transform = `rotate(${a.ang}rad)`; }
     // fps (smoothed)
     this.fpsAcc += dt; this.fpsN++;
-    if (this.fpsAcc > 0.5) { e.fps.textContent = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; }
+    if (this.fpsAcc > 0.5) { e.fps.textContent = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; e.ping.textContent = sim.rtt !== undefined ? ` · ${Math.round(sim.rtt)} ms` : ''; }
     this.drawMini(dt, sim, p);
   }
 

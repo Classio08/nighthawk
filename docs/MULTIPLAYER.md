@@ -1,69 +1,60 @@
-# Multiplayer plan
+# Multiplayer
 
-Decision: **multiplayer comes right after the tech proof, not at the end.** Retro-fitting networking into a finished single-player game is the classic way these projects die. Building the game on a server-authoritative loop from the start also gives us anti-cheat, bots that live on the server, and portal-style lobbies for free.
+Decision: **multiplayer comes early, not at the end.** Retro-fitting networking into a finished single-player game is how these projects die. The game rules (`src/sim/`) contain no graphics, so the **same file** runs in the browser (solo mode) and on the server (online mode).
 
-## What we found (research summary)
-
-- **Colyseus 0.18 (MIT) now ships the hard parts built in**: fixed-tick server simulation, client-side prediction with reconciliation, smoothed/interpolated remote players, and hitscan **lag compensation** (`allowRewindState`, `rewind.lastSeenBy`). Source: https://docs.colyseus.io/netcode
-- Its docs name **Rapier** as a supported "opaque engine" for prediction (`predict.sim`). Caveat from the same page: engine-internal state (contact caches, solver data) is not rolled back on reconcile, so we only predict the **kinematic player controller** (stateless, cheap to replay) and keep crates, grenades and bots server-only. Source: https://docs.colyseus.io/netcode/client-prediction
-- Colyseus' own FPS demo ("ColyStrike") exists, but **its source code is sponsor-only**, so we cannot copy it. We build our own from the public docs. The "Prediction Playground" labs are public on GitHub.
-- npm check (today): `colyseus` 0.18.12, `@colyseus/core` 0.18.28, `@colyseus/sdk` 0.18.10, `@colyseus/schema` 5.0.49. All MIT.
-
-## Spike result (done, in this repo: `server/`)
-
-`cd server && npm install && npm test` boots a real Colyseus 0.18 server, joins two fake players and checks:
-
-- both players see each other
-- pressing D moves a player to the **right** (+X) for everyone (it uses the same `src/input/move.js` as the browser, so the old A/D bug cannot return on the server)
-- a shot through a wall does **no** damage
-- a clear shot lowers the target's health **on the server** (clients never say "I hit him")
-- kills count and the victim respawns
-
-Rapier physics runs inside Node on the server (same character controller as the browser).
-
-**What the spike did NOT prove yet** (be honest about it):
-- Client-side prediction and interpolation in the browser (Milestone 1).
-- Lag compensation under real latency. The Node test clients do not stamp inputs, so the server falls back to live positions.
-- Load: how many rooms/players one small server holds. We must load-test.
-- Hit boxes are a rough sphere for now (proper head/body boxes later).
-
-## Architecture
+## What is built (Milestone 1, tested)
 
 ```
-Browser (three.js)  --inputs 30/s-->  Colyseus room (Node)  --state patches-->  Browser(s)
- - predicts YOUR movement             - fixed 30 Hz tick, 60 Hz physics        - interpolates OTHERS
- - draws everything                   - Rapier world, Yuka bots, zone, loot
-                                      - validates every shot (lag compensated)
+Browser (three.js)  --keys, 60/s-->  Node server (Colyseus room)  --snapshots, 20/s-->  Browsers
+ - predicts YOUR movement + weapon    - runs the real Simulation at a fixed 60 Hz         - interpolate OTHERS 100 ms behind
+ - draws everything                   - Rapier physics, Yuka bots, zone
+                                      - judges every shot (lag compensated)
 ```
 
-Rules:
-1. **Server decides, client suggests.** Clients send keys + look direction (and "fire"), never positions or hits.
-2. **One movement function** (`moveVector` + controller step) shared by client and server. Never copy-paste it.
-3. **Offline mode keeps working:** keep game rules in a plain `Simulation` module that does not import Colyseus. The room wraps it for online play; the browser can run the same module locally for "practice vs bots" with no server. (We will extract this in Milestone 1.)
-4. **Bots live on the server** (Yuka brain + Rapier body) and look like normal players to clients. They fill empty lobby slots so a match always starts instantly.
+| Piece | File | What it does |
+|---|---|---|
+| Rules | `src/sim/world.js` | `Simulation.step(dt, cmds)` takes one input per human fighter. Bots are just fighters without a human |
+| Hits | `src/sim/geom.js`, `world.js _fire` | Bullets vs players = exact ray-capsule maths on **rewound** positions (64-tick history). Walls/crates = Rapier ray |
+| Input | `src/sim/cmd.js` | `sanitizeCmd`: the server never trusts the network (clamps numbers, forces booleans) |
+| Wire format | `src/net/protocol.js` | Inputs as small arrays; snapshots as JSON-able arrays (Colyseus packs them) |
+| Server | `server/src/MatchRoom.js` | Lobby countdown, bots fill empty slots, input queue + jitter buffer, 20 Hz snapshots, a leaver is replaced by a bot |
+| Client | `src/net/netsim.js` | `NetSim` looks like the offline `Simulation` to the renderer. Prediction + reconciliation + interpolation + clock estimate |
+
+### How it feels instant and stays fair
+1. **Prediction**: your keys move you at once on a tiny local copy of the rules (`predictor`: same seed, same walls, only you).
+2. **Reconciliation**: each snapshot carries your own state *as of the last input the server processed* (`ack`). The browser rewinds to it and replays the inputs the server has not seen yet. Any difference is blended away over ~10 frames; a gap above 2.5 m snaps (teleport/respawn).
+3. **Same dice**: bullet spread is a pure function of (seed, fighter, shot number), so your screen and the server roll the same spread and "what I aimed at" is what is judged.
+4. **Interpolation**: everyone else is drawn 100 ms in the past, blended between two snapshots, so 20 snapshots/s looks smooth.
+5. **Lag compensation**: every fire input carries `vt`, the server tick of the world you were looking at. The server judges the shot against fighters' positions *at that tick* (history of 64 ticks, never more than 30 ticks = 0.5 s back, never the future).
+6. **Crates are fixed in online mode** (`propsFixed`) so every browser has the identical world. Free-flying physics props come back later as server-owned, replicated objects.
+
+### Test results (run `npm run server:test`, `npm test`, `node scripts/e2e-online.mjs`)
+- Real server + two real clients, **120 ms artificial round-trip lag**: prediction ends within 0.00-0.15 m of the server, max error while running 0.06-0.09 m, and **97 % of shots at a running target hit** (7 % with lag compensation switched off: `NO_LAGCOMP=1 npm run server:test`).
+- Reconciliation unit test: a client shoved 4 m off, rewound and replayed 60 inputs, ends within 2 cm of the truth.
+- Two headless Chrome windows against the server: join, see each other, move, shoot, die (ELIMINATED #6), win (WINNER #1) with no console errors.
+
+## Honest limits (not done yet)
+- **Not load-tested with real players or real internet.** CPU per 16-fighter match: about 0.5 ms per tick on average (p99 about 6 ms), measured in `scripts/bench-sim.mjs`. Network cost is not measured.
+- Snapshots are JSON-style arrays and always list all 16 fighters; no interest management or delta compression yet (fine for 16 players).
+- Grenades are replicated as positions only (they pop up 100-200 ms late for other players' throws); crates/props are static.
+- No reconnection: closing the tab hands your fighter to a bot.
+- No anti-cheat beyond input sanitising and server authority (aimbots are possible).
+- Death = spectate is minimal (death camera, then the result screen).
+
+## Research notes (earlier, still true)
+- Colyseus 0.18 (MIT) has built-in prediction/rewind helpers, but they target schema state; we use **our own message protocol** instead, because our rules engine is a physics simulation (Rapier + Yuka), not a schema. Source: https://docs.colyseus.io/netcode
+- Engine-internal physics state is not rolled back on reconcile, so we only predict the **kinematic player controller** (stateless, cheap to replay). Bots, grenades and (later) vehicles stay server-only.
+- ColyStrike (Colyseus' FPS demo) is sponsor-only code: not used.
 
 ## Hosting and latency
+See `DEPLOY.md` for the step-by-step. Latency reality: a Johannesburg server gives roughly 5-30 ms inside southern Africa but 140-250 ms to Europe/US (third-party figures, re-check). Portal traffic is mostly not African, so launch near where most players are and add a Johannesburg server for Namibia/SA later.
 
-- Client files: Cloudflare Pages (static, free tier).
-- Game server: a small Linux VPS. Southern Africa options exist in Johannesburg/Cape Town (one provider lists 2 GB / 1 vCPU from about $21/month; another guide cites Colyseus Cloud from $15/month; prices are third-party and change, so re-check). The server needs TLS (`wss://`), so put Caddy or Cloudflare in front.
-- **Latency reality check:** a Johannesburg server gives roughly 5-30 ms inside South Africa and neighbours (a regional host lists latency up to ~40 ms for Zambia), but 140-250 ms to Europe/US (a hosting latency table lists London 140-180, US East 200-250 from SA). Portal traffic is mostly **not** African. Plan: launch with one region where most players will be (probably Europe) and add Johannesburg for Namibia/SA players later; bots hide latency for solo-style sessions.
-- Before choosing a portal, check each one's rules about connecting to your own game server (allowed domains, `wss://`, SDK requirements). We have not verified this yet.
-
-## Netcode defaults (starting point)
-
-| Setting | Value | Why |
-|---|---|---|
-| Server tick (input rate) | 30 Hz | Cheap, fine for browser FPS |
-| Physics sub-steps | 2 (= 60 Hz) | Same feel as the single-player demo |
-| Interpolation delay | ~100 ms | Smooth remote players |
-| Max lag-comp rewind | 300 ms | Stops abuse by high-ping players |
-| Players per match | 16 (humans + bots) | Fits one small server comfortably, to be load-tested |
-
-## Alternatives considered
-
-| Option | Verdict |
+## Netcode numbers
+| Setting | Value |
 |---|---|
-| Socket.IO + hand-written netcode | More work, no built-in prediction/lag comp. Rejected |
-| Peer-to-peer (netplayjs, rollback) | Great for 2-player games, wrong for 16-player shooters with cheating risk. Rejected |
-| geckos.io (WebRTC/UDP), WebTransport | Lower latency but more moving parts; WebTransport browser support still maturing. Revisit if WebSocket lag hurts |
-| Copying an open-source browser FPS | None found with a clean permissive license and production netcode (see `RESOURCES.md`). Rejected |
+| Server tick | 60 Hz (fixed step with accumulator, max 5 catch-up steps) |
+| Snapshot rate | 20 Hz |
+| Interpolation delay | 6 ticks (100 ms) |
+| Input buffer on the server | waits for 2 inputs, skips ahead if more than 6 are queued, repeats the last input for at most 3 ticks if one is late |
+| Max lag-comp rewind | 30 ticks (500 ms) |
+| Players per match | 16 (humans + bots) |

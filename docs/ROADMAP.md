@@ -7,9 +7,9 @@ Rule: every milestone ends with something you can open in a browser and play. Es
 | # | Milestone | Done when | Status |
 |---|---|---|---|
 | 0 | **Tech proof** | Move, jump, shoot, grenades, physics crates, AI bots, tests, build | DONE |
-| 0.5 | **Multiplayer spike** | Colyseus 0.18 server runs Rapier; two fake clients join, move, get blocked by a wall, and shoot each other with server-validated hits | DONE (`server/`) |
+| 0.5 | **Multiplayer spike** | Colyseus 0.18 server runs Rapier; two fake clients join, move, get blocked by a wall, and shoot each other with server-validated hits | DONE (replaced by Milestone 1) |
 | 0.7 | **Battle-royale core (offline)** | Rules split into a graphics-free `Simulation` (`src/sim/`); 6 data-driven weapons with recoil / ADS / reload; bots with line-of-sight, hearing, cover, grenades; shrinking zone; win/lose + play again; zzfx sounds, blood/spark particles, bullet holes, ragdoll deaths, screen shake, HUD + minimap; 25 tests + 22-step browser test | DONE |
-| 1 | **Two tabs, one match** | Browser connects to the server; your own movement is predicted, other players are interpolated; shooting is validated with lag compensation; server deployed on a small VPS; tested with a friend on another network. The plain `Simulation` module now exists (`src/sim/world.js`), so this milestone is mostly networking: run it on the server, send `cmd` inputs, send snapshots | next |
+| 1 | **Two tabs, one match** | Server-authoritative Colyseus room runs the real `Simulation`; browser prediction + reconciliation, interpolation, lag-compensated capsule hits, lobby with bots filling slots, leaver replaced by a bot, Dockerfile + `DEPLOY.md`. Tested with a real server and two real browsers. **Still to do: deploy to a VPS and test with a friend on another network** | DONE (code) / deploy pending |
 | 2 | **Playable arena (online)** | One real map, 6 weapons from CC0 packs (reload, ammo, recoil), sounds, hit markers, damage direction, health + armor, death and respawn, pause on focus loss | |
 | 3 | **Server bots** | Yuka bots with line-of-sight + recast navmesh living on the server; they fill empty slots so a match always starts instantly | |
 | 4 | **Battle royale loop** | 16 fighters, drop-in, loot on the ground, shrinking zone, win/lose screen, "play again" in one click | |
