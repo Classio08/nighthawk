@@ -47,6 +47,9 @@ const info = (page) => page.evaluate(() => {
     others: s.fighters.filter((f) => f.id !== p.id).map((f) => ({ id: f.id, x: f.x, z: f.z, alive: f.alive, human: f.human, name: f.name })) };
 });
 const room = [...MatchRoom.instances][0], sim = room.sim;
+// the humans just stand there while the pages load: keep bots / guards from killing them before the test starts (random spawns made this flaky)
+for (const f of sim.fighters) if (!f.human) f.brain = null;
+const protect = setInterval(() => { for (const h of sim.humans) if (h.alive) h.hp = h.maxHp; }, 30);
 
 const a = await info(A), b = await info(B);
 check('both browsers are in the same match with 6 contestants + 4 garrison guards', a.nf === 6 && b.nf === 6 && a.ng === 4 && a.id !== b.id, `A=${a.name}#${a.id} B=${b.name}#${b.id} guards=${a.ng}`);
@@ -54,6 +57,7 @@ check('names and operators arrived', a.name === 'Roms' && b.name === 'Shadow' ||
 check('HUD alive counter matches the sim and ignores the guards (<= 6)', a.aliveHud.trim() === String(a.alive_n) && b.aliveHud.trim() === String(b.alive_n) && a.alive_n <= 6 && a.alive_n >= 3, `${a.aliveHud}/${b.aliveHud} sim=${a.alive_n}`);
 await A.screenshot({ path: SHOT('A_start') }); await B.screenshot({ path: SHOT('B_start') });
 
+clearInterval(protect);
 // keep bots from interfering
 for (const f of sim.fighters) if (!f.human) { f.brain = null; f.rb.setTranslation({ x: 100 + f.id * 3, y: 0.9, z: 100 }, true); f.x = 100 + f.id * 3; f.z = 100; }
 sim.zone.radius = 500;

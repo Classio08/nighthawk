@@ -6,6 +6,7 @@
 //   * EVERYONE ELSE is drawn ~100 ms in the past, interpolated between the last two snapshots (smooth even at 20 snapshots/s).
 //   * Shots are judged by the server on where the target was on YOUR screen (lag compensation, see Simulation._fire).
 import { Simulation, OPERATORS } from '../sim/world.js';
+import { Contracts } from '../sim/contracts.js';
 import { Zone } from '../sim/zone.js';
 import { makeRng } from '../sim/rng.js';
 import { SLOT_ORDER } from '../sim/weapons.js';
@@ -27,7 +28,7 @@ class RemoteFighter {
   get eyeY() { return this.y + 0.72; }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -50,7 +51,7 @@ export class NetSim {
     this.ready = false; this.inbox = []; this.onLobby = null; this.onOver = null; this.onClose = null;
     this.seq = 0; this.pending = []; this.outbox = []; this.err = { x: 0, y: 0, z: 0 };
     this.snaps = []; this.clockOff = null; this.evq = [];
-    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.humans = []; this.nDestroyed = 0;
+    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.humans = []; this.nDestroyed = 0; this.contracts = { list: [] }; this.strikes = [];
     this.time = 0; this.tick = 0; this.state = 'playing'; this.result = null; this.rtt = 0; this.stats = { snaps: 0, corrections: 0, maxErr: 0, lastErr: 0 };
     this._wait = new Promise((res, rej) => { this._resolve = res; this._reject = rej; });
     this._ping = null;
@@ -77,7 +78,8 @@ export class NetSim {
     this.welcome = w; this.myId = w.id;
     // the predictor: SAME seed and map => identical walls and crates, but only my fighter, no bots and no zone damage
     const me = w.roster[w.id];
-    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true });
+    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true, weather: w.weather });
+    this.weather = this.predictor.weather;
     const pl = this.predictor.player; pl.rngKey = w.id; pl.yaw = w.self.yaw;
     pl.importSelf(w.self); this.predictor.world.propagateModifiedBodyPositionsToColliders();
     this.map = this.predictor.map; this.crates = this.predictor.crates; this.barrels = this.predictor.barrels;
@@ -139,6 +141,7 @@ export class NetSim {
     this.grenades = s.g.map((g) => ({ body: { translation: () => ({ x: g[0], y: g[1], z: g[2] }) } }));
     // broken crates / exploded barrels: apply to my copy of the world so my own movement collides with the same things the server has
     if (s.pd && s.pd.length !== this.nDestroyed) { this.predictor.syncDestroyed(s.pd); this.predictor.world.propagateModifiedBodyPositionsToColliders(); this.nDestroyed = s.pd.length; }
+    if (s.ct) this.contracts.list = Contracts.unpack(s.ct);      // airdrops / hardpoints / bounty for the HUD and the 3D markers
     // events: skip what I already showed myself
     for (const e of s.e) {
       if (OWN_EVENTS.has(e.t) && e.by === this.myId) continue;

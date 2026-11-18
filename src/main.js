@@ -19,6 +19,9 @@ import { MagDrops } from './fx/mags.js';
 import { tickSkins, skinReact, SKIN_INFO } from './render/skins.js';
 import { audio } from './fx/audio.js';
 import { Hud } from './ui/hud.js';
+import { Atmosphere } from './render/atmosphere.js';
+import { ContractsView } from './render/contracts-view.js';
+import { settings } from './settings.js';
 
 const STEP = 1 / 60, BASE_FOV = 78;
 const $ = (id) => document.getElementById(id);
@@ -47,7 +50,7 @@ addEventListener('resize', resize); resize();
 
 /** everything that belongs to ONE match (recreated by PLAY AGAIN) */
 let G = null;
-const cmd = { yaw: 0, pitch: 0, forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false };
+const cmd = { yaw: 0, pitch: 0, forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false, mortar: false };
 let hud = null;
 let paused = false, started = false;
 const tmp = new THREE.Vector3();
@@ -60,24 +63,26 @@ function disposeScene(scene) {
 }
 
 async function newMatch(online = null) {
-  if (G) { G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
+  if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms', skin: SKIN });
+  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms', skin: SKIN, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined });
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
-  particles.onBloodLand = (x, z) => decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4);
+  particles.onBloodLand = (x, z) => { if (settings.gore) decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4); };
+  const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim);
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
   const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
   const views = new Map();
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
   const p = sim.player;
   viewmodel.setSkin(p.skin);
-  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
+  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.slot = 0;
+  G = { sim, net: online, scene, world, atmo, cview, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
+  if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
   viewmodel.root.visible = true;
   window.__nh = { G, sim, cmd, input, hud, camera, audio, net: online };     // handles for the automatic browser test
   return G;
@@ -98,6 +103,11 @@ function dropMag(f, mine, empty) {
   void sim;
 }
 
+/** blood and gore, or - when the player turned gore off (portal builds default to off) - a plain dust puff */
+function blood(x, y, z, dx, dy, dz, n, power) {
+  if (settings.gore) G.particles.blood(x, y, z, dx, dy, dz, n, power);
+  else G.particles.dust(x, y, z, -dx * 0.3, 0.6, -dz * 0.3, Math.ceil(n / 3));
+}
 function angleTo(p, x, z) { return Math.atan2(-(x - p.x), -(z - p.z)); }
 
 function handleEvents() {
@@ -131,7 +141,7 @@ function handleEvents() {
       }
       case 'hit': {
         const t = sim.fighters[e.target];
-        particles.blood(e.x, e.y, e.z, e.dx, e.dy, e.dz, e.killed ? 18 : e.head ? 12 : 8, e.cause === 'explosion' ? 1.6 : 1);
+        blood(e.x, e.y, e.z, e.dx, e.dy, e.dz, e.killed ? 18 : e.head ? 12 : 8, e.cause === 'explosion' ? 1.6 : 1);
         const v = views.get(e.target); if (v) v.flash();
         if (e.target === p.id) {
           hud.hurtFlash(clamp(0.25 + e.dmg / 60, 0.25, 0.9)); camfx.add(clamp(0.2 + e.dmg / 90, 0.2, 0.7));
@@ -148,8 +158,8 @@ function handleEvents() {
         if (you) skinReact(0.7);
         const wName = WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.w === 'barrel' ? 'BARREL' : e.cause === 'zone' ? 'THE ZONE' : 'FALL');
         hud.addFeed(e.byName === 'The zone' ? `<b>THE ZONE</b> ✕ ${e.name}` : `<b>${e.byName}</b> [${wName}${e.head ? ' ✦' : ''}] ${e.name}`, you || me);
-        particles.blood(e.x, e.y + 0.3, e.z, e.dx, e.dy + 0.2, e.dz, 24, 1.3);
-        G.decals.stain(e.x, 0.02, e.z, 0, 1, 0, 1.1);
+        blood(e.x, e.y + 0.3, e.z, e.dx, e.dy + 0.2, e.dz, 24, 1.3);
+        if (settings.gore) G.decals.stain(e.x, 0.02, e.z, 0, 1, 0, 1.1);
         const pw = e.cause === 'explosion' ? 2.3 : e.w === 'shotgun' ? 1.8 : e.w === 'dmr' ? 1.5 : 1;
         const rg = G.rag.spawn({ x: e.x, y: e.y - 0.9, z: e.z, yaw: t.yaw, vx: e.vx, vz: e.vz, dx: e.dx, dy: e.dy, dz: e.dz, power: pw, head: e.head });
         G.ragViews.push(new RagdollView(G.scene, rg, t.color, t.id, G.rag.life));
@@ -163,6 +173,32 @@ function handleEvents() {
         break;
       }
       case 'propHit': break;
+      case 'contract': {                                       // airdrop / hardpoint / bounty came, landed, was cashed in or ran out
+        const who = e.by >= 0 ? (e.by === p.id ? 'YOU' : e.byName) : '';
+        const nice = { airdrop: 'AIRDROP', hardpoint: 'HARDPOINT', bounty: 'BOUNTY' }[e.type];
+        if (e.phase === 'new') {
+          if (e.type === 'bounty') {
+            const t = sim.fighters[e.who]; const mine = e.who === p.id;
+            hud.message(mine ? 'THERE IS A BOUNTY ON YOU!' : `BOUNTY ON ${String(t?.name ?? '?').toUpperCase()}`, mine ? '#ff4d4d' : '#ff9a4d', 2.6);
+          } else hud.message(e.type === 'airdrop' ? 'AIRDROP INBOUND' : 'HARDPOINT MARKED', e.type === 'airdrop' ? '#ffcf4d' : '#5be37a', 2.4);
+          audio.play(e.type === 'airdrop' ? 'airdrop' : 'contract', { vol: 0.9 });
+        } else if (e.phase === 'landed') { hud.message('AIRDROP LANDED', '#ffcf4d', 1.6); audio.play('contract', { x: e.x, z: e.z, maxD: 140, vol: 0.9 }); }
+        else if (e.phase === 'done') {
+          if (e.by === p.id) { hud.message(e.type === 'bounty' ? 'BOUNTY COLLECTED  +50 HP  +MORTAR' : `${nice} CLAIMED  +MORTAR [T]`, '#5be37a', 2.4); audio.play('kill', { vol: 0.8, rate: 1.4 }); }
+          else hud.addFeed(`<b>${who}</b> cashed in the ${nice.toLowerCase()}`, false);
+        }
+        break;
+      }
+      case 'streak': if (e.by === p.id) { hud.message(`${e.n} KILL STREAK - MORTAR READY [T]`, '#ff9a4d', 2.4); audio.play('contract', { vol: 0.8, rate: 0.8 }); } break;
+      case 'mortar': {
+        G.cview.mark(e.x, e.z); audio.play('mortar', e.by === p.id ? { vol: 1 } : { x: e.x, z: e.z, maxD: 200 });
+        if (e.by === p.id) hud.message('MORTAR INBOUND', '#ff9a4d', 2);
+        else if (Math.hypot(e.x - p.x, e.z - p.z) < 26) hud.message('MORTAR STRIKE! RUN!', '#ff4d4d', 2.4);
+        else hud.addFeed(`<b>${e.by >= 0 ? sim.fighters[e.by]?.name ?? '?' : '?'}</b> called a mortar strike`, false);
+        break;
+      }
+      case 'mortarFail': if (e.by === p.id) hud.message('TOO CLOSE TO YOURSELF', '#ff4d4d', 1.2); break;
+      case 'shell': G.cview.shell(e.x, e.z, e.eta ?? 1); audio.play('whistle', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); break;
       case 'explosion': {
         particles.explosion(e.x, e.y, e.z, e.r);
         decals.holes.add(e.x, 0.03, e.z, 0, 1, 0, 3.6);
@@ -215,6 +251,8 @@ function handleInput(dt) {
   cmd.fire = input.fire; cmd.ads = input.ads;
   if (input.wasPressed('KeyR')) cmd.reload = true;
   if (input.wasPressed('KeyG')) cmd.grenade = true;
+  if (input.wasPressed('KeyT')) { if (p.mortar > 0) cmd.mortar = true; else hud.message(p.streak % 3 ? `MORTAR NEEDS 3 KILLS IN A ROW (${p.streak % 3}/3)` : 'NO MORTAR STRIKE - 3 KILLS IN A ROW OR A CONTRACT', '#ffffff', 1.4); }
+  if (input.wasPressed('KeyF') && G.atmo.light) hud.message(G.atmo.toggleFlashlight() ? 'FLASHLIGHT ON' : 'FLASHLIGHT OFF', '#ffffff', 0.8);
   const slot = input.readSlot(); if (slot) cmd.slot = slot;
   const wheel = input.takeWheel();
   if (wheel) { const i = SLOT_ORDER.indexOf(p.cur); cmd.slot = ((i + (wheel > 0 ? 1 : -1) + SLOT_ORDER.length) % SLOT_ORDER.length) + 1; }
@@ -256,11 +294,11 @@ function frame(now) {
   if (!paused || G.net) {                       // online, the world keeps running when you open the pause menu (you just stand still)
     if (!paused) handleInput(dt); else { input.dx = 0; input.dy = 0; input.endFrame(); }
     G.acc += dt;
-    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, slot: 0 } : cmd;
+    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, mortar: false, slot: 0 } : cmd;
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
       sim.step(STEP, keys);
-      cmd.reload = false; cmd.grenade = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
+      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }
@@ -295,6 +333,7 @@ function frame(now) {
   if (!paused) {
     G.rag.update(dt);
     G.world.update(dt, camera.position.x, camera.position.z);
+    G.atmo.update(dt, camera.position); G.cview.update(dt, camera.position.x, camera.position.z, p.id);
     G.particles.update(dt); G.tracers.update(dt); G.mags.update(dt);
     for (let i = G.later.length - 1; i >= 0; i--) if (now >= G.later[i].at) { const j = G.later.splice(i, 1)[0]; j.fn(); }
   }
@@ -374,6 +413,7 @@ try { $('namebox').value = localStorage.getItem('nh_name') ?? ''; } catch { /* i
   const mark = () => box.querySelectorAll('.skin').forEach((b) => b.classList.toggle('on', (b.dataset.skin || null) === SKIN));
   mark();
 }
+{ const gt = $('goretoggle'); gt.checked = settings.gore; gt.addEventListener('change', () => settings.setGore(gt.checked)); }
 $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);

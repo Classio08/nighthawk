@@ -28,8 +28,8 @@ export class WorldView {
     this.scene = scene; this.sim = sim;
     scene.background = new THREE.Color(0xcfc4a6);
     scene.fog = new THREE.Fog(0xcfc4a6, 45, 240);
-    scene.add(new THREE.HemisphereLight(0xdce8ff, 0x8a7752, 1.05));
-    const sun = new THREE.DirectionalLight(0xfff0d0, 1.35); sun.position.set(60, 100, 30); scene.add(sun);
+    this.hemi = new THREE.HemisphereLight(0xdce8ff, 0x8a7752, 1.05); scene.add(this.hemi);        // atmosphere.js changes these for rain / fog / night
+    this.sun = new THREE.DirectionalLight(0xfff0d0, 1.35); this.sun.position.set(60, 100, 30); scene.add(this.sun);
 
     // sky dome: warm haze at the horizon fading to blue overhead (follows the camera, ignores fog)
     const sg = new THREE.SphereGeometry(500, 24, 12), pos = sg.attributes.position, cols = [];

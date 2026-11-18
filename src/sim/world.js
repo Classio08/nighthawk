@@ -9,6 +9,8 @@ import { WEAPONS, SLOT_ORDER, reloadTime, magCap, skinOk, SKINS, damageAt } from
 import { buildMap, pickSpawns, findFreeSpot, insideAnyBox } from './map.js';
 import { Squad } from './squad.js';
 import { pickPersonality } from './personality.js';
+import { Contracts } from './contracts.js';
+import { pickWeather } from './weather.js';
 import { Zone } from './zone.js';
 import { moveVector } from '../input/move.js';
 import { rayCapsule } from './geom.js';
@@ -40,7 +42,7 @@ export class Fighter {
     this.ads = false; this.sprinting = false;
     this.weapons = {}; this.cur = op.weapon;
     for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve };
-    this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
+    this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.mortar = 0; this.streak = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
     this.nades = 2; this.nadeT = 0;
     this.noHurtT = 0; this.zoneAcc = 0;
     this.brain = null; this.rb = null; this.col = null;
@@ -52,13 +54,13 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, mt: this.mortar, ks: this.streak, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
     for (const k of SLOT_ORDER) { this.weapons[k].ammo = s.w[k][0]; this.weapons[k].reserve = s.w[k][1]; }
     this.fireT = s.fireT; this.reloadT = s.reloadT; this.reloadTot = s.rt ?? 1; this.reloadEmpty = !!s.re; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
-    this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
+    this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
   }
 }
@@ -79,6 +81,9 @@ export class Simulation {
     this.solid = new Set();         // collider handles of ground, buildings, crates
     this.state = 'playing'; this.result = null;
     this.obstacles = [];            // Yuka obstacle entities (for bot steering)
+    this.weather = pickWeather(this.seed, opts.weather);       // same seed => same weather on the server and in every browser
+    this.contracts = new Contracts(this);
+    this.strikes = [];              // mortar barrages in progress
   }
 
   static async create(opts = {}) {
@@ -283,7 +288,7 @@ export class Simulation {
   /** can `a` see `b`? needs: inside range, inside field of view (people very close are noticed anyway), clear line */
   canSee(a, b, range = 75, fov = 2.0) {
     const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
-    if (d > range) return false;
+    if (d > range * this.weather.sight) return false;               // fog / night / rain shorten what bots can see
     if (d > 9) {
       const ang = Math.atan2(-dx, -dz);                       // direction a->b in our yaw convention
       let diff = Math.abs(((ang - a.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
@@ -295,7 +300,7 @@ export class Simulation {
   makeNoise(src, radius) {
     for (const f of this.fighters) {
       if (!f.alive || f === src || !f.brain) continue;
-      if (Math.hypot(f.x - src.x, f.z - src.z) < radius) f.brain.hear(src.x, src.z);
+      if (Math.hypot(f.x - src.x, f.z - src.z) < radius * this.weather.hearing) f.brain.hear(src.x, src.z);   // rain muffles sound
     }
   }
 
@@ -464,6 +469,42 @@ export class Simulation {
     }
   }
 
+  /* ---------------- mortar killstreak ---------------- */
+
+  /** the player marks a spot with the crosshair: the ray from the eye decides where the barrage lands */
+  callMortarFromView(f) {
+    if (this.opts.predictor || f.mortar <= 0) return false;
+    const o = { x: f.x, y: f.eyeY, z: f.z }, d = this._aimDir(f, 0);
+    const hit = this.world.castRay(new RAPIER.Ray(o, d), 150, true, undefined, undefined, f.col, undefined, (c) => this.solid.has(c.handle));
+    if (!hit) return false;
+    return this.callMortar(f, o.x + d.x * hit.timeOfImpact, o.z + d.z * hit.timeOfImpact);
+  }
+
+  callMortar(f, x, z) {
+    if (this.opts.predictor || f.mortar <= 0 || !f.alive) return false;
+    if (Math.hypot(x - f.x, z - f.z) < 16) { this.emit({ t: 'mortarFail', by: f.id, why: 'too close' }); return false; }
+    f.mortar--;
+    const shells = [];
+    for (let i = 0; i < 7; i++) {
+      const a = this.rng() * Math.PI * 2, r = i === 0 ? 0 : 3 + this.rng() * 9;
+      shells.push({ x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, at: 2.4 + i * 0.5, state: 0 });
+    }
+    this.strikes.push({ owner: f, x, z, t: 0, shells });
+    this.emit({ t: 'mortar', by: f.id, x, z });
+    return true;
+  }
+
+  _stepStrikes(dt) {
+    for (const s of this.strikes) {
+      s.t += dt;
+      for (const sh of s.shells) {
+        if (sh.state === 0 && s.t >= sh.at) { sh.state = 1; this.emit({ t: 'shell', x: sh.x, z: sh.z, eta: 1.0 }); }
+        else if (sh.state === 1 && s.t >= sh.at + 1.0) { sh.state = 2; this._blast(sh.x, 0.5, sh.z, 7, 100, s.owner, 'mortar'); }
+      }
+    }
+    this.strikes = this.strikes.filter((s) => s.shells.some((sh) => sh.state < 2));
+  }
+
   damage(target, amount, source, info = {}) {
     if (!target.alive || amount <= 0) return;
     target.hp -= amount; target.noHurtT = 0;
@@ -479,7 +520,12 @@ export class Simulation {
     target.alive = false; target.hp = 0;
     this.colMap.delete(target.col.handle);
     this.world.removeRigidBody(target.rb);
-    if (source && source !== target) source.kills++;
+    if (source && source !== target) {
+      source.kills++;
+      if (!source.npc && ++source.streak % 3 === 0) { source.mortar = Math.min(2, source.mortar + 1); this.emit({ t: 'streak', by: source.id, n: source.streak }); }   // every 3rd kill in a row earns a mortar strike
+    }
+    target.streak = 0;
+    this.contracts.onKill(target, source);
     this.emit({ t: 'kill', by: source ? source.id : -1, target: target.id, w: info.w ?? info.cause ?? 'zone', head: !!info.head, cause: info.cause ?? 'zone',
       x: target.x, y: target.y, z: target.z, dx: info.dx ?? 0, dy: info.dy ?? 0, dz: info.dz ?? 0,
       name: target.name, byName: source ? source.name : 'The zone', color: target.color, vx: target.moveX, vz: target.moveZ });
@@ -552,6 +598,7 @@ export class Simulation {
     this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump);
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
+    if (cmd.mortar) this.callMortarFromView(p);
     p.nadeT = Math.max(0, p.nadeT - dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
   }
@@ -591,7 +638,7 @@ export class Simulation {
 
     this.world.step();
 
-    if (!this.opts.predictor) this._stepBarrels(dt);
+    if (!this.opts.predictor) { this._stepBarrels(dt); this._stepStrikes(dt); this.contracts.update(dt); }
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i]; g.t += dt;
       if (g.t >= GRENADE_FUSE) { this._explode(g); this.grenades.splice(i, 1); }

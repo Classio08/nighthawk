@@ -11,7 +11,7 @@ export class Hud {
       alive: $('alive'), kills: $('kills'), zone: $('zone'), fps: $('fpsn'), ping: $('pingn'), feed: $('feed'), slots: $('slots'), msg: $('msg'),
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
-      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'),
+      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'),
     };
     this.mctx = this.el.mini.getContext('2d');
     this.hurt = 0; this.hitT = 0; this.msgT = 0; this.flashV = 0; this.pings = [];
@@ -64,9 +64,9 @@ export class Hud {
     e.hpbar.style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
     e.hpbar.style.background = p.hp / p.maxHp > 0.5 ? '#5be37a' : p.hp / p.maxHp > 0.25 ? '#ffcf4d' : '#ff4d4d';
     e.hpn.textContent = Math.ceil(Math.max(0, p.hp)); e.opname.textContent = p.name.toUpperCase();
-    const key = `${p.cur}${st.ammo}${st.reserve}${p.nades}`;
+    const key = `${p.cur}${st.ammo}${st.reserve}${p.nades}|${p.mortar}|${p.streak % 3}`;
     if (key !== this.lastKey) {
-      this.lastKey = key; e.wname.textContent = w.name; e.mag.innerHTML = `${st.ammo} <small>/ ${st.reserve}</small>`; e.nades.textContent = `GRENADES ${p.nades}`;
+      this.lastKey = key; e.wname.textContent = w.name; e.mag.innerHTML = `${st.ammo} <small>/ ${st.reserve}</small>`; e.nades.innerHTML = `GRENADES ${p.nades}` + (p.mortar > 0 ? ` &nbsp;·&nbsp; <b style="color:#ff7a4d">MORTAR ${p.mortar} [T]</b>` : p.streak % 3 > 0 ? ` &nbsp;·&nbsp; <span style="opacity:.65">STREAK ${p.streak % 3}/3</span>` : '');
       this.slotEls.forEach((d, i) => d.classList.toggle('on', SLOT_ORDER[i] === p.cur));
     }
     e.mag.style.color = st.ammo <= w.mag * 0.25 ? '#ff6b6b' : '#fff';
@@ -89,8 +89,24 @@ export class Hud {
     // fps (smoothed)
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { e.fps.textContent = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; e.ping.textContent = sim.rtt !== undefined ? ` · ${Math.round(sim.rtt)} ms` : ''; }
+    this.drawContracts(sim, p);
     this.drawMini(dt, sim, p);
   }
+
+  /** the little list under the zone timer: what is on the map, how far, how far along */
+  drawContracts(sim, p) {
+    const list = sim.contracts?.list ?? [], parts = [];
+    for (const c of list) {
+      const d = Math.round(Math.hypot(c.x - p.x, c.z - p.z));
+      const name = c.type === 'airdrop' ? (c.state === 'falling' ? 'AIRDROP INBOUND' : 'AIRDROP') : c.type === 'hardpoint' ? 'HARDPOINT' : (c.who === p.id ? 'BOUNTY ON YOU' : `BOUNTY ${String(sim.fighters[c.who]?.name ?? '').toUpperCase()}`);
+      const col = c.type === 'airdrop' ? '#ffcf4d' : c.type === 'hardpoint' ? '#5be37a' : '#ff5a5a';
+      const st = c.type === 'bounty' ? '' : c.who === -2 ? ' · CONTESTED' : c.prog > 0.02 ? ` · ${Math.round(c.prog * 100)}%` : '';
+      parts.push(`<div style="color:${col}">${c.type === 'airdrop' ? '▣' : c.type === 'hardpoint' ? '◎' : '◆'} ${name} <span style="opacity:.8">${d} m${st}</span></div>`);
+    }
+    const html = parts.join('');
+    if (html !== this.ctHtml) { this.ctHtml = html; this.el.ct.innerHTML = html; this.el.ct.style.display = html ? 'block' : 'none'; }
+  }
+
 
   drawMini(dt, sim, p) {
     const g = this.mctx, S = 150, k = this.k, z = sim.zone;
@@ -100,6 +116,12 @@ export class Hud {
     g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
     g.lineWidth = 1.5; g.strokeStyle = '#fff'; g.beginPath(); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283); g.stroke();
     if (!z.done && z.nextR < z.radius - 0.5) { g.strokeStyle = '#4aa3ff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(S / 2 + z.nextX * k, S / 2 + z.nextZ * k, z.nextR * k, 0, 6.283); g.stroke(); g.setLineDash([]); }
+    for (const c of sim.contracts?.list ?? []) {            // contracts on the map
+      const x = S / 2 + c.x * k, y = S / 2 + c.z * k;
+      if (c.type === 'hardpoint') { g.strokeStyle = '#5be37a'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, c.r * k + 1, 0, 6.283); g.stroke(); }
+      else if (c.type === 'airdrop') { g.fillStyle = '#ffcf4d'; g.fillRect(x - 3, y - 3, 6, 6); g.strokeStyle = '#000'; g.lineWidth = 1; g.strokeRect(x - 3, y - 3, 6, 6); }
+      else { g.fillStyle = '#ff3b3b'; g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x + 4, y); g.lineTo(x, y + 5); g.lineTo(x - 4, y); g.closePath(); g.fill(); }
+    }
     for (let i = this.pings.length - 1; i >= 0; i--) {   // enemies show up for a moment when they shoot close to you
       const q = this.pings[i]; q.t -= dt; if (q.t <= 0) { this.pings.splice(i, 1); continue; }
       g.fillStyle = `rgba(255,70,70,${Math.min(1, q.t)})`; g.beginPath(); g.arc(S / 2 + q.x * k, S / 2 + q.z * k, 2.6, 0, 6.283); g.fill();
@@ -116,5 +138,5 @@ export class Hud {
     $('end').classList.add('show');
   }
   hideEnd() { $('end').classList.remove('show'); }
-  reset() { this.el.feed.innerHTML = ''; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; }
+  reset() { this.el.feed.innerHTML = ''; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; }
 }

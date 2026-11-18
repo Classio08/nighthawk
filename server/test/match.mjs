@@ -95,10 +95,28 @@ hits = evs.filter((e) => e.t === 'hit' && e.by === A.myId && e.target === B.myId
 check('A fired a lot (own shots are predicted instantly)', fired > 20, `fired=${fired}`);
 check('lag compensation: most shots at a RUNNING target land despite 120 ms lag', hits / Math.max(1, fired) > 0.5, `${hits}/${fired} = ${(100 * hits / Math.max(1, fired)).toFixed(0)}%`);
 
+// ---- 2b. contracts, mortar and weather reach both players (A must stop shooting B first: the 'nobody dies' timer is off by now)
+dB2.stop(); dA2.stop();
+check('weather is the same on the server and in both predictors', A.weather.id === sim.weather.id && B.weather.id === sim.weather.id, `${sim.weather.id}`);
+const hp = sim.contracts._spawn('hardpoint') ?? sim.contracts.list.find((c) => c.type === 'hardpoint');
+await sleep(350);
+const cA = A.contracts.list.find((c) => c.type === 'hardpoint'), cB = B.contracts.list.find((c) => c.type === 'hardpoint');
+check('a hardpoint appears on both clients at the same spot', !!cA && !!cB && Math.abs(cA.x - cB.x) < 0.02 && Math.abs(cA.z - cB.z) < 0.02 && cA.r === 9, cA ? `${cA.x},${cA.z}` : 'missing');
+const evs2 = []; const collect2 = setInterval(() => { for (const e of A.drainEvents()) evs2.push(e); }, 20);
+const caster = sim.fighters[B.myId]; caster.mortar = 1;
+// aim at the emptiest corner so the barrage cannot hurt either human (the next check is about B leaving a LIVE fighter behind)
+const humansNow = [sim.fighters[A.myId], caster], corners = [[-95, -95], [95, -95], [-95, 95], [95, 95]];
+const [tx, tz] = corners.sort((p, q) => Math.min(...humansNow.map((h) => Math.hypot(q[0] - h.x, q[1] - h.z))) - Math.min(...humansNow.map((h) => Math.hypot(p[0] - h.x, p[1] - h.z))))[0];
+sim.callMortar(caster, tx, tz); await sleep(900);
+check('B\'s mortar charge shows up in his own HUD state', B.me.mortar === 0, `mortar=${B.me.mortar}`);
+await sleep(5500); clearInterval(collect2);
+check('mortar call, shells and explosions are replicated to the other player', evs2.some((e) => e.t === 'mortar') && evs2.filter((e) => e.t === 'shell').length >= 5 && evs2.filter((e) => e.t === 'explosion' && e.w === 'mortar').length >= 5, `shell=${evs2.filter((e) => e.t === 'shell').length} boom=${evs2.filter((e) => e.t === 'explosion' && e.w === 'mortar').length}`);
+sim.contracts.list.length = 0;
+
 // ---- 3. leaving: B closes the tab -> a bot takes over, the match goes on
 dB2.stop(); dA2.stop();
 B.leave(); await sleep(400);
-check('when B leaves, a bot takes his fighter', sim.fighters[B.myId].human === false && !!sim.fighters[B.myId].brain);
+{ const fb = sim.fighters[B.myId]; check('when B leaves, a bot takes his fighter', fb.human === false && !!fb.brain, `alive=${fb.alive} hp=${Math.round(fb.hp)} human=${fb.human} brain=${!!fb.brain} t=${sim.time.toFixed(1)}`); }
 check('the match is still running for A', sim.state === 'playing');
 
 A.leave(); await sleep(500);

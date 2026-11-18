@@ -51,6 +51,7 @@
   #slots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:5px}
   #slots div{padding:4px 8px;font-size:11px;letter-spacing:1px;opacity:.55}
   #slots div.on{opacity:1;border-color:var(--accent);color:var(--accent)}
+  #ct{position:absolute;left:50%;top:48px;transform:translateX(-50%);display:none;font-size:12px;letter-spacing:1px;text-align:center;line-height:1.5;padding:3px 12px;background:var(--panel);border-radius:4px}
   #msg{position:absolute;left:50%;top:66%;transform:translateX(-50%);font-size:18px;letter-spacing:3px;color:var(--red);opacity:0;text-align:center}
   .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(5,8,12,.78);color:#fff;text-align:center;pointer-events:auto;z-index:5}
   .ov.show{display:flex}
@@ -81,6 +82,7 @@
     <canvas id="mini" class="box" width="150" height="150"></canvas>
   </div>
   <div id="zone" class="box">ZONE</div>
+  <div id="ct"></div>
   <div id="fps"><span id="fpsn">0</span> fps<span id="pingn"></span></div>
   <div id="feed"></div>
   <div id="slots"></div>
@@ -92,11 +94,13 @@
 <div id="start" class="ov show">
   <h1>NIGHTHAWK</h1>
   <p>16 fighters · one shrinking zone · last one standing</p>
-  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim<br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; Esc pause</p>
+  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim<br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; F flashlight &nbsp;·&nbsp; Esc pause</p>
+  <p style="font-size:12px;opacity:.7">Grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <input id="namebox" maxlength="16" placeholder="your callsign" spellcheck="false" autocomplete="off" />
   <div id="skins"><small>WEAPON SKIN</small></div>
+  <label style="pointer-events:auto;font-size:12px;letter-spacing:2px;opacity:.85;cursor:pointer"><input type="checkbox" id="goretoggle" style="vertical-align:middle;margin-right:6px">BLOOD &amp; GORE</label>
   <p id="onlinemsg" style="min-height:1.4em;color:var(--red)"></p>
 </div>
 <div id="lobby" class="ov"><h2>FINDING A MATCH</h2><p id="lobbytxt">connecting...</p><p style="opacity:.6;font-size:12px">empty slots are filled with bots, so you always get a full match</p><button class="btn" id="lobbycancel">CANCEL</button></div>
