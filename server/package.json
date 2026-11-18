@@ -1,0 +1,21 @@
+{
+  "name": "nighthawk-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node test/two-clients.mjs"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.18.28",
+    "@colyseus/schema": "^5.0.49",
+    "@colyseus/ws-transport": "^0.18.5",
+    "@dimforge/rapier3d-compat": "^0.21.0"
+  },
+  "devDependencies": {
+    "@colyseus/sdk": "^0.18.10"
+  }
+}

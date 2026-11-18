@@ -9,7 +9,9 @@ All parts are free and open source with commercial-friendly licenses.
 | AI bots | Yuka | MIT | State machines, steering, obstacle avoidance, perception, navmesh |
 | Build tool / dev server | Vite | MIT | Instant reload, small production builds |
 | Language | JavaScript (ES modules) now, TypeScript when the code grows | | Keep it simple until it hurts |
-| Multiplayer (later) | Colyseus | MIT | Authoritative game server, rooms, state sync. Bots fill lobbies, so launch needs no server |
+| Multiplayer (Milestone 1) | Colyseus 0.18 | MIT | Authoritative server with built-in prediction and lag compensation. Spike verified in `server/`. See `MULTIPLAYER.md` |
+| Bot navmesh (Milestone 3) | recast-navigation | MIT | Real navmesh on the final map, runs in browser and Node |
+| Placeholder sounds | ZzFX | MIT | Tiny synth, no sound files needed |
 | Mobile (later) | Capacitor | MIT | Wraps the same web game as an Android/iOS app |
 | Desktop (later) | Tauri (or Electron) | MIT / Apache-2.0 | Wraps the same web game as a Windows download |
 | Hosting | Cloudflare Pages | free tier | Fast worldwide, free |

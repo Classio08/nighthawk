@@ -2,20 +2,25 @@
 
 Rule: every milestone ends with something you can open in a browser and play. Estimates are "focused working sessions" with Claude, not calendar promises.
 
+**Change (decided with Cleis):** multiplayer moves from Milestone 7 to Milestone 1. The game is built on a server-authoritative loop from the start. See `MULTIPLAYER.md`.
+
 | # | Milestone | Done when | Status |
 |---|---|---|---|
 | 0 | **Tech proof** | Move, jump, shoot, grenades, physics crates, AI bots, tests, build | DONE |
-| 1 | **Playable arena** | One real map, 6 weapons (reload, ammo, recoil), bot line-of-sight and cover, health + armor, death and respawn, hit markers, damage direction, sound effects, pause on focus loss | next |
-| 2 | **Battle royale loop** | 16 fighters (you + 15 bots), plane/drop-in, loot on the ground, shrinking zone, win/lose screen, "play again" in one click | |
-| 3 | **The eight operators** | Pick Roms, Shadow, Douglas, Cliffhanger, Navy Blue, Rampol, Maetja or Cleiseis; each ability works; characters visible on bots | |
-| 4 | **Addiction layer** | XP, levels, daily challenges, unlockable cosmetics, settings (sensitivity, volume, graphics), saved progress | |
-| 5 | **Portal-ready** | Fast loading screen, under-5 MB first load, portal SDK hooks (ads, rewarded revive), performance pass on weak laptops, landscape/touch-safe UI shell | |
-| 6 | **Launch on web** | Publish on own domain (Cloudflare Pages), submit to Poki / CrazyGames / itch.io, watch the numbers, fix what players hit | |
-| 7 | **Real multiplayer** | Colyseus server, real players join lobbies, bots fill the gaps | |
-| 8 | **Mobile** | Touch controls on the same input layer, landscape lock, Capacitor wrap for Android/iOS | |
-| 9 | **Desktop** | Tauri/Electron Windows build, Steam page if the web numbers justify it | |
+| 0.5 | **Multiplayer spike** | Colyseus 0.18 server runs Rapier; two fake clients join, move, get blocked by a wall, and shoot each other with server-validated hits | DONE (`server/`) |
+| 1 | **Two tabs, one match** | Browser connects to the server; your own movement is predicted, other players are interpolated; shooting is validated with lag compensation; server deployed on a small VPS; tested with a friend on another network. Game rules extracted into a plain `Simulation` module so offline practice still works | next |
+| 2 | **Playable arena (online)** | One real map, 6 weapons from CC0 packs (reload, ammo, recoil), sounds, hit markers, damage direction, health + armor, death and respawn, pause on focus loss | |
+| 3 | **Server bots** | Yuka bots with line-of-sight + recast navmesh living on the server; they fill empty slots so a match always starts instantly | |
+| 4 | **Battle royale loop** | 16 fighters, drop-in, loot on the ground, shrinking zone, win/lose screen, "play again" in one click | |
+| 5 | **The eight operators** | Roms, Shadow, Douglas, Cliffhanger, Navy Blue, Rampol, Maetja, Cleiseis: pickable, abilities work, visible on other players | |
+| 6 | **Addiction layer** | XP, levels, daily challenges, unlockable cosmetics, settings, saved progress (needs accounts or local save) | |
+| 7 | **Portal-ready** | Fast loading, under-5 MB first load, portal SDK hooks (ads, rewarded revive), portal rules for external servers checked, performance pass on weak laptops | |
+| 8 | **Launch on web** | Own domain on Cloudflare Pages; portals (Poki / CrazyGames / itch.io) submitted; watch the numbers | |
+| 9 | **Mobile** | Touch controls on the same input layer, landscape lock, Capacitor wrap | |
+| 10 | **Desktop** | Tauri/Electron Windows build, Steam page if web numbers justify it | |
 
 ## Honest expectations
-- By end of today you have: the project, the plan, the proven engine and a playable tech demo. Not a finished battle royale.
-- Milestones 1 and 2 are where it starts to feel like a game. Milestone 5 is where it can earn.
-- Portal acceptance is not guaranteed and review terms change. Our own domain with ads and cosmetics is the fallback.
+- By 5pm today you have: the project on GitHub, the plan, a proven engine, a proven multiplayer server, and a playable single-player tech demo. Not a finished battle royale.
+- Milestone 1 is the hardest technical step (prediction + lag compensation + deploy). Milestones 2-4 are where it starts to feel like a game. Milestone 7 is where it can earn.
+- Portal acceptance is not guaranteed and terms change. Our own domain with ads and cosmetics is the fallback.
+- Multiplayer adds running costs (a small server, roughly $15-25/month at the start) and latency work for players far from the server.
