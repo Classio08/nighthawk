@@ -67,7 +67,7 @@ test('wire format round-trips', async () => {
   const u = unpackCmd(packCmd(c));
   assert.equal(u.seq, 7); assert.ok(Math.abs(u.yaw - 1.235) < 1e-9); assert.equal(u.jump, true); assert.equal(u.sprint, false); assert.equal(u.fire, true);
   assert.equal(u.reload, true); assert.equal(u.grenade, false); assert.equal(u.slot, 3); assert.equal(u.vt, 99); assert.equal(unpackCmd([1, 2]), null);
-  const sim = await Simulation.create({ seed: 2, bots: 3 });
+  const sim = await Simulation.create({ seed: 2, bots: 3, guards: 0 });
   const snap = packSnapshot(sim, []);
   assert.equal(snap.f.length, 4); assert.equal(JSON.parse(JSON.stringify(snap)).f[0][0], 0);
   const o = {}; unpackFighterInto(o, packFighter(sim.fighters[2]));

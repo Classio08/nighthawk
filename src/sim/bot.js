@@ -1,9 +1,12 @@
 // Bot brain. Steering = Yuka (Seek + ObstacleAvoidance). Eyes = Rapier ray (sim.canSee). Ears = sim.makeNoise -> hear().
-// Decisions are plain code so you can read them top to bottom:
-//   zone -> cover -> engage -> hunt -> investigate -> roam
+// Decisions = UTILITY AI: every desire gets a score 0..1 from the situation and the bot's PERSONALITY, the highest score wins
+// (the current choice gets a small bonus so bots do not flip-flop). Desires:
+//   zone | cover | engage | flank | suppress | hunt | investigate | camp | regroup | return(guards) | roam
+// Squad radio / flanking lives in squad.js, personalities in personality.js.
 import * as YUKA from 'yuka';
 import { WEAPONS, SLOT_ORDER } from './weapons.js';
-import { findCover, insideAnyBox, MAP_HALF } from './map.js';
+import { findCover, findPerch, insideAnyBox, MAP_HALF } from './map.js';
+import { PERSONALITIES } from './personality.js';
 
 const BASE_SPEED = 7;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -11,10 +14,17 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrap = (a) => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
 
 export class BotBrain {
-  /** @param skill 0..1 (higher = faster reactions, better aim, turns quicker) */
-  constructor(sim, f, skill = 0.6) {
+  /** @param skill 0..1 (higher = faster reactions, better aim, turns quicker)  @param personality key of PERSONALITIES */
+  constructor(sim, f, skill = 0.6, personality = 'brawler') {
+    this.pid = PERSONALITIES[personality] ? personality : 'brawler';
+    this.p = PERSONALITIES[this.pid];
+    skill = clamp(skill + this.p.skillBonus, 0.2, 0.97);
     this.sim = sim; this.f = f; this.skill = skill;
-    this.state = 'roam';
+    this.state = 'roam'; this.decideT = 0; this.scores = {};
+    this.supT = 0; this.supOn = false; this.flankPt = null;
+    this.radio = null; this.perch = null; this.perchPhase = -1; this.campT = 0; this.post = null; this.leash = 18;
+    this.main = this.p.weapons.includes(f.op.weapon) ? f.op.weapon : this.p.weapons[f.id % this.p.weapons.length];
+    if (f.weapons[this.main] && f.cur !== this.main) f.cur = this.main;
     this.reaction = lerp(1.0, 0.4, skill);
     this.turnSpeed = lerp(3.0, 7.5, skill);
     this.aimErr = lerp(0.11, 0.035, skill);
@@ -56,6 +66,9 @@ export class BotBrain {
     this.lookAt = { x, z, t: 0.9 };
   }
 
+  /** squad radio: "contact at x,z" arrives after a short delay */
+  radioIn(contact, delay) { this.radio = { x: contact.x, z: contact.z, at: this.sim.time + delay }; }
+
   onHurt(source) {
     this.hurtT = 0;
     if (source && source !== this.f && source.alive) {
@@ -70,6 +83,8 @@ export class BotBrain {
     let best = null, bs = 1e9;
     for (const o of sim.fighters) {
       if (o === f || !o.alive) continue;
+      if (f.squad && f.squad.allies(f, o)) continue;                       // squad-mates are friends (until the circle gets small)
+      if (this.p.guard && o.npc) continue;                                 // guards do not shoot each other
       const d = Math.hypot(o.x - f.x, o.z - f.z);
       if (d > 65) continue;
       if (!sim.canSee(f, o, 65, this.fov)) continue;
@@ -80,6 +95,7 @@ export class BotBrain {
       if (this.target !== best) { this.target = best; this.engageT = 0; this.burstT = 0.5; this.burstPause = 0; }
       this.visible = true;
       this.lastSeen = { x: best.x, z: best.z }; this.lastSeenT = 0;
+      f.squad?.report(f, best);
     } else {
       this.visible = false;
     }
@@ -119,9 +135,46 @@ export class BotBrain {
       return;
     }
     if (f.switchT > 0 || f.reloadT > 0) return;
-    const main = f.op.weapon;
+    const main = this.main;
     if (dist < 6 && f.cur !== 'shotgun' && f.weapons.shotgun.ammo > 0 && this.skill > 0.5 && sim.rng() < 0.02) sim.switchWeapon(f, 'shotgun');
     else if (dist > 16 && f.cur !== main && f.weapons[main].ammo + f.weapons[main].reserve > 0) sim.switchWeapon(f, main);
+  }
+
+  /**
+   * UTILITY AI: score every desire 0..1 from the situation + personality; the best score wins.
+   * (Read bot.scores in the debugger to see why a bot did what it did.)
+   */
+  _decide({ outNow, relocating, tgt, dist, hpF }) {
+    const { sim, f } = this, p = this.p, z = sim.zone, sq = f.squad, S = {};
+    S.roam = 0.12;
+    S.zone = outNow > 0 ? 2 : (relocating && !p.guard ? 0.62 + 0.1 * p.caution : 0);
+    S.cover = this.coverT > 0 && this.coverPt ? 0.9 : 0;
+    if (p.guard && this.post) {                                  // guards: stay near the post
+      const dPost = Math.hypot(f.x - this.post.x, f.z - this.post.z);
+      S.return = dPost > this.leash ? 1.0 : (dPost > this.leash * 0.45 && !tgt ? 0.4 : 0);
+      S.hold = 0.3;
+    }
+    if (tgt) S.engage = clamp(0.58 + 0.35 * p.aggr - 0.2 * clamp(dist / 65, 0, 1) - (hpF < 0.35 ? 0.25 * p.caution : 0), 0, 1);
+    if (this.lastSeen && this.lastSeenT < 3) S.hunt = 0.3 + 0.45 * p.aggr;
+    if (this.heard && this.heardT < 8) S.investigate = 0.15 + 0.5 * p.curiosity;
+    if (sq) {                                                    // squad play
+      this.flankPt = sq.flankPoint(f, insideAnyBox);
+      if (this.flankPt) S.flank = 0.5 + 0.3 * p.tact;
+      if (!tgt && sq.united && sq.pinner() === f && sq.alive.some((m) => m !== f && m.brain && m.brain.state === 'flank')) S.suppress = 0.66;
+      if (!sq.fresh() && sq.united) {
+        const lead = sq.alive[0];
+        if (lead && lead !== f && Math.hypot(lead.x - f.x, lead.z - f.z) > 28) S.regroup = 0.25 + 0.3 * p.social;
+      }
+    } else this.flankPt = null;
+    if (p.camper > 0.3 && !p.guard) {                            // sniper's nest, re-picked every time the circle changes
+      if (this.perchPhase !== z.phase) { this.perch = findPerch(sim.map, sim.rng, z.nextX, z.nextZ, Math.max(12, z.nextR * 0.9)); this.perchPhase = z.phase; this.campT = 0; }
+      if (this.perch) S.camp = (0.3 + 0.4 * p.camper) * (this.campT > 25 ? 0.4 : 1);
+    }
+    if (S[this.state] !== undefined) S[this.state] += 0.1;       // stickiness: do not flip-flop
+    this.scores = S;
+    let best = 'roam', bv = -1;
+    for (const k in S) if (S[k] > bv) { bv = S[k]; best = k; }
+    return best;
   }
 
   /* ----- main update (called once per fixed step) ----- */
@@ -139,31 +192,32 @@ export class BotBrain {
     this.scanT -= dt;
     if (this.scanT <= 0) { this.scanT = 0.18 + sim.rng() * 0.1; this._scan(); }
 
-    // ---- choose a state ----
+    // ---- radio: a squad-mate called out an enemy ----
+    if (this.radio && sim.time >= this.radio.at) {
+      if (!this.visible) { this.lastSeen = { x: this.radio.x, z: this.radio.z }; this.lastSeenT = 0.4; this.lookAt = { x: this.radio.x, z: this.radio.z, t: 1.0 }; }
+      this.radio = null;
+    }
+
+    // ---- the situation ----
     const outNow = zone.outside(f.x, f.z);
     const relocating = zone.outsideNext(f.x, f.z, 3) && (zone.shrinking || zone.timeLeft < 16);
     const tgt = this.visible ? this.target : null;
     const dist = tgt ? Math.hypot(tgt.x - f.x, tgt.z - f.z) : 0;
+    const hpF = f.hp / f.maxHp, pers = this.p;
 
-    // run for cover when hurt badly, or while reloading in a fight
-    if (this.coverT <= 0 && this.coverCool <= 0 && outNow < -4) {
-      const hurtBadly = f.hp < f.maxHp * 0.38 && this.hurtT < 5;
-      const reloadFight = tgt && f.reloadT > 0 && dist < 45 && sim.rng() < 0.4;
+    // run for cover when hurt badly, or while reloading in a fight (a cautious personality does it sooner, a Rusher never)
+    if (!pers.noCover && !pers.guard && this.coverT <= 0 && this.coverCool <= 0 && outNow < -4) {
+      const hurtBadly = hpF < 0.38 + 0.25 * (pers.caution - 0.5) && this.hurtT < 5;
+      const reloadFight = tgt && f.reloadT > 0 && dist < 45 && sim.rng() < 0.25 + 0.3 * pers.caution;
       if (hurtBadly || reloadFight) {
         const th = tgt ?? this.lastSeen ?? (this.lastHurtBy ? { x: this.lastHurtBy.x, z: this.lastHurtBy.z } : null);
         this.coverCool = 1.6;
-        if (th) { const p = findCover(sim.map, f, th, 28); if (p) { this.coverPt = p; this.coverT = 4.5 + sim.rng() * 2; } }
+        if (th) { const pt = findCover(sim.map, f, th, 28); if (pt) { this.coverPt = pt; this.coverT = 4.5 + sim.rng() * 2; } }
       }
     }
-    if (this.coverT > 0 && f.hp > f.maxHp * 0.6 && f.weapons[f.cur].ammo > WEAPONS[f.cur].mag * 0.5) this.coverT = 0;
+    if (this.coverT > 0 && hpF > 0.6 && f.weapons[f.cur].ammo > WEAPONS[f.cur].mag * 0.5) this.coverT = 0;
 
-    if (outNow > 0) this.state = 'zone';
-    else if (this.coverT > 0 && this.coverPt) this.state = 'cover';
-    else if (tgt) this.state = 'engage';
-    else if (relocating) this.state = 'zone';
-    else if (this.lastSeen && this.lastSeenT < 3) this.state = 'hunt';
-    else if (this.heard && this.heardT < 8) this.state = 'investigate';
-    else this.state = 'roam';
+    this.state = this._decide({ outNow, relocating, tgt, dist, hpF });
 
     // ---- movement goal for this state ----
     const w = WEAPONS[f.cur];
@@ -205,12 +259,32 @@ export class BotBrain {
         if (Math.hypot(gx - f.x, gz - f.z) < 4) { this.heard = null; move = false; }
         break;
       }
+      case 'flank': {
+        gx = this.flankPt.x; gz = this.flankPt.z; sprint = true;
+        if (Math.hypot(gx - f.x, gz - f.z) < 2.5) { move = false; idleLook = true; }
+        break;
+      }
+      case 'suppress': { move = false; break; }
+      case 'camp': {
+        gx = this.perch.x; gz = this.perch.z;
+        if (Math.hypot(gx - f.x, gz - f.z) < 1.8) { move = false; this.campT += dt; this.lookAt = { x: this.perch.faceX, z: this.perch.faceZ, t: 0.5 }; } else sprint = true;
+        break;
+      }
+      case 'regroup': {
+        const lead = f.squad.alive[0]; gx = lead.x; gz = lead.z;
+        if (Math.hypot(gx - f.x, gz - f.z) < 7) move = false;
+        break;
+      }
+      case 'return': { gx = this.post.x; gz = this.post.z; sprint = true; break; }
+      case 'hold': { move = false; idleLook = true; break; }
       default: { // roam
         this.roamT += dt;
         if (!this.roamGoal || this.roamT > 14 || Math.hypot(this.roamGoal.x - f.x, this.roamGoal.z - f.z) < 2.5) this._pickRoam();
         gx = this.roamGoal.x; gz = this.roamGoal.z; sp *= 0.8;
       }
     }
+
+    if (tgt && pers.ads && dist > 14) adsNow = true;            // snipers always look down the sight
 
     // ---- stuck? pick a random direction for a moment ----
     this.stuckCheck -= dt;
@@ -259,6 +333,17 @@ export class BotBrain {
         if (this._throwAt(tgt.x, tgt.y, tgt.z)) this.nadeCool = 10 + sim.rng() * 10;
       }
       if (f.weapons[f.cur].ammo < w2.mag * 0.2 && f.reloadT <= 0 && dist > 25) wantReload = true;
+    } else if (this.state === 'suppress' && f.squad && f.squad.fresh()) {
+      // suppressive fire: no target in sight, so shoot bursts at the spot where the enemy was while the squad-mate swings round
+      const c = f.squad.contact, dx = c.x - f.x, dz = c.z - f.z, d = Math.max(1, Math.hypot(dx, dz));
+      const dyaw = wrap(Math.atan2(-dx, -dz) - f.yaw), dpitch = Math.atan2(1.0 - f.eyeY, d) - f.pitch, m = this.turnSpeed * dt;
+      f.yaw += clamp(dyaw, -m, m); f.pitch = clamp(f.pitch + clamp(dpitch, -m, m), -1.4, 1.4);
+      const w2 = WEAPONS[f.cur];
+      this.engageT = 0; this.supT -= dt;
+      if (Math.abs(dyaw) < 0.12 && d < w2.range && f.weapons[f.cur].ammo > w2.mag * 0.25) {
+        if (this.supOn) { wantFire = w2.auto ? true : f.fireT <= 0; if (this.supT <= 0) { this.supOn = false; this.supT = 0.8 + sim.rng() * 0.6; } }
+        else if (this.supT <= 0) { this.supOn = true; this.supT = 0.5 + sim.rng() * 0.5; }
+      }
     } else {
       this.engageT = 0;
       // face where we are going (or where we heard/were shot from)

@@ -70,3 +70,27 @@ export function findCover(map, from, threat, maxDist = 30) {
   }
   return best;
 }
+
+/** a free spot (no building within `margin`) inside a circle: used for outposts and perches */
+export function findFreeSpot(map, rng, cx, cz, r, margin = 5) {
+  for (let i = 0; i < 400; i++) {
+    const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * r;
+    const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d;
+    if (Math.abs(x) > MAP_HALF - 8 || Math.abs(z) > MAP_HALF - 8) continue;
+    if (!insideAnyBox(map, x, z, margin)) return { x, z };
+  }
+  return { x: cx, z: cz };
+}
+
+/** a sniper's nest: stand 2 m behind a solid wall/container on its OUTER side (wall at your back, the safe circle in front) */
+export function findPerch(map, rng, cx, cz, r) {
+  const cands = map.boxes.filter((b) => b.kind !== 'edge' && b.kind !== 'crates' && b.h >= 2 && Math.hypot(b.x - cx, b.z - cz) < r && Math.hypot(b.x - cx, b.z - cz) > r * 0.25);
+  for (let i = 0; i < 24 && cands.length; i++) {
+    const b = cands[Math.floor(rng() * cands.length)];
+    const dx = cx - b.x, dz = cz - b.z, dl = Math.hypot(dx, dz) || 1, ux = dx / dl, uz = dz / dl;
+    const reach = Math.abs(ux) * b.w / 2 + Math.abs(uz) * b.d / 2 + 1.8;
+    const p = { x: b.x + ux * reach, z: b.z + uz * reach };
+    if (!insideAnyBox(map, p.x, p.z, 0.7) && Math.abs(p.x) < MAP_HALF - 6 && Math.abs(p.z) < MAP_HALF - 6) return { x: p.x, z: p.z, faceX: cx, faceZ: cz };
+  }
+  return null;
+}

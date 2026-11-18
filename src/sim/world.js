@@ -6,7 +6,9 @@ import * as YUKA from 'yuka';
 import operatorData from '../../data/operators.json' with { type: 'json' };
 import { makeRng } from './rng.js';
 import { WEAPONS, SLOT_ORDER, damageAt } from './weapons.js';
-import { buildMap, pickSpawns } from './map.js';
+import { buildMap, pickSpawns, findFreeSpot } from './map.js';
+import { Squad } from './squad.js';
+import { pickPersonality } from './personality.js';
 import { Zone } from './zone.js';
 import { moveVector } from '../input/move.js';
 import { rayCapsule } from './geom.js';
@@ -29,7 +31,7 @@ export function initPhysics() { return (rapierReady ??= RAPIER.init()); }
 
 export class Fighter {
   constructor(id, name, op, human) {
-    this.id = id; this.name = name; this.op = op; this.human = human; this.isPlayer = human; this.placement = 0; this.lagTicks = 0; this.rngKey = id; this.shotN = 0;
+    this.id = id; this.name = name; this.op = op; this.human = human; this.isPlayer = human; this.placement = 0; this.lagTicks = 0; this.rngKey = id; this.shotN = 0; this.squad = null; this.npc = false;
     this.color = op.color; this.maxHp = op.hp; this.hp = op.hp;
     this.alive = true; this.kills = 0;
     this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
@@ -127,9 +129,47 @@ export class Simulation {
       const op = i < botOps.length ? botOps[i]
         : { id: `recruit${i}`, name: `Recruit-${String(i - botOps.length + 1).padStart(2, '0')}`, color: colors[i % colors.length], hp: 100, speed: 9.5, weapon: generic[i % generic.length] };
       const f = this._addFighter(humans.length + i, op.name, op, false, spawns[humans.length + i] ?? { x: this.rng.range(-60, 60), z: this.rng.range(-60, 60) });
-      f.brain = new BotBrain(this, f, this.rng.range(0.35, 0.9));
+      f.brain = new BotBrain(this, f, this.rng.range(0.35, 0.9), pickPersonality(this.rng, i));
     }
+    this.squads = [];
+    if (this.opts.squads !== false) this._makeSquads(this.fighters.filter((f) => f.brain));
+    this._makeGuards(this.opts.guards ?? 4);
     this.zone = new Zone(this.rng);
+  }
+
+  /** ~60% of the bots fight in radio squads of 2-3 who start next to each other (see squad.js) */
+  _makeSquads(bots) {
+    const pool = bots.slice(); let used = 0, id = 0;
+    const target = Math.floor(bots.length * 0.6);
+    while (used < target && pool.length >= 2) {
+      const leader = pool.shift(), sq = new Squad(this, id++); sq.add(leader);
+      const size = this.rng() < 0.5 ? 2 : 3;
+      for (let k = 1; k < size && pool.length; k++) {
+        const m = pool.shift(); sq.add(m);
+        const spot = findFreeSpot(this.map, this.rng, leader.x, leader.z, 9, 2.5);
+        m.rb.setTranslation({ x: spot.x, y: 0.9, z: spot.z }, true); m.x = spot.x; m.z = spot.z;
+        if (m.brain) { m.brain.px = m.x; m.brain.pz = m.z; m.brain.vehicle.position.set(m.x, 0, m.z); }
+      }
+      if (sq.members.length > 1 && !sq.members.some((m) => m.brain.pid === 'tactician')) {
+        const m = sq.members[1]; m.brain = new BotBrain(this, m, this.rng.range(0.45, 0.85), 'tactician'); m.brain.px = m.x; m.brain.pz = m.z; m.brain.vehicle.position.set(m.x, 0, m.z);
+      }
+      used += sq.members.length; this.squads.push(sq);
+    }
+  }
+
+  /** third faction: NPC guards who defend one outpost and never leave it far. They do not count for "last one standing". */
+  _makeGuards(n) {
+    if (n <= 0) return;
+    const post = findFreeSpot(this.map, this.rng, 0, 0, 26, 7);
+    this.outpost = post;
+    for (let i = 0; i < n; i++) {
+      const spot = findFreeSpot(this.map, this.rng, post.x, post.z, 6, 2);
+      const op = { id: `guard${i}`, name: `Garrison-0${i + 1}`, color: '#b05cff', hp: 140, speed: 9, weapon: 'smg' };
+      const f = this._addFighter(this.fighters.length, op.name, op, false, spot);
+      f.npc = true;
+      f.brain = new BotBrain(this, f, this.rng.range(0.55, 0.8), 'guard');
+      f.brain.post = post; f.brain.leash = 16;
+    }
   }
 
   _addCrate(x, y, z) {
@@ -151,7 +191,8 @@ export class Simulation {
   }
 
   alive() { return this.fighters.filter((f) => f.alive); }
-  aliveCount() { let n = 0; for (const f of this.fighters) if (f.alive) n++; return n; }
+  /** fighters still in the race (NPC guards do not count) */
+  aliveCount() { let n = 0; for (const f of this.fighters) if (f.alive && !f.npc) n++; return n; }
   emit(e) { this.events.push(e); }
   drainEvents() { const e = this.events; this.events = []; return e; }
 
@@ -360,7 +401,7 @@ export class Simulation {
 
   /** the match is over: crown the last fighter standing */
   _finish() {
-    const winner = this.fighters.find((f) => f.alive) ?? null;
+    const winner = this.fighters.find((f) => f.alive && !f.npc) ?? null;
     if (winner && winner.human) {
       winner.placement = 1;
       winner.result = { to: winner.id, won: true, placement: 1, kills: winner.kills, time: this.time };

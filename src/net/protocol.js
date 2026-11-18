@@ -39,7 +39,7 @@ export function unpackFighterInto(o, a) {
 }
 
 export function packRoster(sim) {
-  return sim.fighters.map((f) => ({ id: f.id, name: f.name, color: f.color, op: f.op.id, hp: f.maxHp, human: f.human ? 1 : 0, weapon: f.op.weapon }));
+  return sim.fighters.map((f) => ({ id: f.id, name: f.name, color: f.color, op: f.op.id, hp: f.maxHp, human: f.human ? 1 : 0, npc: f.npc ? 1 : 0, weapon: f.op.weapon }));
 }
 
 /** events carry many floats; 3 decimals is plenty and keeps packets small */

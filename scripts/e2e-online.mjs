@@ -41,7 +41,7 @@ await wait(800);
 
 const info = (page) => page.evaluate(() => {
   const n = window.__nh, net = n.net, s = n.sim, p = s.player;
-  return { id: p.id, name: p.name, x: p.x, y: p.y, z: p.z, hp: p.hp, alive: p.alive, nf: s.fighters.length, alive_n: s.aliveCount(), rtt: net.rtt, snaps: net.stats.snaps,
+  return { id: p.id, name: p.name, x: p.x, y: p.y, z: p.z, hp: p.hp, alive: p.alive, nf: s.fighters.filter((f) => !f.npc).length, ng: s.fighters.filter((f) => f.npc).length, alive_n: s.aliveCount(), rtt: net.rtt, snaps: net.stats.snaps,
     maxErr: net.stats.maxErr, over: n.G.over, endShown: document.getElementById('end').classList.contains('show'), title: document.getElementById('endtitle').textContent,
     place: document.getElementById('e-place').textContent, aliveHud: document.getElementById('alive').textContent, ping: document.getElementById('pingn').textContent,
     others: s.fighters.filter((f) => f.id !== p.id).map((f) => ({ id: f.id, x: f.x, z: f.z, alive: f.alive, human: f.human, name: f.name })) };
@@ -49,9 +49,9 @@ const info = (page) => page.evaluate(() => {
 const room = [...MatchRoom.instances][0], sim = room.sim;
 
 const a = await info(A), b = await info(B);
-check('both browsers are in the same match with 6 fighters', a.nf === 6 && b.nf === 6 && a.id !== b.id, `A=${a.name}#${a.id} B=${b.name}#${b.id}`);
+check('both browsers are in the same match with 6 contestants + 4 garrison guards', a.nf === 6 && b.nf === 6 && a.ng === 4 && a.id !== b.id, `A=${a.name}#${a.id} B=${b.name}#${b.id} guards=${a.ng}`);
 check('names and operators arrived', a.name === 'Roms' && b.name === 'Shadow' || a.name && b.name, `${a.name} / ${b.name}`);
-check('HUD shows 6 alive', a.aliveHud.trim() === '6' && b.aliveHud.trim() === '6', `${a.aliveHud}/${b.aliveHud}`);
+check('HUD alive counter matches the sim and ignores the guards (<= 6)', a.aliveHud.trim() === String(a.alive_n) && b.aliveHud.trim() === String(b.alive_n) && a.alive_n <= 6 && a.alive_n >= 3, `${a.aliveHud}/${b.aliveHud} sim=${a.alive_n}`);
 await A.screenshot({ path: SHOT('A_start') }); await B.screenshot({ path: SHOT('B_start') });
 
 // keep bots from interfering

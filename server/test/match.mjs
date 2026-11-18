@@ -31,8 +31,9 @@ const [A, B] = await Promise.all([
 ]);
 if (process.env.NO_LAGCOMP) { A.viewTick = () => 0; console.log('(lag compensation OFF for A: shots are judged on the CURRENT positions)'); }
 const room = [...MatchRoom.instances][0], sim = room.sim;
-check('both players got a match, with different fighter ids', A.myId !== B.myId && A.fighters.length === 5, `ids ${A.myId}/${B.myId}, ${A.fighters.length} fighters`);
-check('bots fill the empty slots', A.fighters.filter((f) => !f.human).length === 3);
+check('both players got a match, with different fighter ids', A.myId !== B.myId && A.fighters.filter((f) => !f.npc).length === 5, `ids ${A.myId}/${B.myId}, ${A.fighters.length} fighters`);
+check('bots fill the empty slots', A.fighters.filter((f) => !f.human && !f.npc).length === 3);
+check('the guard garrison is replicated and flagged npc', A.fighters.filter((f) => f.npc).length === 4);
 
 // ---- 1. movement: prediction is instant, the server agrees, the other player sees it
 const dA = drive(A, () => ({ strafe: 1, yaw: 0 })), dB = drive(B, () => ({}));

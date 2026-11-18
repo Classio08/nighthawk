@@ -18,7 +18,7 @@ const lerpAngle = (a, b, t) => { let d = (b - a) % (Math.PI * 2); if (d > Math.P
 /** a fighter that somebody else controls: just numbers that we fill from snapshots */
 class RemoteFighter {
   constructor(r) {
-    this.id = r.id; this.name = r.name; this.color = r.color; this.maxHp = r.hp; this.hp = r.hp; this.human = !!r.human; this.isPlayer = false;
+    this.id = r.id; this.name = r.name; this.color = r.color; this.maxHp = r.hp; this.hp = r.hp; this.human = !!r.human; this.npc = !!r.npc; this.isPlayer = false;
     this.op = OPERATORS.find((o) => o.id === r.op) ?? { id: r.op, name: r.name, color: r.color, hp: r.hp, speed: 9.5, weapon: r.weapon };
     this.alive = true; this.kills = 0; this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.speedH = 0; this.grounded = true; this.ads = false; this.sprinting = false; this.cur = r.weapon; this.reloadT = 0;
@@ -181,7 +181,7 @@ export class NetSim {
   }
 
   drainEvents() { return this.evq.splice(0); }
-  aliveCount() { let n = 0; for (const f of this.fighters) if (f.alive) n++; return n; }
+  aliveCount() { let n = 0; for (const f of this.fighters) if (f.alive && !f.npc) n++; return n; }
   leave() { try { this.room.leave(); } catch { /* already closed */ } }
   dispose() { this.leave(); this.predictor?.dispose(); }
 }
