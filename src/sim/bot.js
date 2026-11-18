@@ -28,6 +28,8 @@ export function scoreTargetCandidate({ distance, current = false, lastHurt = fal
     - (wounded ? 4 : 0)
     - (isolated ? 2 : 0)
     - (squadFocus ? 7 : 0);
+}
+
 /** Cover triggers for damage, active incoming pressure, or a risky reload. */
 export function shouldSeekCover({ hurtBadly = false, underFire = false, reloadFight = false }) {
   return hurtBadly || underFire || reloadFight;
