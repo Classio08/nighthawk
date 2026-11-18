@@ -1,0 +1,36 @@
+// Browser check for the merged third-person camera, operator picker and the vehicle chase camera living together.
+import puppeteer from 'puppeteer-core';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const CHROME = process.env.CHROME || '/usr/bin/google-chrome', URL = process.env.URL || 'http://127.0.0.1:4173/';
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--window-size=1280,720'] });
+let fails = 0; const errors = [];
+const check = (n, ok, d = '') => { if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${n} ${d}`); };
+const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 720 });
+page.on('pageerror', (e) => errors.push(e.message)); page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+await page.goto(URL + '?autostart&seed=5&bots=3&op=shadow&loot=0', { waitUntil: 'load' });
+await page.waitForFunction('window.__nh && window.__nh.sim', { timeout: 40000 });
+await wait(800);
+const st = () => page.evaluate(() => { const n = window.__nh, p = n.sim.player, c = n.camera.position; return { op: p.operator ?? p.op, d: Math.hypot(c.x - p.x, c.z - p.z), cy: c.y, body: n.G.playerView.root ? n.G.playerView.root.visible : null, gun: n.hud ? true : false }; });
+const a = await st();
+check('?op=shadow picks that operator', (a.op?.id ?? a.op) === 'shadow', String(a.op?.id ?? a.op));
+check('first-person: camera sits on the player', a.d < 0.3, `d=${a.d.toFixed(2)}`);
+await page.keyboard.press('KeyV'); await wait(500);
+const b = await st();
+check('V: third-person camera moves behind the player', b.d > 1.5 && b.d < 8, `d=${b.d.toFixed(2)}`);
+check('V: the full body appears', b.body === true);
+await page.screenshot({ path: join(tmpdir(), 'nighthawk_tp.png') });
+await page.keyboard.press('KeyV'); await wait(400);
+const c = await st();
+check('V again: back to first-person', c.d < 0.3 && c.body === false, `d=${c.d.toFixed(2)} body=${c.body}`);
+// vehicle: chase camera must win even in third person, and the body hides while driving
+await page.keyboard.press('KeyV'); await wait(300);
+const veh = await page.evaluate(() => { const n = window.__nh, s = n.sim, p = s.player, v = s.vehicles.list[0]; const f = p; f.rb.setTranslation({ x: v.x + 2, y: 0.9, z: v.z }, true); f.x = v.x + 2; f.y = 0.9; f.z = v.z; n.G.prev = n.G.cur = { x: f.x, y: 0.9, z: f.z }; return { kind: v.kind }; });
+await wait(400); await page.keyboard.down('KeyE'); await wait(120); await page.keyboard.up('KeyE'); await wait(700);
+const d = await page.evaluate(() => { const n = window.__nh, p = n.sim.player, c = n.camera.position; return { drive: !!p.veh && p.seat === 0, d: Math.hypot(c.x - p.x, c.z - p.z), body: n.G.playerView.root ? n.G.playerView.root.visible : null }; });
+check('E: you are driving', d.drive, JSON.stringify(veh));
+check('driving in third-person: chase camera used, driver body hidden', d.drive && d.d > 3 && d.body === false, `d=${d.d.toFixed(2)} body=${d.body}`);
+await page.screenshot({ path: join(tmpdir(), 'nighthawk_drive.png') });
+check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+await browser.close(); console.log(fails ? `CAMERA E2E FAIL (${fails})` : 'camera e2e: all good'); process.exit(fails ? 1 : 0);

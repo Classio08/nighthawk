@@ -14,7 +14,7 @@ let W = null;
 const tp = (f, x, z) => { f.rb.setTranslation({ x, y: 0.9, z }, true); f.rb.setNextKinematicTranslation({ x, y: 0.9, z }); W.propagateModifiedBodyPositionsToColliders(); f.vy = 0; f.x = x; f.y = 0.9; f.z = z; };
 const run = (sim, secs, cmd = idle()) => { for (let i = 0; i < Math.round(secs * 60); i++) sim.step(DT, cmd); };
 async function arena(opts = {}) {
-  const sim = await Simulation.create({ seed: 12, bots: 3, guards: 0, squads: false, barrelClusters: 0, weather: 'clear', contracts: false, ...opts });
+  const sim = await Simulation.create({ seed: 12, bots: 3, guards: 0, squads: false, barrelClusters: 0, weather: 'clear', contracts: false, vehicles: false, ...opts });   // vehicles off: a parked buggy in the firing lane is not what these tests are about
   W = sim.world;
   for (const f of sim.fighters) { f.brain = null; f.maxHp = f.hp = 400; }
   sim.zone.radius = 500; sim.zone.update = () => {};

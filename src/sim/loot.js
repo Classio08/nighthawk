@@ -32,8 +32,19 @@ export class LootSystem {
   _layout() {
     const sim = this.sim, map = sim.map, rng = makeRng(((sim.seed | 0) ^ 0x10075ee) >>> 0 || 7);
     const N = sim.opts.lootCount ?? 120;
-    const solids = map.boxes.filter((b) => b.kind === 'block' || b.kind === 'container' || b.kind === 'crates');
+    const SOLID_KINDS = new Set(['block', 'container', 'crates', 'poi-building', 'poi-container']);
+    const solids = map.boxes.filter((b) => SOLID_KINDS.has(b.kind));
     let tries = 0;
+    // named places (Basin Yard, Relay Ridge, Forward Outpost, Extraction Pad) are the hot zones: good loot, so people fight over them
+    for (const poi of map.landmarks ?? []) {
+      if (poi.kind === 'river') continue;
+      for (let n = 0, t = 0; n < 5 && t++ < 200;) {
+        const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * poi.radius * 0.8, x = poi.x + Math.cos(a) * r, z = poi.z + Math.sin(a) * r;
+        if (Math.abs(x) > MAP_HALF - 5 || Math.abs(z) > MAP_HALF - 5 || insideAnyBox(map, x, z, 0.9)) continue;
+        if (this.items.some((o) => Math.hypot(o.x - x, o.z - z) < 2.6)) continue;
+        this._add(this._roll(rng, 3, x, z)); n++;
+      }
+    }
     while (this.items.length < N && tries++ < 4000) {
       let x, z;
       if (solids.length && rng() < 0.6) {                                      // next to a building / container / crate stack: the places people search

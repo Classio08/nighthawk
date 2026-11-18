@@ -43,7 +43,16 @@ const hold = async (page, code, ms) => { await page.keyboard.down(code); await w
 /* ---------- part 1: controls (no bots) ---------- */
 {
   const page = await open('?autostart&seed=5&bots=0');
-  await tp(page, 'player', 0, 60); await wait(600);
+  // the map layout is seeded and changes whenever structures are added, so look for a spot with open ground in every direction instead of hard-coding one
+  const spot = await page.evaluate(() => {
+    const m = window.__nh.sim.map, free = (x, z) => !m.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + 1.5 && Math.abs(z - b.z) < b.d / 2 + 1.5);
+    for (let z = 70; z >= -70; z -= 5) for (const x of [0, 8, -8, 16, -16, 24, -24, 32, -32]) {
+      let ok = true; for (let dx = -5; dx <= 5 && ok; dx += 2.5) for (let dz = 1; dz <= 10; dz += 2.5) if (!free(x + dx, z - dz) || !free(x + dx, z)) { ok = false; break; }
+      if (ok) return { x, z };
+    }
+    return { x: 0, z: 60 };
+  });
+  await tp(page, 'player', spot.x, spot.z); await wait(600);
   const s0 = await state(page);
   check('player stands on the ground', s0.y > 0.8 && s0.y < 1.1, `y=${s0.y.toFixed(2)}`);
   await hold(page, 'KeyD', 800); const sD = await state(page);
