@@ -156,10 +156,14 @@ export class Hud {
     const list = sim.contracts?.list ?? [], parts = [];
     for (const c of list) {
       const d = Math.round(Math.hypot(c.x - p.x, c.z - p.z));
-      const name = c.type === 'airdrop' ? (c.state === 'falling' ? 'AIRDROP INBOUND' : 'AIRDROP') : c.type === 'hardpoint' ? 'HARDPOINT' : (c.who === p.id ? 'BOUNTY ON YOU' : `BOUNTY ${String(sim.fighters[c.who]?.name ?? '').toUpperCase()}`);
-      const col = c.type === 'airdrop' ? '#ffcf4d' : c.type === 'hardpoint' ? '#5be37a' : '#ff5a5a';
+      const name = c.type === 'airdrop' ? (c.state === 'falling' ? 'AIRDROP INBOUND' : 'AIRDROP')
+        : c.type === 'hardpoint' ? 'HARDPOINT'
+          : c.type === 'uplink' ? (c.stage === 1 ? 'RELAY: DATA UPLOAD' : 'RELAY: SECURE')
+            : (c.who === p.id ? 'BOUNTY ON YOU' : `BOUNTY ${String(sim.fighters[c.who]?.name ?? '').toUpperCase()}`);
+      const col = c.type === 'airdrop' ? '#ffcf4d' : c.type === 'hardpoint' ? '#5be37a' : c.type === 'uplink' ? '#53d9ff' : '#ff5a5a';
       const st = c.type === 'bounty' ? '' : c.who === -2 ? ' · CONTESTED' : c.prog > 0.02 ? ` · ${Math.round(c.prog * 100)}%` : '';
-      parts.push(`<div style="color:${col}">${c.type === 'airdrop' ? '▣' : c.type === 'hardpoint' ? '◎' : '◆'} ${name} <span style="opacity:.8">${d} m${st}</span></div>`);
+      const symbol = c.type === 'airdrop' ? '▣' : c.type === 'hardpoint' ? '◎' : c.type === 'uplink' ? '⌁' : '◆';
+      parts.push(`<div style="color:${col}">${symbol} ${name} <span style="opacity:.8">${d} m${st}</span></div>`);
     }
     const html = parts.join('');
     if (html !== this.ctHtml) { this.ctHtml = html; this.el.ct.innerHTML = html; this.el.ct.style.display = html ? 'block' : 'none'; }
@@ -181,6 +185,7 @@ export class Hud {
     for (const c of sim.contracts?.list ?? []) {            // contracts on the map
       const x = S / 2 + c.x * k, y = S / 2 + c.z * k;
       if (c.type === 'hardpoint') { g.strokeStyle = '#5be37a'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, c.r * k + 1, 0, 6.283); g.stroke(); }
+      else if (c.type === 'uplink') { g.strokeStyle = '#53d9ff'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, c.r * k + 1, 0, 6.283); g.stroke(); g.fillStyle = '#53d9ff'; g.fillRect(x - 2, y - 2, 4, 4); }
       else if (c.type === 'airdrop') { g.fillStyle = '#ffcf4d'; g.fillRect(x - 3, y - 3, 6, 6); g.strokeStyle = '#000'; g.lineWidth = 1; g.strokeRect(x - 3, y - 3, 6, 6); }
       else { g.fillStyle = '#ff3b3b'; g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x + 4, y); g.lineTo(x, y + 5); g.lineTo(x - 4, y); g.closePath(); g.fill(); }
     }
