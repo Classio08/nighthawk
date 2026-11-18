@@ -47,6 +47,7 @@ export class Contracts {
 
   _spawn(type) {
     const sim = this.sim, z = sim.zone;
+    if (type === 'uplink' && this.of('uplink')) return;
     const c = { id: this.nextId++, type, x: 0, z: 0, r: type === 'hardpoint' ? HP_R : type === 'uplink' ? UPLINK_R : OPEN_R, state: 'active', prog: 0, stage: 0, who: -1, age: 0, life: LIFE[type] };
     if (type === 'bounty') {
       const cand = sim.fighters.filter((f) => f.alive && !f.npc);
@@ -59,6 +60,7 @@ export class Contracts {
       c.x = p.x; c.z = p.z; if (type === 'airdrop') c.state = 'falling';
     }
     this.list.push(c);
+    if (type === 'uplink') sim.alertGarrison?.(c);
     sim.emit({ t: 'contract', phase: 'new', type, id: c.id, x: c.x, z: c.z, who: c.who });
   }
 
@@ -133,6 +135,7 @@ export class Contracts {
 
   _end(c, how, by = null) {
     c.state = 'done';
+    if (c.type === 'uplink') this.sim.restoreGarrison?.();
     this.sim.emit({ t: 'contract', phase: how, type: c.type, id: c.id, x: c.x, z: c.z, by: by ? by.id : -1, byName: by ? by.name : '' });
   }
 
