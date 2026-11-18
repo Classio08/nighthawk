@@ -50,6 +50,7 @@ export class WorldView {
 
     let k = 0;
     for (const b of sim.map.boxes) {
+      if (b.kind === 'poi-mast') continue; // the detailed cylinder below replaces this collision-only box visually
       const cols = KIND_COLORS[b.kind] ?? KIND_COLORS.block;
       const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), lambert(cols[k++ % cols.length]));
       m.position.set(b.x, b.y, b.z); scene.add(m);
