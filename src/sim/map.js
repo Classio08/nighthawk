@@ -7,7 +7,38 @@ export const START_RADIUS = 100;  // first safe zone
 /** @returns {{boxes: Array, half:number, seed:number}} boxes are axis-aligned, (x,y,z) = centre */
 export function buildMap(seed = 7) {
   const rng = makeRng(seed);
-  const boxes = [];
+  // Fixed POI structures are inserted first so the seeded filler layout never blocks them.
+  // Every gameplay-solid structure lives in this shared map data (server and clients agree).
+  const landmarks = [
+    { id: 'basin-yard', name: 'BASIN YARD', kind: 'yard', x: -38, z: -28, radius: 24 },
+    { id: 'dry-river', name: 'DRY RIVER', kind: 'river', x: 0, z: 12, radius: 76 },
+    { id: 'relay-ridge', name: 'RELAY RIDGE', kind: 'relay', x: 58, z: -54, radius: 22 },
+    { id: 'forward-outpost', name: 'FORWARD OUTPOST', kind: 'outpost', x: -62, z: 54, radius: 22 },
+    { id: 'extraction-pad', name: 'EXTRACTION PAD', kind: 'extraction', x: 56, z: 56, radius: 20 },
+  ];
+  const boxes = [
+    // Basin Yard: loading shed, storage container and hard cover.
+    { kind: 'poi-building', poi: 'basin-yard', x: -43, y: 2.5, z: -29, w: 16, h: 5, d: 10 },
+    { kind: 'poi-container', poi: 'basin-yard', x: -25, y: 1.3, z: -31, w: 12, h: 2.6, d: 2.6 },
+    { kind: 'poi-wall', poi: 'basin-yard', x: -39, y: 0.8, z: -19, w: 13, h: 1.6, d: 0.8 },
+    { kind: 'poi-wall', poi: 'basin-yard', x: -52, y: 0.8, z: -29, w: 0.8, h: 1.6, d: 9 },
+    // Relay Ridge: generator shelter, mast and rock cover.
+    { kind: 'poi-building', poi: 'relay-ridge', x: 52, y: 1.8, z: -55, w: 8, h: 3.6, d: 7 },
+    { kind: 'poi-mast', poi: 'relay-ridge', x: 64, y: 5, z: -49, w: 0.8, h: 10, d: 0.8 },
+    { kind: 'poi-rock', poi: 'relay-ridge', x: 48, y: 1.4, z: -43, w: 5, h: 2.8, d: 4 },
+    { kind: 'poi-rock', poi: 'relay-ridge', x: 69, y: 1.1, z: -61, w: 4, h: 2.2, d: 5 },
+    // Forward Outpost: shelter and low defensive perimeter with an open entry.
+    { kind: 'poi-building', poi: 'forward-outpost', x: -66, y: 1.8, z: 54, w: 9, h: 3.6, d: 7 },
+    { kind: 'poi-wall', poi: 'forward-outpost', x: -62, y: 0.8, z: 43, w: 19, h: 1.6, d: 0.8 },
+    { kind: 'poi-wall', poi: 'forward-outpost', x: -73, y: 0.8, z: 55, w: 0.8, h: 1.6, d: 23 },
+    { kind: 'poi-wall', poi: 'forward-outpost', x: -51, y: 0.8, z: 55, w: 0.8, h: 1.6, d: 23 },
+    // Extraction Pad: four low barriers, leaving a clear vehicle/foot approach.
+    { kind: 'poi-fence', poi: 'extraction-pad', x: 56, y: 0.65, z: 43, w: 20, h: 1.3, d: 0.7 },
+    { kind: 'poi-fence', poi: 'extraction-pad', x: 46, y: 0.65, z: 56, w: 0.7, h: 1.3, d: 26 },
+    { kind: 'poi-fence', poi: 'extraction-pad', x: 66, y: 0.65, z: 56, w: 0.7, h: 1.3, d: 26 },
+    { kind: 'poi-fence', poi: 'extraction-pad', x: 50, y: 0.65, z: 69, w: 8, h: 1.3, d: 0.7 },
+    { kind: 'poi-fence', poi: 'extraction-pad', x: 62, y: 0.65, z: 69, w: 8, h: 1.3, d: 0.7 },
+  ];
   const overlaps = (b, margin) => boxes.some((o) =>
     Math.abs(b.x - o.x) < (b.w + o.w) / 2 + margin && Math.abs(b.z - o.z) < (b.d + o.d) / 2 + margin);
   const place = (kind, count, size, margin) => {
@@ -31,7 +62,7 @@ export function buildMap(seed = 7) {
   boxes.push({ kind: 'edge', x: 0, y: 5, z: E, w: 2 * E + 4, h: 10, d: 2 });
   boxes.push({ kind: 'edge', x: -E, y: 5, z: 0, w: 2, h: 10, d: 2 * E + 4 });
   boxes.push({ kind: 'edge', x: E, y: 5, z: 0, w: 2, h: 10, d: 2 * E + 4 });
-  return { boxes, half: MAP_HALF, seed };
+  return { boxes, landmarks, half: MAP_HALF, seed };
 }
 
 export function insideAnyBox(map, x, z, margin = 0) {
