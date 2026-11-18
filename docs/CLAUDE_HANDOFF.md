@@ -9,7 +9,7 @@ Use this after pulling the latest `main`. The owner is running Claude Code in th
 - Five likeness references are approved as design inputs: Roms, Cleiseis, Shadow (black shirt), Rampol (green work overall), Maetja (blue shirt). Do not copy social-media UI, captions, watermarks, logos or reference clothing as the final uniform. Douglas, Cliffhanger and Navy Blue still need references or approved visual descriptions.
 
 ## First: reconcile reality before coding
-1. Pull latest `main` and read `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md`, `docs/ASSET_CATALOG.md`, `docs/CHARACTER_VISUAL_BIBLE.md`, `docs/MULTIPLAYER.md`.
+1. Pull latest `main` and read `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md` (engineering log, what is built), `docs/MASTER_PRODUCT_PLAN.md` (product plan), `docs/ASSET_CATALOG.md`, `docs/CHARACTER_VISUAL_BIBLE.md`, `docs/MULTIPLAYER.md`.
 2. Inspect actual code and tests; do not assume pasted chat progress is current.
 3. Run `npm run check` and record the exact result. Do not change unrelated simulation code while doing the art slice.
 4. Check whether PR #2 is still open or superseded before touching it.
