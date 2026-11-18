@@ -32,6 +32,23 @@ export class Hud {
       g.fillStyle = b.kind === 'block' ? '#8a8d92' : b.kind === 'container' ? '#a9794a' : '#5d6168';
       g.fillRect(S / 2 + (b.x - b.w / 2) * k, S / 2 + (b.z - b.d / 2) * k, Math.max(1.5, b.w * k), Math.max(1.5, b.d * k));
     }
+    // Persistent landmark markers make the five Kavari Basin POIs readable on the minimap.
+    const tags = {
+      'basin-yard': ['BY', '#e8c77a'],
+      'dry-river': ['DR', '#b7a78a'],
+      'relay-ridge': ['RR', '#9bc8e8'],
+      'forward-outpost': ['FO', '#9ed39a'],
+      'extraction-pad': ['EX', '#f0eee4'],
+    };
+    for (const poi of map.landmarks ?? []) {
+      const [tag, color] = tags[poi.id] ?? [poi.name.slice(0, 2), '#ffffff'];
+      const x = S / 2 + poi.x * k, y = S / 2 + poi.z * k;
+      g.beginPath(); g.fillStyle = 'rgba(8,11,16,.9)'; g.arc(x, y, 5.2, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.fillStyle = color; g.arc(x, y, 3.1, 0, Math.PI * 2); g.fill();
+      g.font = 'bold 7px ui-monospace, monospace'; g.textAlign = 'center'; g.textBaseline = 'top';
+      g.lineWidth = 2; g.strokeStyle = 'rgba(0,0,0,.9)'; g.strokeText(tag, x, y + 5);
+      g.fillStyle = color; g.fillText(tag, x, y + 5);
+    }
     this.mapBg = c;
   }
 
