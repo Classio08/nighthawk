@@ -10,6 +10,7 @@ import { Contracts } from '../sim/contracts.js';
 import { Zone } from '../sim/zone.js';
 import { makeRng } from '../sim/rng.js';
 import { SLOT_ORDER } from '../sim/weapons.js';
+import { isCloaked } from '../sim/abilities.js';
 import { STEP, TICKS_PER_MS, INTERP_TICKS, packCmd, unpackFighterInto, unpackZoneInto } from './protocol.js';
 
 const OWN_EVENTS = new Set(['shot', 'fire', 'reload', 'dry', 'switch', 'throw']);   // predicted locally, so the server's copy is ignored
@@ -24,11 +25,12 @@ class RemoteFighter {
     this.alive = true; this.kills = 0; this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.speedH = 0; this.grounded = true; this.ads = false; this.sprinting = false; this.cur = r.weapon; this.reloadT = 0;
     this.weapons = {}; this.nades = 0; this.fireT = 0; this.switchT = 0; this.bloom = 0;
+    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false;      // operator ability tells (flags from the snapshot)
   }
   get eyeY() { return this.y + 0.72; }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -43,6 +45,11 @@ class Me {
   get eyeY() { return this.y + 0.72; }
 }
 for (const k of DELEGATED) Object.defineProperty(Me.prototype, k, { get() { return this.pl[k]; }, set(v) { this.pl[k] = v; } });
+// the ability tells for MY fighter come from my own predicted state (remote fighters get them as snapshot flags)
+Object.defineProperties(Me.prototype, {
+  abOn: { get() { return this.pl.abT > 0; } }, cloaked: { get() { return isCloaked(this.pl); } },
+  stunned: { get() { return this.pl.stunT > 0; } }, dashing: { get() { return this.pl.dashT > 0; } },
+});
 
 export class NetSim {
   /** @param room a connected Colyseus room (or anything with send/onMessage/leave)  @param {{lag?:number, now?:()=>number}} o */

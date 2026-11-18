@@ -9,6 +9,7 @@ import { WEAPON_RANK } from './loot.js';
 import { findCover, findPerch, insideAnyBox, MAP_HALF } from './map.js';
 import { searchWaypoint } from './guard-doctrine.js';
 import { PERSONALITIES } from './personality.js';
+import { botUseAbility, activeAbility, isCloaked, ABILITIES } from './abilities.js';
 
 const BASE_SPEED = 7;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -113,6 +114,7 @@ export class BotBrain {
       if (this.p.guard && o.npc) continue;                                 // guards do not shoot each other
       const d = Math.hypot(o.x - f.x, o.z - f.z);
       if (d > 65) continue;
+      if (isCloaked(o) && d > ABILITIES.shadow.cloakRange) continue;        // Shadow's Cloak: only seen from up close
       if (!sim.canSee(f, o, 65, this.fov)) continue;
       // Threat-aware target selection: do not tunnel on the nearest body.
       // Facing + firing means this opponent is an immediate threat; low-health
@@ -350,12 +352,14 @@ export class BotBrain {
     if (this.coverT > 0 && hpF > 0.6 && f.weapons[f.cur].ammo > WEAPONS[f.cur].mag * 0.5) this.coverT = 0;
 
     this.state = this._decide({ outNow, relocating, tgt, dist, hpF });
+    this.abT = (this.abT ?? 0) - dt;
+    if (this.abT <= 0) { this.abT = 0.25; botUseAbility(sim, f, { tgt, dist, hpF, hurtRecently: this.hurtT < 2.5 }); }       // press Q when it is worth it
     if (this.state !== 'heal') f.healT = 0;                       // anything more important than healing stops the medkit
     if (!tgt && sim.opts.loot && f.cur !== this.main && f.switchT <= 0 && f.reloadT <= 0 && f.weapons[this.main].have) sim.switchWeapon(f, this.main);   // out of a fight: equip the best gun
 
     // ---- movement goal for this state ----
     const w = WEAPONS[f.cur];
-    let gx = f.x, gz = f.z, move = true, sp = BASE_SPEED * (f.op.speed / 10) * w.moveMul * 0.96;
+    let gx = f.x, gz = f.z, move = true, sp = BASE_SPEED * (f.op.speed / 10) * w.moveMul * 0.96 * (activeAbility(f)?.speedMul ?? 1);
     let sprint = false, idleLook = false, jump = false;
     let adsNow = false;
 

@@ -12,6 +12,7 @@ import { pickPersonality } from './personality.js';
 import { Contracts } from './contracts.js';
 import { LootSystem, MED_HEAL, HEAL_T, ARMOR_ABSORB } from './loot.js';
 import { VehicleSystem } from './vehicles.js';
+import { activeAbility, tickAbility, useAbility, STUN_MOVE } from './abilities.js';
 import { pickWeather } from './weather.js';
 import { Zone } from './zone.js';
 import { moveVector } from '../input/move.js';
@@ -48,6 +49,7 @@ export class Fighter {
     this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.mortar = 0; this.streak = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
     this.nades = 2; this.nadeT = 0;
     this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;       // loot: armor points left, medkits carried, seconds left of the medkit being used
+    this.abCd = 0; this.abT = 0; this.dashT = 0; this.dashVx = 0; this.dashVz = 0; this.dashHit = []; this.stunT = 0;   // operator ability: cooldown left, effect time left, dash, stunned
     this.noHurtT = 0; this.zoneAcc = 0;
     this.brain = null; this.rb = null; this.col = null;
   }
@@ -69,13 +71,14 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
     for (const k of SLOT_ORDER) { this.weapons[k].ammo = s.w[k][0]; this.weapons[k].reserve = s.w[k][1]; }
     this.fireT = s.fireT; this.reloadT = s.reloadT; this.reloadTot = s.rt ?? 1; this.reloadEmpty = !!s.re; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
     if (s.hv !== undefined) { SLOT_ORDER.forEach((k, i) => { this.weapons[k].have = !!(s.hv & (1 << i)); }); this.armor = s.ar; this.armorLv = s.al; this.meds = s.md; this.healT = s.hl; }
+    if (s.ab) { this.abCd = s.ab[0]; this.abT = s.ab[1]; this.dashT = s.ab[2]; this.dashVx = s.ab[3]; this.dashVz = s.ab[4]; this.stunT = s.ab[5]; }
     this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
   }
@@ -365,7 +368,9 @@ export class Simulation {
 
   _fire(f) {
     const w = WEAPONS[f.cur], st = f.weapons[f.cur];
-    st.ammo--; f.fireT = w.rof;
+    const A = activeAbility(f), deadeye = !!(A && A.shotMul);
+    st.ammo--; f.fireT = A?.fireMul ? w.rof / A.fireMul : w.rof;
+    if (deadeye) f.abT = 0;                                       // Deadeye is ONE shot
     const moving = f.speedH > 1.2;
     const base = f.ads ? w.spreadAds : w.spreadHip * (moving ? 1.35 : 1);
     const spread = base + f.bloom;
@@ -381,12 +386,13 @@ export class Simulation {
       const hit = this.world.castRayAndGetNormal(ray, w.range, true, undefined, undefined, f.col, undefined, (c) => this.solid.has(c.handle));
       const wallT = hit ? hit.timeOfImpact : w.range;
       // 2) is a fighter in the way? (exact ray-vs-capsule maths on their rewound position)
-      let target = null, tHit = wallT, pos = null;
+      let target = null, tHit = wallT, pos = null; const through = [];
       for (const o of this.fighters) {
         if (o === f || !o.alive) continue;
         const q = this.posAt(o, viewTick);
         if (!q.alive) continue;
         const t = rayCapsule(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, q.x, q.y - 0.5, q.z, q.y + 0.5, 0.4);
+        if (deadeye && t >= 0 && t < wallT) through.push({ o, q, t });                      // Deadeye: every body on the line, not just the first
         if (t >= 0 && t < tHit) { tHit = t; target = o; pos = q; }
       }
       const e = { t: 'shot', by: f.id, w: w.id, first: p === 0, ox: origin.x, oy: origin.y, oz: origin.z,
@@ -394,8 +400,13 @@ export class Simulation {
       if (target) {
         e.hit = 'fighter'; e.target = target.id;
         const head = e.ey - (pos.y - 0.9) > 1.42;
-        const dmg = damageAt(w, tHit, head);
-        this.damage(target, dmg, f, { head, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: e.ex, y: e.ey, z: e.ez, cause: 'bullet' });
+        const dmg = damageAt(w, tHit, head) * (deadeye ? A.shotMul : 1);
+        this.damage(target, dmg, f, { head, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: e.ex, y: e.ey, z: e.ez, cause: 'bullet', pierce: deadeye });
+        if (deadeye) for (const h of through.sort((a, b) => a.t - b.t)) {
+          if (h.o === target) continue;
+          const hd = origin.y + dir.y * h.t - (h.q.y - 0.9) > 1.42;
+          this.damage(h.o, damageAt(w, h.t, hd) * A.shotMul * A.pierceMul, f, { head: hd, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: origin.x + dir.x * h.t, y: origin.y + dir.y * h.t, z: origin.z + dir.z * h.t, cause: 'bullet', pierce: true });
+        }
       } else if (hit) {
         e.hit = 'world'; e.nx = hit.normal.x; e.ny = hit.normal.y; e.nz = hit.normal.z;
         const prop = this.propByCol.get(hit.collider.handle), veh = this.vehicles.byCol.get(hit.collider.handle);
@@ -431,6 +442,7 @@ export class Simulation {
       this.emit({ t: 'reload', by: f.id, phase: 'start', w: w.id, time: f.reloadT, empty: f.reloadEmpty, left: st.ammo });
       f.wasFiring = wantFire; return;
     }
+    if (f.stunT > 0) wantFire = false;                                 // EMP: the trigger does nothing
     const trigger = wantFire && (w.auto || !f.wasFiring);
     if (trigger && f.fireT <= 0 && f.switchT <= 0) {
       if (st.ammo > 0) this._fire(f);
@@ -468,7 +480,7 @@ export class Simulation {
   }
 
   /** one explosion for grenades AND barrels: pushes loose crates, hurts fighters (walls shield), breaks props, sets nearby barrels off */
-  _blast(x, y, z, R, maxDmg, owner, w) {
+  _blast(x, y, z, R, maxDmg, owner, w, except = null) {
     this.emit({ t: 'explosion', x, y, z, r: R, w, by: owner ? owner.id : -1 });
     for (const c of this.crates) {
       if (c.dead) continue;
@@ -476,7 +488,7 @@ export class Simulation {
       if (d < R && c.body.isDynamic()) { const k = 16 * (1 - d / R); c.body.applyImpulse({ x: dx / d * k, y: dy / d * k + k * 0.6, z: dz / d * k }, true); }
     }
     for (const f of this.fighters) {
-      if (!f.alive) continue;
+      if (!f.alive || f === except) continue;
       const dx = f.x - x, dy = f.y + 0.4 - y, dz = f.z - z, d = Math.hypot(dx, dy, dz);
       if (d >= R) continue;
       let dmg = maxDmg * (1 - d / R) ** 1.2;
@@ -540,8 +552,9 @@ export class Simulation {
 
   damage(target, amount, source, info = {}) {
     if (!target.alive || amount <= 0) return;
+    if (ARMORED.has(info.cause) || info.cause === 'melee') { const T = activeAbility(target); if (T?.takeMul) amount *= T.takeMul; }       // Overclock / Bulwark
     let soaked = 0;
-    if (target.armor > 0 && !info.head && ARMORED.has(info.cause)) {           // armor soaks body hits and blasts until it is used up
+    if (target.armor > 0 && !info.head && !info.pierce && ARMORED.has(info.cause)) {           // armor soaks body hits and blasts until it is used up
       soaked = Math.min(target.armor, amount * ARMOR_ABSORB); target.armor -= soaked; amount -= soaked;
       if (target.armor < 0.5) { target.armor = 0; target.armorLv = 0; }
     }
@@ -606,6 +619,8 @@ export class Simulation {
 
   /** move a fighter by (dx,dz) metres this step with collision; y handled by gravity/jump */
   moveFighter(f, dx, dz, dt, jump = false) {
+    if (f.dashT > 0) { dx = f.dashVx * dt; dz = f.dashVz * dt; jump = false; }                // ability dash: the dash decides where you go
+    else if (f.stunT > 0) { dx *= STUN_MOVE; dz *= STUN_MOVE; jump = false; }                  // EMP: stunned, crawling
     if (f.grounded && jump) f.vy = JUMP;
     f.vy += GRAV * dt;
     if (f.grounded && f.vy < 0) f.vy = -1;
@@ -636,6 +651,8 @@ export class Simulation {
     let sp = BASE_SPEED * (p.op.speed / 10) * w.moveMul;
     if (p.sprinting) sp *= 1.5; else if (p.ads) sp *= 0.62;
     if (p.reloadT > 0) sp *= 0.92;
+    const act = activeAbility(p); if (act?.speedMul) sp *= act.speedMul;      // Cloak: faster
+    if (cmd.ability) useAbility(this, p);                                     // Q: the operator's ability (the server validates cooldown / state)
     // medkit (H): takes HEAL_T seconds of standing mostly still; shooting, reloading, switching, throwing, sprinting or getting hurt cancels it
     if (cmd.heal) this.startHeal(p);
     if (p.healT > 0 && (cmd.fire || cmd.reload || cmd.slot || cmd.grenade || cmd.use || p.sprinting)) p.healT = 0;
@@ -649,6 +666,7 @@ export class Simulation {
     p.nadeT = Math.max(0, p.nadeT - dt);
     this.tickHeal(p, dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
+    tickAbility(this, p, dt);
   }
 
   /** start using a medkit (humans: the H key, bots: their brain). It is finished by tickHeal() after HEAL_T seconds. */
@@ -674,6 +692,7 @@ export class Simulation {
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     p.nadeT = Math.max(0, p.nadeT - dt);
     this.updateWeapon(p, dt, p.seat === 1 && !!cmd.fire && p.switchT <= 0, p.seat === 1 && !!cmd.reload);
+    tickAbility(this, p, dt);
   }
 
   /**
@@ -697,6 +716,7 @@ export class Simulation {
     for (const f of this.fighters) {
       if (!f.alive || this.opts.predictor) continue;       // a predicting browser only simulates ITS player's movement/weapon; hp and zone come from the server
       if (f.brain) f.brain.update(dt);
+      if (!f.human) tickAbility(this, f, dt);
       // health regen after a few seconds of peace (arcade feel)
       f.noHurtT += dt;
       const cap = this.opts.loot ? 0.3 : REGEN_CAP;          // in a loot match medkits are how you heal (you only walk it off up to 30%)
