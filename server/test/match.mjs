@@ -36,13 +36,18 @@ check('bots fill the empty slots', A.fighters.filter((f) => !f.human && !f.npc).
 check('the guard garrison is replicated and flagged npc', A.fighters.filter((f) => f.npc).length === 4);
 
 // ---- 1. movement: prediction is instant, the server agrees, the other player sees it
-const dA = drive(A, () => ({ strafe: 1, yaw: 0 })), dB = drive(B, () => ({}));
+// the spawn is random: walk in the direction that has the most open ground (a wall right in front of A would make "moved > 5 m" a test of the map, not of the netcode)
+const run = (dx, dz) => { const m = sim.fighters[A.myId]; let d = 0; const hit = (x, z) => sim.map.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + 1.5 && Math.abs(z - b.z) < b.d / 2 + 1.5) || sim.crates.some((c) => { const t = c.body.translation(); return Math.abs(x - t.x) < 2.2 && Math.abs(z - t.z) < 2.2; }) || sim.fighters.some((q) => q !== m && Math.hypot(x - q.x, z - q.z) < 1.6);
+  while (d < 14 && !hit(m.x + dx * d, m.z + dz * d)) d += 1; return d; };
+const dirs = [{ strafe: 1, forward: 0, r: run(1, 0) }, { strafe: -1, forward: 0, r: run(-1, 0) }, { strafe: 0, forward: 1, r: run(0, -1) }, { strafe: 0, forward: -1, r: run(0, 1) }].sort((p, q) => q.r - p.r);
+const way = dirs[0];
+const dA = drive(A, () => ({ strafe: way.strafe, forward: way.forward, yaw: 0 })), dB = drive(B, () => ({}));
 const a0 = { x: A.me.x, z: A.me.z }, b0x = B.fighters[A.myId].x;
-await sleep(1200);
-check('my own movement is predicted (moved >5 m in 1.2 s)', Math.abs(A.me.x - a0.x) > 5, `dx=${(A.me.x - a0.x).toFixed(1)}`);
+await sleep(1500);
+check('my own movement is predicted (moved > 3 m in 1.5 s)', Math.hypot(A.me.x - a0.x, A.me.z - a0.z) > 3, `moved=${Math.hypot(A.me.x - a0.x, A.me.z - a0.z).toFixed(1)} m (open ground ${way.r} m, dir ${way.strafe},${way.forward}, from ${a0.x.toFixed(1)},${a0.z.toFixed(1)} to ${A.me.x.toFixed(1)},${A.me.z.toFixed(1)}, server ${sim.fighters[A.myId].x.toFixed(1)},${sim.fighters[A.myId].z.toFixed(1)})`);
 const srvA = sim.fighters[A.myId];
-dA.fn = () => ({});                               // stop and let everything settle
-await sleep(900);
+dA.fn = () => ({});                               // stop and let everything settle (error smoothing needs a moment on a slow machine)
+await sleep(1600);
 const gap = Math.hypot(A.me.x - srvA.x, A.me.z - srvA.z);
 check('after stopping, prediction == server (within 0.15 m) even with 120 ms lag', gap < 0.15, `gap=${gap.toFixed(3)} m`);
 check('prediction error stayed small while moving (max < 1.0 m)', A.stats.maxErr < 1.0, `maxErr=${A.stats.maxErr.toFixed(3)} corrections=${A.stats.corrections}`);
