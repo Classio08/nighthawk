@@ -96,7 +96,7 @@ test('relay uplink: secure first, then upload; contest pauses progress and compl
   const sim = await arena(); const ct = manual(sim); const [p, b1, b2] = sim.fighters;
   ct._spawn('uplink'); const c = ct.list[0];
   assert.equal(c.stage, 0); assert.equal(c.r, 6.5);
-  farAway(sim, b1, b2); tp(p, c.x, c.z); p.hp = 100; p.mortar = 0;
+  farAway(sim, ...sim.fighters.slice(1)); tp(p, c.x, c.z); p.hp = 100; p.mortar = 0;
   run(sim, 3); const secured = c.prog; assert.ok(secured > 0.4 && secured < 0.5);
   tp(b1, c.x + 1, c.z); run(sim, 2);
   assert.equal(c.who, -2, 'multiple operators contest the relay');
