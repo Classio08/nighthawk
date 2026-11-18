@@ -21,7 +21,7 @@ export class BotBrain {
     skill = clamp(skill + this.p.skillBonus, 0.2, 0.97);
     this.sim = sim; this.f = f; this.skill = skill;
     this.state = 'roam'; this.decideT = 0; this.scores = {};
-    this.supT = 0; this.supOn = false; this.flankPt = null;
+    this.supT = 0; this.supOn = false; this.flankPt = null; this.barrelAim = null;
     this.radio = null; this.perch = null; this.perchPhase = -1; this.campT = 0; this.post = null; this.leash = 18;
     this.main = this.p.weapons.includes(f.op.weapon) ? f.op.weapon : this.p.weapons[f.id % this.p.weapons.length];
     if (f.weapons[this.main] && f.cur !== this.main) f.cur = this.main;
@@ -90,6 +90,15 @@ export class BotBrain {
       if (!sim.canSee(f, o, 65, this.fov)) continue;
       const s = d - (o === this.target ? 9 : 0) - (o === this.lastHurtBy ? 12 : 0);
       if (s < bs) { bs = s; best = o; }
+    }
+    // an enemy standing next to an explosive barrel: shoot the BARREL (from a safe distance), not the enemy
+    this.barrelAim = null;
+    if (best && !this.p.guard) {
+      for (const b of sim.barrels) {
+        if (b.dead || b.fuse >= 0 || Math.hypot(b.x - best.x, b.z - best.z) > 3.6) continue;
+        const d = Math.hypot(b.x - f.x, b.z - f.z); if (d < 10 || d > 55) continue;
+        if (sim.losClear(f.x, f.eyeY, f.z, b.x - (b.x - f.x) / d * 0.7, 0.55, b.z - (b.z - f.z) / d * 0.7)) { this.barrelAim = b; break; }
+      }
     }
     if (best) {
       if (this.target !== best) { this.target = best; this.engageT = 0; this.burstT = 0.5; this.burstPause = 0; }
@@ -311,9 +320,11 @@ export class BotBrain {
         const k = (1 + dist / 45) * (this.moving ? 1.35 : 1);
         this.offY = (sim.rng() - 0.5) * 2 * this.aimErr * k; this.offP = (sim.rng() - 0.5) * 2 * this.aimErr * k * 0.7;
       }
-      const ty = tgt.y + 0.2 + (this.skill > 0.75 && dist < 35 ? 0.35 : 0);
-      const wantYaw = Math.atan2(-(tgt.x - f.x), -(tgt.z - f.z)) + this.offY;
-      const wantPitch = Math.atan2(ty - f.eyeY, Math.max(0.5, dist)) + this.offP;
+      const bb = this.barrelAim && !this.barrelAim.dead && this.barrelAim.fuse < 0 ? this.barrelAim : null;
+      const ax = bb ? bb.x : tgt.x, az = bb ? bb.z : tgt.z, ad = bb ? Math.hypot(bb.x - f.x, bb.z - f.z) : dist;
+      const ty = bb ? 0.55 : tgt.y + 0.2 + (this.skill > 0.75 && dist < 35 ? 0.35 : 0);
+      const wantYaw = Math.atan2(-(ax - f.x), -(az - f.z)) + this.offY * (bb ? 0.4 : 1);
+      const wantPitch = Math.atan2(ty - f.eyeY, Math.max(0.5, ad)) + this.offP * (bb ? 0.4 : 1);
       const dyaw = wrap(wantYaw - f.yaw), dpitch = wantPitch - f.pitch, m = this.turnSpeed * dt;
       f.yaw += clamp(dyaw, -m, m); f.pitch = clamp(f.pitch + clamp(dpitch, -m, m), -1.4, 1.4);
       const aligned = Math.abs(dyaw) < 0.09;

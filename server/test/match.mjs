@@ -54,6 +54,13 @@ check('prediction error stayed small while moving (max < 1.0 m)', A.stats.maxErr
 const seenByB = B.fighters[A.myId];
 check('B sees A at (nearly) the same place as the server', Math.hypot(seenByB.x - srvA.x, seenByB.z - srvA.z) < 0.5, `diff=${Math.hypot(seenByB.x - srvA.x, seenByB.z - srvA.z).toFixed(2)}`);
 check('B saw A move', Math.abs(seenByB.x - b0x) > 3);
+// ---- 1b. props: a barrel / crate that breaks on the server breaks for every player (and in their prediction world)
+{
+  const bar = sim.barrels[0], crate = sim.crates[0]; sim.barrels[0].hp = 0; sim._breakProp(bar); sim._breakProp(crate);
+  await sleep(700);
+  check('a barrel that explodes on the server is gone for both players', A.barrels[0].dead && B.barrels[0].dead);
+  check('a broken crate (and the crate stacked on it) is gone for both players', A.crates[0].dead && B.crates[0].dead && A.crates[1].dead);
+}
 check('the clock estimate is sane (snapshots arriving ~20/s)', A.stats.snaps > 20, `snaps=${A.stats.snaps}`);
 
 // ---- 2. a shoot-out in an open lane: B runs left/right, A (120 ms lag) shoots at where B is DRAWN

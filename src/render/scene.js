@@ -63,8 +63,18 @@ export class WorldView {
     }
 
     // loose crates (their bodies are simulated, we just copy their pose)
-    const cg = new THREE.BoxGeometry(1.2, 1.2, 1.2), cm = lambert(0xa87a3c);
-    this.crates = sim.crates.map(() => { const m = new THREE.Mesh(cg, cm); scene.add(m); return m; });
+    const cg = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+    this.crates = sim.crates.map(() => { const m = new THREE.Mesh(cg, lambert(0xa87a3c)); scene.add(m); return m; });   // own material each: it darkens as the crate takes damage
+    // explosive barrels: red drums with a hazard band (they never move, only disappear in a bang)
+    const bg = new THREE.CylinderGeometry(0.42, 0.42, 1.1, 14), band = new THREE.CylinderGeometry(0.435, 0.435, 0.22, 14);
+    const redM = lambert(0xb3281d), yelM = lambert(0xe0b020), topM = lambert(0x6d1710);
+    this.barrels = (sim.barrels ?? []).map((b) => {
+      const g = new THREE.Group(); g.position.set(b.x, b.y, b.z);
+      g.add(new THREE.Mesh(bg, redM)); const y = new THREE.Mesh(band, yelM); y.position.y = 0.12; g.add(y);
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.04, 12), topM); t.position.y = 0.56; g.add(t);
+      scene.add(g); return g;
+    });
+    this.dmgColor = new THREE.Color();
     this.nadeMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), lambert(0x394a2b));
     this.nades = [];
 
@@ -82,8 +92,18 @@ export class WorldView {
     const sim = this.sim;
     this.sky.position.set(px, 0, pz);
     for (let i = 0; i < sim.crates.length; i++) {
-      const b = sim.crates[i].body, t = b.translation(), r = b.rotation();
-      this.crates[i].position.set(t.x, t.y, t.z); this.crates[i].quaternion.set(r.x, r.y, r.z, r.w);
+      const c = sim.crates[i], m = this.crates[i];
+      if (c.dead) { m.visible = false; continue; }
+      const t = c.body.translation(), r = c.body.rotation();
+      m.position.set(t.x, t.y, t.z); m.quaternion.set(r.x, r.y, r.z, r.w);
+      const dmg = 1 - c.hp / c.maxHp;                                  // wood darkens with damage
+      if (dmg !== m.userData.dmg) { m.userData.dmg = dmg; m.material.color.setHex(0xa87a3c).lerp(this.dmgColor.setHex(0x3b2a14), Math.min(1, dmg * 1.1)); }
+    }
+    for (let i = 0; i < this.barrels.length; i++) {
+      const b = sim.barrels[i], m = this.barrels[i];
+      if (b.dead) { m.visible = false; continue; }
+      m.visible = true;
+      if (b.fuse >= 0) { const k = 1 + Math.sin(performance.now() * 0.06) * 0.04; m.scale.set(k, 1, k); }   // about to go: it shudders
     }
     // grenades come and go
     while (this.nades.length < sim.grenades.length) { const m = this.nadeMesh.clone(); this.scene.add(m); this.nades.push(m); }

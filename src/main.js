@@ -146,7 +146,7 @@ function handleEvents() {
       case 'kill': {
         const t = sim.fighters[e.target], you = e.by === p.id, me = e.target === p.id;
         if (you) skinReact(0.7);
-        const wName = WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.cause === 'zone' ? 'THE ZONE' : 'FALL');
+        const wName = WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.w === 'barrel' ? 'BARREL' : e.cause === 'zone' ? 'THE ZONE' : 'FALL');
         hud.addFeed(e.byName === 'The zone' ? `<b>THE ZONE</b> ✕ ${e.name}` : `<b>${e.byName}</b> [${wName}${e.head ? ' ✦' : ''}] ${e.name}`, you || me);
         particles.blood(e.x, e.y + 0.3, e.z, e.dx, e.dy + 0.2, e.dz, 24, 1.3);
         G.decals.stain(e.x, 0.02, e.z, 0, 1, 0, 1.1);
@@ -158,6 +158,11 @@ function handleEvents() {
         if (me) { G.deadT = performance.now(); G.killer = e.byName; viewmodel.root.visible = false; camfx.add(0.8); }
         break;
       }
+      case 'prop': {                                           // a crate splintered / a barrel is gone
+        if (e.kind === 'crate') { particles.dust(e.x, e.y, e.z, 0, 1, 0, 14); particles.sparks(e.x, e.y, e.z, 0, 1, 0, 8); audio.play('crate', { x: e.x, z: e.z, maxD: 60 }); }
+        break;
+      }
+      case 'propHit': break;
       case 'explosion': {
         particles.explosion(e.x, e.y, e.z, e.r);
         decals.holes.add(e.x, 0.03, e.z, 0, 1, 0, 3.6);

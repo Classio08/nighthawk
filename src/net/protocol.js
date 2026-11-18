@@ -60,5 +60,6 @@ export function packSnapshot(sim, events) {
     k: sim.tick, z: packZone(sim.zone), f: sim.fighters.map(packFighter),
     g: sim.grenades.map((g) => { const t = g.body.translation(); return [r2(t.x), r2(t.y), r2(t.z)]; }),
     e: events.map(packEvent), o: sim.state === 'playing' ? 0 : 1,
+    pd: sim.destroyed,
   };
 }

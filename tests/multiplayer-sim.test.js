@@ -15,7 +15,7 @@ async function arena(humans, bots = 0) {
 /** find an empty stretch of ground (no building or crate near the straight line) so shots are not blocked by the map */
 function lane(sim, len = 40) {
   const hit = (x, z, m) => sim.map.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + m && Math.abs(z - b.z) < b.d / 2 + m)
-    || sim.crates.some((c) => { const t = c.body.translation(); return Math.abs(x - t.x) < m + 1 && Math.abs(z - t.z) < m + 1; });
+    || sim.crates.some((c) => { if (c.dead) return false; const t = c.body.translation(); return Math.abs(x - t.x) < m + 1 && Math.abs(z - t.z) < m + 1; });
   for (let x = -80; x <= 60; x += 5) for (let z0 = 90; z0 > -60; z0 -= 5) {
     let ok = true;
     for (let d = 0; d <= len + 4 && ok; d++) for (let dx = -2; dx <= 14 && ok; dx += 2) if (hit(x + dx, z0 - d, 2)) ok = false;

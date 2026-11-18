@@ -50,7 +50,7 @@ export class NetSim {
     this.ready = false; this.inbox = []; this.onLobby = null; this.onOver = null; this.onClose = null;
     this.seq = 0; this.pending = []; this.outbox = []; this.err = { x: 0, y: 0, z: 0 };
     this.snaps = []; this.clockOff = null; this.evq = [];
-    this.fighters = []; this.crates = []; this.grenades = []; this.humans = [];
+    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.humans = []; this.nDestroyed = 0;
     this.time = 0; this.tick = 0; this.state = 'playing'; this.result = null; this.rtt = 0; this.stats = { snaps: 0, corrections: 0, maxErr: 0, lastErr: 0 };
     this._wait = new Promise((res, rej) => { this._resolve = res; this._reject = rej; });
     this._ping = null;
@@ -80,7 +80,7 @@ export class NetSim {
     this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true });
     const pl = this.predictor.player; pl.rngKey = w.id; pl.yaw = w.self.yaw;
     pl.importSelf(w.self); this.predictor.world.propagateModifiedBodyPositionsToColliders();
-    this.map = this.predictor.map; this.crates = this.predictor.crates;
+    this.map = this.predictor.map; this.crates = this.predictor.crates; this.barrels = this.predictor.barrels;
     this.zone = new Zone(makeRng(1)); this.zone.update = () => {};
     this.fighters = w.roster.map((r) => (r.id === w.id ? new Me(this, r, pl) : new RemoteFighter(r)));
     this.me = this.fighters[w.id]; this.player = this.me; this.humans = this.fighters.filter((f) => f.human);
@@ -137,6 +137,8 @@ export class NetSim {
     }
     // grenades: draw them where the server says (they only live a couple of seconds)
     this.grenades = s.g.map((g) => ({ body: { translation: () => ({ x: g[0], y: g[1], z: g[2] }) } }));
+    // broken crates / exploded barrels: apply to my copy of the world so my own movement collides with the same things the server has
+    if (s.pd && s.pd.length !== this.nDestroyed) { this.predictor.syncDestroyed(s.pd); this.predictor.world.propagateModifiedBodyPositionsToColliders(); this.nDestroyed = s.pd.length; }
     // events: skip what I already showed myself
     for (const e of s.e) {
       if (OWN_EVENTS.has(e.t) && e.by === this.myId) continue;

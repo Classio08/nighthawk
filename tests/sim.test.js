@@ -18,7 +18,7 @@ async function arena(bots = 2) {
 /** find a straight north-going lane (shooter at z0, target at z0-len) with no building or crate anywhere near it */
 function lane(sim, len = 30) {
   const hit = (x, z, m) => sim.map.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + m && Math.abs(z - b.z) < b.d / 2 + m)
-    || sim.crates.some((c) => { const t = c.body.translation(); return Math.abs(x - t.x) < m + 1 && Math.abs(z - t.z) < m + 1; });
+    || sim.crates.some((c) => { if (c.dead) return false; const t = c.body.translation(); return Math.abs(x - t.x) < m + 1 && Math.abs(z - t.z) < m + 1; });
   for (let x = -80; x <= 80; x += 5) for (let z0 = 90; z0 > -60; z0 -= 5) {
     let ok = true;
     for (let d = 0; d <= len + 4 && ok; d += 1) if (hit(x, z0 - d, 2.5) || hit(x + 1.5, z0 - d, 1.5) || hit(x - 1.5, z0 - d, 1.5)) ok = false;
@@ -106,8 +106,9 @@ test('grenade: hurts a bot in the blast radius, ignores one far away, shoves cra
   run(sim, 4, cmd);
   assert.ok(near.hp < 400, `near bot should be hurt (hp ${near.hp})`);
   assert.equal(far.hp, 400);
-  const c1 = crate.body.translation();
-  assert.ok(Math.hypot(c1.x - c0.x, c1.y - c0.y, c1.z - c0.z) > 0.3, 'crate moved');
+  // a crate right next to the blast now splinters (props have hit points); a farther one is shoved
+  if (!crate.dead) { const c1 = crate.body.translation(); assert.ok(Math.hypot(c1.x - c0.x, c1.y - c0.y, c1.z - c0.z) > 0.3, 'crate moved'); }
+  else assert.ok(crate.hp <= 0, 'the crate was destroyed by the blast');
   assert.ok(sim.drainEvents().some((e) => e.t === 'explosion'));
 });
 

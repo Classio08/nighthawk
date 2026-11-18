@@ -6,7 +6,7 @@ import * as YUKA from 'yuka';
 import operatorData from '../../data/operators.json' with { type: 'json' };
 import { makeRng } from './rng.js';
 import { WEAPONS, SLOT_ORDER, reloadTime, magCap, skinOk, SKINS, damageAt } from './weapons.js';
-import { buildMap, pickSpawns, findFreeSpot } from './map.js';
+import { buildMap, pickSpawns, findFreeSpot, insideAnyBox } from './map.js';
 import { Squad } from './squad.js';
 import { pickPersonality } from './personality.js';
 import { Zone } from './zone.js';
@@ -22,6 +22,7 @@ const BASE_SPEED = 7;
 const JUMP = 8.2;
 const REGEN_DELAY = 6, REGEN_RATE = 5, REGEN_CAP = 0.65;
 const GRENADE_FUSE = 2.2, GRENADE_R = 9, GRENADE_DMG = 150;
+const CRATE_HP = 70, BARREL_HP = 40, BARREL_R = 8, BARREL_DMG = 130;   // props: bullets and blasts wear them down
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const HIST = 64;                // how many ticks of fighter positions we remember (for lag compensation)
 export const MAX_LAG_TICKS = 30; // never rewind more than 0.5 s
@@ -71,7 +72,9 @@ export class Simulation {
     this.map = buildMap(opts.mapSeed ?? 7);
     this.time = 0; this.tick = 0; this.events = [];
     this.hist = new Array(HIST).fill(null); this.humans = []; this.player = null;
-    this.fighters = []; this.crates = []; this.grenades = [];
+    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = [];
+    this.propByCol = new Map();     // collider handle -> crate / barrel (things bullets can break)
+    this.destroyed = [];            // ids of broken props (replicated to browsers in every snapshot)
     this.colMap = new Map();        // collider handle -> Fighter
     this.solid = new Set();         // collider handles of ground, buildings, crates
     this.state = 'playing'; this.result = null;
@@ -108,8 +111,10 @@ export class Simulation {
     const cr = this.rng;
     for (let i = 0; i < 10; i++) {
       const x = cr.range(-30, 30), z = cr.range(-30, 30);
-      for (let k = 0; k < 2; k++) this._addCrate(x + k * 0.1, 0.6 + k * 1.22, z);
+      let below = null;
+      for (let k = 0; k < 2; k++) { const c = this._addCrate(x + k * 0.1, 0.6 + k * 1.22, z); if (k === 0) below = c; else below.above = c; }
     }
+    this._makeBarrels();
 
     // fighters: humans first (ids 0..H-1), then bots. Offline = 1 human. Online = everybody in the room.
     const humans = this.opts.humans ?? [{ operator: this.opts.operator ?? 'roms', skin: this.opts.skin }];
@@ -178,7 +183,74 @@ export class Simulation {
     const body = this.world.createRigidBody((this.opts.propsFixed ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic()).setTranslation(x, y, z));
     const col = this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.6, 0.6, 0.6).setRestitution(0.1).setFriction(0.8).setDensity(0.6), body);
     this.solid.add(col.handle);
-    this.crates.push({ body, col });
+    const c = { id: this.crates.length, kind: 'crate', body, col, hp: CRATE_HP, maxHp: CRATE_HP, dead: false, above: null };
+    this.crates.push(c); this.propByCol.set(col.handle, c);
+    return c;
+  }
+
+  /**
+   * EXPLOSIVE BARRELS: always fixed (heavy). Shoot one: it goes up after a short fuse, hurts everybody near it and sets the barrels
+   * next to it off too (chain reaction). Placed in clusters from their own dice, so every browser builds the same barrels.
+   */
+  _makeBarrels() {
+    const rng = makeRng(((this.opts.mapSeed ?? 7) * 977 + 13) | 0);
+    const clusters = this.opts.barrelClusters ?? 7;
+    for (let c = 0; c < clusters; c++) {
+      const at = findFreeSpot(this.map, rng, 0, 0, 92, 4);
+      const n = 2 + Math.floor(rng() * 2);
+      for (let k = 0; k < n; k++) {
+        const a = rng() * Math.PI * 2, d = 0.95 + rng() * 0.9 + k * 0.25;
+        const x = at.x + Math.cos(a) * d * (k ? 1 : 0), z = at.z + Math.sin(a) * d * (k ? 1 : 0);
+        if (insideAnyBox(this.map, x, z, 0.6)) continue;
+        this._addBarrel(x, z);
+      }
+    }
+  }
+
+  _addBarrel(x, z) {
+    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, 0.55, z));
+    const col = this.world.createCollider(RAPIER.ColliderDesc.cylinder(0.55, 0.42), body);
+    this.solid.add(col.handle);
+    const b = { id: 100 + this.barrels.length, kind: 'barrel', x, y: 0.55, z, body, col, hp: BARREL_HP, maxHp: BARREL_HP, dead: false, fuse: -1, owner: null };
+    this.barrels.push(b); this.propByCol.set(col.handle, b);
+    return b;
+  }
+
+  /** something a bullet or blast can break */
+  propById(id) { return id >= 100 ? this.barrels[id - 100] : this.crates[id]; }
+
+  damageProp(p, amount, owner) {
+    if (p.dead || amount <= 0 || this.opts.predictor) return;       // a predicting browser never breaks things itself: the server tells it
+    p.hp -= amount;
+    if (p.hp > 0) { this.emit({ t: 'propHit', id: p.id, hp: p.hp }); return; }
+    if (p.kind === 'barrel') { if (p.fuse < 0) { p.fuse = 0.12 + (p.id % 3) * 0.05; p.owner = owner; } }
+    else this._breakProp(p);
+  }
+
+  /** remove a prop from the world (also used by browsers, silently, when the server says it broke) */
+  _breakProp(p, silent = false) {
+    if (p.dead) return;
+    p.dead = true;
+    this.solid.delete(p.col.handle); this.propByCol.delete(p.col.handle);
+    const t = p.body.translation();
+    this.world.removeRigidBody(p.body);
+    if (!this.destroyed.includes(p.id)) this.destroyed.push(p.id);
+    if (!silent) this.emit({ t: 'prop', id: p.id, kind: p.kind, x: t.x, y: t.y, z: t.z });
+    if (p.above && this.opts.propsFixed) this._breakProp(p.above, silent);          // fixed crates cannot float: a stack falls apart together
+  }
+
+  /** browsers: apply the list of broken props from a snapshot */
+  syncDestroyed(ids) { for (const id of ids) { const p = this.propById(id); if (p && !p.dead) this._breakProp(p, true); } }
+
+  _stepBarrels(dt) {
+    for (const b of this.barrels) {
+      if (b.dead || b.fuse < 0) continue;
+      b.fuse -= dt;
+      if (b.fuse > 0) continue;
+      const t = b.body.translation();
+      this._breakProp(b);
+      this._blast(t.x, t.y + 0.2, t.z, BARREL_R, BARREL_DMG, b.owner, 'barrel');
+    }
   }
 
   _addFighter(id, name, op, human, spawn) {
@@ -294,8 +366,10 @@ export class Simulation {
         this.damage(target, dmg, f, { head, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: e.ex, y: e.ey, z: e.ez, cause: 'bullet' });
       } else if (hit) {
         e.hit = 'world'; e.nx = hit.normal.x; e.ny = hit.normal.y; e.nz = hit.normal.z;
+        const prop = this.propByCol.get(hit.collider.handle);
         const rb = hit.collider.parent();
         if (rb && rb.isDynamic()) rb.applyImpulseAtPoint({ x: dir.x * 5, y: dir.y * 5, z: dir.z * 5 }, { x: e.ex, y: e.ey, z: e.ez }, true);
+        if (prop) { e.prop = prop.id; this.damageProp(prop, damageAt(w, tHit, false) * (w.pellets > 1 ? 1.4 : 1), f); }     // last: this may remove the body
       }
       this.emit(e);
     }
@@ -356,21 +430,38 @@ export class Simulation {
 
   _explode(g) {
     const p = g.body.translation();
-    this.emit({ t: 'explosion', x: p.x, y: p.y, z: p.z, r: GRENADE_R });
+    this._blast(p.x, p.y, p.z, GRENADE_R, GRENADE_DMG, g.owner, 'grenade');
+    this.world.removeRigidBody(g.body);
+  }
+
+  /** one explosion for grenades AND barrels: pushes loose crates, hurts fighters (walls shield), breaks props, sets nearby barrels off */
+  _blast(x, y, z, R, maxDmg, owner, w) {
+    this.emit({ t: 'explosion', x, y, z, r: R, w, by: owner ? owner.id : -1 });
     for (const c of this.crates) {
-      const q = c.body.translation(), dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z, d = Math.hypot(dx, dy, dz) || 1;
-      if (d < GRENADE_R && c.body.isDynamic()) { const k = 16 * (1 - d / GRENADE_R); c.body.applyImpulse({ x: dx / d * k, y: dy / d * k + k * 0.6, z: dz / d * k }, true); }
+      if (c.dead) continue;
+      const q = c.body.translation(), dx = q.x - x, dy = q.y - y, dz = q.z - z, d = Math.hypot(dx, dy, dz) || 1;
+      if (d < R && c.body.isDynamic()) { const k = 16 * (1 - d / R); c.body.applyImpulse({ x: dx / d * k, y: dy / d * k + k * 0.6, z: dz / d * k }, true); }
     }
     for (const f of this.fighters) {
       if (!f.alive) continue;
-      const dx = f.x - p.x, dy = f.y + 0.4 - p.y, dz = f.z - p.z, d = Math.hypot(dx, dy, dz);
-      if (d >= GRENADE_R) continue;
-      let dmg = GRENADE_DMG * (1 - d / GRENADE_R) ** 1.2;
-      if (!this.losClear(p.x, p.y + 0.3, p.z, f.x, f.y + 0.4, f.z)) dmg *= 0.25;
+      const dx = f.x - x, dy = f.y + 0.4 - y, dz = f.z - z, d = Math.hypot(dx, dy, dz);
+      if (d >= R) continue;
+      let dmg = maxDmg * (1 - d / R) ** 1.2;
+      if (!this.losClear(x, y + 0.3, z, f.x, f.y + 0.4, f.z)) dmg *= 0.25;
       const l = d || 1;
-      this.damage(f, dmg, g.owner, { head: false, w: 'grenade', dx: dx / l, dy: dy / l + 0.4, dz: dz / l, x: f.x, y: f.y + 0.4, z: f.z, cause: 'explosion' });
+      this.damage(f, dmg, owner, { head: false, w, dx: dx / l, dy: dy / l + 0.4, dz: dz / l, x: f.x, y: f.y + 0.4, z: f.z, cause: 'explosion' });
     }
-    this.world.removeRigidBody(g.body);
+    // props: crates near the blast splinter, barrels go off in a wave (the further away, the later)
+    for (const c of this.crates) {
+      if (c.dead) continue;
+      const q = c.body.translation(), d = Math.hypot(q.x - x, q.y - y, q.z - z);
+      if (d < R) this.damageProp(c, maxDmg * 1.3 * (1 - d / R), owner);
+    }
+    for (const b of this.barrels) {
+      if (b.dead || b.fuse >= 0) continue;
+      const d = Math.hypot(b.x - x, b.y - y, b.z - z);
+      if (d < R && d > 0.01) { b.hp = 0; b.fuse = 0.1 + (d / R) * 0.35; b.owner = owner; }
+    }
   }
 
   damage(target, amount, source, info = {}) {
@@ -500,6 +591,7 @@ export class Simulation {
 
     this.world.step();
 
+    if (!this.opts.predictor) this._stepBarrels(dt);
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i]; g.t += dt;
       if (g.t >= GRENADE_FUSE) { this._explode(g); this.grenades.splice(i, 1); }
