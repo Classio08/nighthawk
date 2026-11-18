@@ -36,7 +36,8 @@ export function buildMap(seed = 7) {
     { kind: 'poi-fence', poi: 'extraction-pad', x: 56, y: 0.65, z: 43, w: 20, h: 1.3, d: 0.7 },
     { kind: 'poi-fence', poi: 'extraction-pad', x: 46, y: 0.65, z: 56, w: 0.7, h: 1.3, d: 26 },
     { kind: 'poi-fence', poi: 'extraction-pad', x: 66, y: 0.65, z: 56, w: 0.7, h: 1.3, d: 26 },
-    { kind: 'poi-fence', poi: 'extraction-pad', x: 56, y: 0.65, z: 69, w: 20, h: 1.3, d: 0.7 },
+    { kind: 'poi-fence', poi: 'extraction-pad', x: 50, y: 0.65, z: 69, w: 8, h: 1.3, d: 0.7 },
+    { kind: 'poi-fence', poi: 'extraction-pad', x: 62, y: 0.65, z: 69, w: 8, h: 1.3, d: 0.7 },
   ];
   const overlaps = (b, margin) => boxes.some((o) =>
     Math.abs(b.x - o.x) < (b.w + o.w) / 2 + margin && Math.abs(b.z - o.z) < (b.d + o.d) / 2 + margin);
