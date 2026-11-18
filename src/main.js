@@ -35,7 +35,9 @@ const ONLINE_URL = params.get('online') || DEFAULT_SERVER;        // ?online=ws:
 const FAKE_LAG = +(params.get('lag') ?? 0);                         // ?lag=120 simulates 120 ms of round-trip lag (for testing)          // used by the automatic browser test: skips the click-to-play screen
 
 /* weapon skin: picked on the start screen, remembered in the browser, ?skin=magma overrides (for testing) */
-let SKIN = null;\nconst OPERATOR_IDS = new Set(OPERATORS.map((op) => op.id));\nlet OPERATOR = OPERATOR_IDS.has(params.get('op')) ? params.get('op') : 'roms';
+let SKIN = null;
+const OPERATOR_IDS = new Set(OPERATORS.map((op) => op.id));
+let OPERATOR = OPERATOR_IDS.has(params.get('op')) ? params.get('op') : 'roms';
 try { SKIN = skinOk(params.get('skin') ?? localStorage.getItem('nh_skin')); } catch { /* private mode */ }
 
 const canvas = $('game');
@@ -408,12 +410,14 @@ let joining = null;
 async function beginOnline() {
   audio.unlock();
   if (!ONLINE_URL) { $('onlinemsg').textContent = 'No game server set (use ?online=ws://host:2567)'; return; }
-  const name = ($('namebox').value || 'Operator').trim().slice(0, 16);\n  OPERATOR = OPERATOR_IDS.has($('operatorbox').value) ? $('operatorbox').value : 'roms';\n  try { localStorage.setItem('nh_operator', OPERATOR); } catch { /* private mode */ } try { localStorage.setItem('nh_name', name); } catch { /* private mode */ }
+  const name = ($('namebox').value || 'Operator').trim().slice(0, 16);
+  OPERATOR = OPERATOR_IDS.has($('operatorbox').value) ? $('operatorbox').value : 'roms';
+  try { localStorage.setItem('nh_operator', OPERATOR); } catch { /* private mode */ } try { localStorage.setItem('nh_name', name); } catch { /* private mode */ }
   $('onlinemsg').textContent = ''; showOv('start', false); showOv('end', false); showOv('lobby', true); $('lobbytxt').textContent = 'connecting...';
   const ticket = joining = {};                         // so CANCEL can abandon this attempt
   try {
     const { NetSim } = await import('./net/netsim.js');          // the multiplayer code is only downloaded when you go online
-    const net = await NetSim.join(ONLINE_URL, { name, operator: params.get('op') ?? 'roms', skin: SKIN, lag: FAKE_LAG,
+    const net = await NetSim.join(ONLINE_URL, { name, operator: OPERATOR, skin: SKIN, lag: FAKE_LAG,
       onLobby: (m) => { $('lobbytxt').textContent = `${m.n} player${m.n === 1 ? '' : 's'} in the lobby · starting in ${m.left} s`; } });
     if (joining !== ticket) { net.dispose(); return; }
     started = true; await newMatch(net);
@@ -428,7 +432,18 @@ async function beginOnline() {
 }
 $('onlinebtn').addEventListener('click', beginOnline);
 $('lobbycancel').addEventListener('click', () => { joining = null; showOv('lobby', false); showOv('start', true); });
-try { $('namebox').value = localStorage.getItem('nh_name') ?? ''; OPERATOR = OPERATOR_IDS.has(localStorage.getItem('nh_operator')) ? localStorage.getItem('nh_operator') : OPERATOR; } catch { /* ignore */ }\n$('operatorbox').value = OPERATOR;\n$('operatorbox').addEventListener('change', () => { OPERATOR = OPERATOR_IDS.has($('operatorbox').value) ? $('operatorbox').value : 'roms'; try { localStorage.setItem('nh_operator', OPERATOR); } catch { /* ignore */ } });
+try { $('namebox').value = localStorage.getItem('nh_name') ?? ''; OPERATOR = OPERATOR_IDS.has(localStorage.getItem('nh_operator')) ? localStorage.getItem('nh_operator') : OPERATOR; } catch { /* ignore */ }
+$('operatorbox').value = OPERATOR;
+function renderOperatorInfo() {
+  const op = OPERATORS.find((item) => item.id === OPERATOR) ?? OPERATORS[0];
+  $('operatorinfo').innerHTML = `<b>${op.name.toUpperCase()} · ${op.role.toUpperCase()}</b><br>HEALTH ${op.hp} · SPEED ${op.speed}<br><span style="color:#c9d5e3">${op.ability.name}: ${op.ability.text}</span>`;
+}
+renderOperatorInfo();
+$('operatorbox').addEventListener('change', () => {
+  OPERATOR = OPERATOR_IDS.has($('operatorbox').value) ? $('operatorbox').value : 'roms';
+  try { localStorage.setItem('nh_operator', OPERATOR); } catch { /* ignore */ }
+  renderOperatorInfo();
+});
 /* weapon skin chips on the start screen */
 {
   const box = $('skins');
