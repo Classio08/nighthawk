@@ -1,6 +1,6 @@
 # NIGHTHAWK
 
-A fast, addictive browser shooter: **COD-style operators and abilities + PUBG-style last-one-standing matches**, in short sessions, with simple low-poly looks and real physics. Web first (PC browsers), then mobile and a desktop download.
+A fast browser battle-royale shooter with original operators, modern tactical equipment and real physics. The approved art direction is realistic and African-inspired, with both first-person and third-person play planned. Web first (PC browsers), then mobile and a desktop download.
 
 Status: **offline battle royale + online multiplayer (Milestone 1) are built and tested** (two real browsers against a real server, prediction, lag compensation). Next: put the server on a VPS and test with a friend, then the big gameplay wave. See `docs/ROADMAP.md`.
 
