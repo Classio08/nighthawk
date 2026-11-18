@@ -243,7 +243,7 @@ export class BotBrain {
     // contracts: airdrops and hardpoints attract the greedy; a bounty on somebody else attracts the aggressive
     const ct = p.guard ? null : sim.contracts.wantedBy(f, 95);
     this.contractPt = ct;
-    if (ct) S.contract = 0.3 + 0.5 * p.greed + (ct.type === 'airdrop' && ct.state === 'landed' ? 0.12 : 0) - (tgt ? 0.3 : 0);
+    if (ct) S.contract = 0.3 + 0.5 * p.greed + (ct.type === 'airdrop' && ct.state === 'landed' ? 0.12 : 0) + (ct.type === 'uplink' && ct.stage === 1 ? 0.08 : 0) - (tgt ? 0.3 : 0);
     const bounty = sim.contracts.of('bounty');
     if (bounty && bounty.who !== f.id && !p.guard && p.aggr >= 0.7 && Math.hypot(bounty.x - f.x, bounty.z - f.z) < 85) { this.lastSeen = { x: bounty.x, z: bounty.z }; this.lastSeenT = 0.6; S.hunt = Math.max(S.hunt ?? 0, 0.3 + 0.45 * p.aggr); }
     // vehicles: far from the next circle (or just a thief at heart) => walk to the closest free buggy / bike and drive it
@@ -448,7 +448,7 @@ export class BotBrain {
       }
       case 'contract': {
         gx = this.contractPt.x; gz = this.contractPt.z; sprint = true;
-        if (Math.hypot(gx - f.x, gz - f.z) < (this.contractPt.type === 'hardpoint' ? 2.5 : 1.4)) { move = false; idleLook = true; }
+        if (Math.hypot(gx - f.x, gz - f.z) < (this.contractPt.type === 'hardpoint' ? 2.5 : this.contractPt.type === 'uplink' ? this.contractPt.r * 0.55 : 1.4)) { move = false; idleLook = true; }
         break;
       }
       case 'flank': {
