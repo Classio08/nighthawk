@@ -59,6 +59,12 @@ See `DEPLOY.md` for the step-by-step. Latency reality: a Johannesburg server giv
 | Max lag-comp rewind | 30 ticks (500 ms) |
 | Players per match | 16 (humans + bots) |
 
+## Loot over the network (Stage 8)
+- Same seed => same 120 starting items in every browser, so they are never sent. Snapshots carry `lt = { g: [ids of starting items taken], d: [[id, type, sub, x, z, qty, qty2], ...] }` (dropped items in full) **only when something changed**, plus a refresh every 120 ticks.
+- The server alone decides who takes what (a predicting browser never picks anything up). Your own guns, armor, medkits and heal timer travel in your private self-state (`hv`, `ar`, `al`, `md`, `hl`), so reconciliation rebuilds them exactly.
+- `H` is the `heal` command flag (bit 256). The `pickup` and `heal` events are server events; they are not in `OWN_EVENTS`, so you see each once.
+- `LOOT=0` on the server (or `createServer({ loot: false })`) gives the classic all-guns loadout; the `welcome` message carries `loot` so the browser's predictor matches.
+
 ## Vehicles over the network (Stage 7)
 - The server drives the vehicles. Snapshots carry them as `vh` (id, kind, x, z, yaw, speed, hp, driver, passenger, dead, steering).
 - Every client has the same vehicles (same seed) inside its predictor. Their poses come from the snapshots; their colliders move with them, so your predicted walking bumps into the same things the server sees.

@@ -28,7 +28,7 @@ class RemoteFighter {
   get eyeY() { return this.y + 0.72; }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -78,8 +78,8 @@ export class NetSim {
     this.welcome = w; this.myId = w.id;
     // the predictor: SAME seed and map => identical walls and crates, but only my fighter, no bots and no zone damage
     const me = w.roster[w.id];
-    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true, weather: w.weather, ...(w.vehicles === false ? { vehicles: false } : {}) });
-    this.weather = this.predictor.weather; this.vehicles = this.predictor.vehicles;      // same vehicles as the server (same seed); their state comes from snapshots
+    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true, weather: w.weather, ...(w.vehicles === false ? { vehicles: false } : {}), ...(w.loot ? { loot: true } : {}) });
+    this.weather = this.predictor.weather; this.vehicles = this.predictor.vehicles; this.loot = this.predictor.loot;      // same vehicles as the server (same seed); their state comes from snapshots
     const pl = this.predictor.player; pl.rngKey = w.id; pl.yaw = w.self.yaw;
     pl.importSelf(w.self); this.predictor.world.propagateModifiedBodyPositionsToColliders();
     this.map = this.predictor.map; this.crates = this.predictor.crates; this.barrels = this.predictor.barrels;
@@ -151,6 +151,7 @@ export class NetSim {
     // broken crates / exploded barrels: apply to my copy of the world so my own movement collides with the same things the server has
     if (s.pd && s.pd.length !== this.nDestroyed) { this.predictor.syncDestroyed(s.pd); this.predictor.world.propagateModifiedBodyPositionsToColliders(); this.nDestroyed = s.pd.length; }
     if (s.vh) this.predictor.vehicles.applyState(s.vh, true);      // vehicle poses (their colliders move too, so my predicted walking bumps into the same things)
+    if (s.lt) this.predictor.loot.applyState(s.lt);      // which starting items are gone + what dead players dropped
     if (s.ct) this.contracts.list = Contracts.unpack(s.ct);      // airdrops / hardpoints / bounty for the HUD and the 3D markers
     // events: skip what I already showed myself
     for (const e of s.e) {

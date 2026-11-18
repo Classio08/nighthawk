@@ -10,6 +10,7 @@ import { buildMap, pickSpawns, findFreeSpot, insideAnyBox } from './map.js';
 import { Squad } from './squad.js';
 import { pickPersonality } from './personality.js';
 import { Contracts } from './contracts.js';
+import { LootSystem, MED_HEAL, HEAL_T, ARMOR_ABSORB } from './loot.js';
 import { VehicleSystem } from './vehicles.js';
 import { pickWeather } from './weather.js';
 import { Zone } from './zone.js';
@@ -27,6 +28,7 @@ const REGEN_DELAY = 6, REGEN_RATE = 5, REGEN_CAP = 0.65;
 const GRENADE_FUSE = 2.2, GRENADE_R = 9, GRENADE_DMG = 150;
 const CRATE_HP = 70, BARREL_HP = 40, BARREL_R = 8, BARREL_DMG = 130;   // props: bullets and blasts wear them down
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ARMORED = new Set(['bullet', 'explosion']);        // which kinds of damage armor helps against (not the zone, falls or crashes)
 const HIST = 64;                // how many ticks of fighter positions we remember (for lag compensation)
 export const MAX_LAG_TICKS = 30; // never rewind more than 0.5 s
 
@@ -42,25 +44,38 @@ export class Fighter {
     this.vy = 0; this.grounded = false; this.speedH = 0; this.moveX = 0; this.moveZ = 0;
     this.ads = false; this.sprinting = false;
     this.weapons = {}; this.cur = op.weapon;
-    for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve };
+    for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve, have: true };
     this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.mortar = 0; this.streak = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
     this.nades = 2; this.nadeT = 0;
+    this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;       // loot: armor points left, medkits carried, seconds left of the medkit being used
     this.noHurtT = 0; this.zoneAcc = 0;
     this.brain = null; this.rb = null; this.col = null;
   }
   get eyeY() { return this.y + EYE; }
+
+  /** loot matches: you start with a pistol and nothing else */
+  loadoutLoot() {
+    for (const k of SLOT_ORDER) this.weapons[k] = k === 'pistol' ? { ammo: WEAPONS.pistol.mag, reserve: 45, have: true } : { ammo: 0, reserve: 0, have: false };
+    this.cur = 'pistol'; this.nades = 0; this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;
+  }
+  /** the garrison: an SMG and a light vest (they guard the best spot, so they should be a bit hard to take out) */
+  loadoutGuard() {
+    this.weapons.smg = { ammo: WEAPONS.smg.mag, reserve: WEAPONS.smg.reserve, have: true }; this.cur = 'smg'; this.armor = 40; this.armorLv = 1; this.nades = 1;
+  }
+  get haveBits() { let b = 0; SLOT_ORDER.forEach((k, i) => { if (this.weapons[k].have) b |= 1 << i; }); return b; }
 
   /** everything the owner's browser needs to rewind its prediction to the server's truth (sent only to that one player) */
   exportSelf() {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
     for (const k of SLOT_ORDER) { this.weapons[k].ammo = s.w[k][0]; this.weapons[k].reserve = s.w[k][1]; }
     this.fireT = s.fireT; this.reloadT = s.reloadT; this.reloadTot = s.rt ?? 1; this.reloadEmpty = !!s.re; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
+    if (s.hv !== undefined) { SLOT_ORDER.forEach((k, i) => { this.weapons[k].have = !!(s.hv & (1 << i)); }); this.armor = s.ar; this.armorLv = s.al; this.meds = s.md; this.healT = s.hl; }
     this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
   }
@@ -84,6 +99,7 @@ export class Simulation {
     this.obstacles = [];            // Yuka obstacle entities (for bot steering)
     this.weather = pickWeather(this.seed, opts.weather);       // same seed => same weather on the server and in every browser
     this.contracts = new Contracts(this);
+    this.loot = new LootSystem(this);      // starting items come from the seed (loot.js); only a loot match (opts.loot) has any
     this.strikes = [];              // mortar barrages in progress
   }
 
@@ -179,7 +195,7 @@ export class Simulation {
       const spot = findFreeSpot(this.map, this.rng, post.x, post.z, 6, 2);
       const op = { id: `guard${i}`, name: `Garrison-0${i + 1}`, color: '#b05cff', hp: 140, speed: 9, weapon: 'smg' };
       const f = this._addFighter(this.fighters.length, op.name, op, false, spot);
-      f.npc = true;
+      f.npc = true; if (this.opts.loot) f.loadoutGuard();
       f.brain = new BotBrain(this, f, this.rng.range(0.55, 0.8), 'guard');
       f.brain.post = post; f.brain.leash = 16;
     }
@@ -266,6 +282,7 @@ export class Simulation {
     f.rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(f.x, 0.9, f.z));
     f.col = this.world.createCollider(RAPIER.ColliderDesc.capsule(0.5, 0.4), f.rb);
     this.colMap.set(f.col.handle, f);
+    if (this.opts.loot) f.loadoutLoot();
     this.fighters.push(f);
     return f;
   }
@@ -415,7 +432,7 @@ export class Simulation {
   }
 
   switchWeapon(f, id) {
-    if (!f.weapons[id] || f.cur === id) return;
+    if (!f.weapons[id] || !f.weapons[id].have || f.cur === id) return;
     f.cur = id; f.reloadT = 0; f.switchT = 0.32; f.bloom = 0;
     this.emit({ t: 'switch', by: f.id, w: id });
   }
@@ -515,9 +532,15 @@ export class Simulation {
 
   damage(target, amount, source, info = {}) {
     if (!target.alive || amount <= 0) return;
+    let soaked = 0;
+    if (target.armor > 0 && !info.head && ARMORED.has(info.cause)) {           // armor soaks body hits and blasts until it is used up
+      soaked = Math.min(target.armor, amount * ARMOR_ABSORB); target.armor -= soaked; amount -= soaked;
+      if (target.armor < 0.5) { target.armor = 0; target.armorLv = 0; }
+    }
+    if (info.cause !== 'zone' && target.healT > 0) { target.healT = 0; this.emit({ t: 'heal', phase: 'cancel', by: target.id }); }      // getting hurt interrupts a medkit
     target.hp -= amount; target.noHurtT = 0;
     const killed = target.hp <= 0;
-    this.emit({ t: 'hit', by: source ? source.id : -1, target: target.id, dmg: amount, head: !!info.head, killed, cause: info.cause,
+    this.emit({ t: 'hit', by: source ? source.id : -1, target: target.id, dmg: amount, head: !!info.head, killed, cause: info.cause, arm: soaked > 0 ? Math.round(soaked) : 0,
       x: info.x ?? target.x, y: info.y ?? target.y, z: info.z ?? target.z, dx: info.dx ?? 0, dy: info.dy ?? 0, dz: info.dz ?? 0,
       sx: source ? source.x : target.x, sz: source ? source.z : target.z });
     if (target.brain) target.brain.onHurt(source);
@@ -535,6 +558,7 @@ export class Simulation {
     }
     target.streak = 0;
     this.contracts.onKill(target, source);
+    this.loot.dropFrom(target);
     this.emit({ t: 'kill', by: source ? source.id : -1, target: target.id, w: info.w ?? info.cause ?? 'zone', head: !!info.head, cause: info.cause ?? 'zone',
       x: target.x, y: target.y, z: target.z, dx: info.dx ?? 0, dy: info.dy ?? 0, dz: info.dz ?? 0,
       name: target.name, byName: source ? source.name : 'The zone', color: target.color, vx: target.moveX, vz: target.moveZ });
@@ -604,6 +628,10 @@ export class Simulation {
     let sp = BASE_SPEED * (p.op.speed / 10) * w.moveMul;
     if (p.sprinting) sp *= 1.5; else if (p.ads) sp *= 0.62;
     if (p.reloadT > 0) sp *= 0.92;
+    // medkit (H): takes HEAL_T seconds of standing mostly still; shooting, reloading, switching, throwing, sprinting or getting hurt cancels it
+    if (cmd.heal) this.startHeal(p);
+    if (p.healT > 0 && (cmd.fire || cmd.reload || cmd.slot || cmd.grenade || cmd.use || p.sprinting)) p.healT = 0;
+    if (p.healT > 0) sp *= 0.55;
     const { x: mx, z: mz } = moveVector(p.yaw, cmd.forward, cmd.strafe); // the one shared (and unit-tested) movement maths
     this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump);
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
@@ -611,12 +639,27 @@ export class Simulation {
     if (cmd.mortar) this.callMortarFromView(p);
     if (cmd.use) this.vehicles.enter(p);                                  // E: get into the nearest vehicle (the server decides, browsers wait for it)
     p.nadeT = Math.max(0, p.nadeT - dt);
+    this.tickHeal(p, dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
+  }
+
+  /** start using a medkit (humans: the H key, bots: their brain). It is finished by tickHeal() after HEAL_T seconds. */
+  startHeal(f) {
+    if (f.healT > 0 || f.meds <= 0 || f.hp >= f.maxHp || !f.alive || f.veh) return false;
+    f.healT = HEAL_T; this.emit({ t: 'heal', phase: 'start', by: f.id }); return true;
+  }
+  tickHeal(f, dt) {
+    if (f.healT <= 0) return;
+    f.healT -= dt;
+    if (f.healT <= 0) {
+      f.healT = 0; f.meds = Math.max(0, f.meds - 1); f.hp = Math.min(f.maxHp, f.hp + MED_HEAL);
+      this.emit({ t: 'heal', phase: 'end', by: f.id, hp: Math.round(f.hp) });
+    }
   }
 
   /** a human sitting in a vehicle: the driver steers it (and cannot shoot), the passenger can shoot but not move */
   _stepSeated(p, cmd, dt) {
-    const v = p.veh;
+    const v = p.veh; p.healT = 0;
     if (cmd.use) { this.vehicles.leave(p); return; }
     p.sprinting = false; p.ads = !!cmd.ads && p.seat === 1 && p.reloadT <= 0 && p.switchT <= 0;
     if (p.seat === 0) v.input = { thr: cmd.forward, steer: cmd.strafe, brake: !!cmd.jump, boost: !!cmd.sprint };
@@ -648,7 +691,8 @@ export class Simulation {
       if (f.brain) f.brain.update(dt);
       // health regen after a few seconds of peace (arcade feel)
       f.noHurtT += dt;
-      if (f.noHurtT > REGEN_DELAY && f.hp < f.maxHp * REGEN_CAP) f.hp = Math.min(f.maxHp * REGEN_CAP, f.hp + REGEN_RATE * dt);
+      const cap = this.opts.loot ? 0.3 : REGEN_CAP;          // in a loot match medkits are how you heal (you only walk it off up to 30%)
+      if (f.noHurtT > REGEN_DELAY && f.hp < f.maxHp * cap) f.hp = Math.min(f.maxHp * cap, f.hp + REGEN_RATE * dt);
       // the zone hurts
       if (this.zone.outside(f.x, f.z) > 0) {
         f.zoneAcc += this.zone.dps * dt;
@@ -661,7 +705,7 @@ export class Simulation {
     if (!this.opts.predictor) this.vehicles.update(dt);
     this.world.step();
 
-    if (!this.opts.predictor) { this._stepBarrels(dt); this._stepStrikes(dt); this.contracts.update(dt); }
+    if (!this.opts.predictor) { this._stepBarrels(dt); this._stepStrikes(dt); this.contracts.update(dt); this.loot.update(); }
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i]; g.t += dt;
       if (g.t >= GRENADE_FUSE) { this._explode(g); this.grenades.splice(i, 1); }

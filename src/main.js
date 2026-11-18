@@ -21,6 +21,7 @@ import { audio } from './fx/audio.js';
 import { Hud } from './ui/hud.js';
 import { Atmosphere } from './render/atmosphere.js';
 import { VehiclesView } from './render/vehicles-view.js';
+import { LootView } from './render/loot-view.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings } from './settings.js';
 
@@ -64,22 +65,22 @@ function disposeScene(scene) {
 }
 
 async function newMatch(online = null) {
-  if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
+  if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms', skin: SKIN, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}) });      // ?vehicles=0 turns buggies/bikes off
+  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms', skin: SKIN, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
   particles.onBloodLand = (x, z) => { if (settings.gore) decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4); };
-  const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim), vview = new VehiclesView(scene, sim);
+  const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim), vview = new VehiclesView(scene, sim), lview = sim.loot ? new LootView(scene, sim) : null;
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
   const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
   const views = new Map();
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
   const p = sim.player;
   viewmodel.setSkin(p.skin);
-  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, atmo, cview, vview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
+  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.slot = 0;
+  G = { sim, net: online, scene, world, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
@@ -144,6 +145,7 @@ function handleEvents() {
         const t = sim.fighters[e.target];
         blood(e.x, e.y, e.z, e.dx, e.dy, e.dz, e.killed ? 18 : e.head ? 12 : 8, e.cause === 'explosion' ? 1.6 : 1);
         const v = views.get(e.target); if (v) v.flash();
+        if (e.arm > 0 && (e.target === p.id || e.by === p.id)) audio.play('armor', { vol: e.target === p.id ? 0.7 : 0.45 });
         if (e.target === p.id) {
           hud.hurtFlash(clamp(0.25 + e.dmg / 60, 0.25, 0.9)); camfx.add(clamp(0.2 + e.dmg / 90, 0.2, 0.7));
           audio.play('hurt', { vol: 0.9 });
@@ -205,6 +207,20 @@ function handleEvents() {
         else if (e.phase === 'crash') { particles.sparks(e.x, 0.7, e.z, 0, 1, 0, 10); particles.dust(e.x, 0.5, e.z, 0, 1, 0, 6); audio.play('crash', { x: e.x, z: e.z, maxD: 100, vol: 0.9 }); if (Math.hypot(e.x - p.x, e.z - p.z) < 14) camfx.add(clamp(e.imp / 30, 0.15, 0.7)); }
         break;
       }
+      case 'pickup': {
+        const nm = e.kind === 'weapon' || e.kind === 'ammo' ? WEAPONS[e.sub].name : '';
+        const text = e.kind === 'weapon' ? `PICKED UP ${nm}` : e.kind === 'ammo' ? `+${e.qty} ${nm} AMMO` : e.kind === 'med' ? `+${e.qty} MEDKIT${e.qty > 1 ? 'S' : ''}` : e.kind === 'armor' ? `ARMOR LV${e.sub} (${e.qty})` : `+${e.qty} GRENADE${e.qty > 1 ? 'S' : ''}`;
+        if (e.by === p.id) { hud.pickup(text, e.kind === 'weapon' ? '#ffcf4d' : e.kind === 'med' ? '#5be37a' : e.kind === 'armor' ? '#58a6ff' : '#ffffff'); audio.play('pickup', { vol: 0.9, rate: e.kind === 'weapon' ? 0.8 : 1 }); }
+        else audio.play('pickup', { x: e.x, z: e.z, maxD: 16, vol: 0.5 });
+        break;
+      }
+      case 'heal': {
+        if (e.by !== p.id) break;
+        if (e.phase === 'start') { hud.message('HEALING... STAND STILL', '#5be37a', 1.4); audio.play('heal', { vol: 0.8 }); }
+        else if (e.phase === 'end') { hud.message(`HEALED - NOW ${e.hp} HP`, '#5be37a', 1.4); audio.play('healend', { vol: 0.9 }); }
+        else if (e.phase === 'cancel') hud.message('HEAL INTERRUPTED', '#ff4d4d', 1.2);
+        break;
+      }
       case 'shell': G.cview.shell(e.x, e.z, e.eta ?? 1); audio.play('whistle', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); break;
       case 'explosion': {
         particles.explosion(e.x, e.y, e.z, e.r);
@@ -263,11 +279,22 @@ function handleInput(dt) {
   if (input.wasPressed('KeyR')) cmd.reload = true;
   if (input.wasPressed('KeyG')) cmd.grenade = true;
   if (input.wasPressed('KeyE')) cmd.use = true;
+  if (input.wasPressed('KeyH') && sim.loot?.items.length) {
+    if (p.healT > 0) { /* already healing */ } else if (p.meds <= 0) hud.message('NO MEDKITS - LOOT SOME', '#ff4d4d', 1.2);
+    else if (p.hp >= p.maxHp) hud.message('ALREADY AT FULL HEALTH', '#ffffff', 1);
+    else if (p.veh) hud.message('GET OUT OF THE VEHICLE FIRST', '#ffffff', 1.2);
+    else cmd.heal = true;
+  }
   if (input.wasPressed('KeyT')) { if (p.mortar > 0) cmd.mortar = true; else hud.message(p.streak % 3 ? `MORTAR NEEDS 3 KILLS IN A ROW (${p.streak % 3}/3)` : 'NO MORTAR STRIKE - 3 KILLS IN A ROW OR A CONTRACT', '#ffffff', 1.4); }
   if (input.wasPressed('KeyF') && G.atmo.light) hud.message(G.atmo.toggleFlashlight() ? 'FLASHLIGHT ON' : 'FLASHLIGHT OFF', '#ffffff', 0.8);
-  const slot = input.readSlot(); if (slot) cmd.slot = slot;
+  const slot = input.readSlot();
+  if (slot) { if (p.weapons[SLOT_ORDER[slot - 1]]?.have === false) hud.message('YOU HAVEN\'T FOUND THAT GUN YET', '#ffffff', 1); else cmd.slot = slot; }
   const wheel = input.takeWheel();
-  if (wheel) { const i = SLOT_ORDER.indexOf(p.cur); cmd.slot = ((i + (wheel > 0 ? 1 : -1) + SLOT_ORDER.length) % SLOT_ORDER.length) + 1; }
+  if (wheel) {                                                                  // scroll only through the guns you actually carry
+    const L = SLOT_ORDER.length; let i = SLOT_ORDER.indexOf(p.cur);
+    for (let n = 0; n < L; n++) { i = (i + (wheel > 0 ? 1 : -1) + L) % L; if (p.weapons[SLOT_ORDER[i]].have !== false) break; }
+    cmd.slot = i + 1;
+  }
   input.endFrame();
   // recoil recovery: the view settles back down a bit when you stop shooting
   if (!input.fire && p.fireT <= 0 && G.recoil > 0) { const r = Math.min(G.recoil, G.recoil * 4 * dt + 0.0006); cmd.pitch -= r * 0.6; G.recoil -= r; }
@@ -314,11 +341,11 @@ function frame(now) {
   if (!paused || G.net) {                       // online, the world keeps running when you open the pause menu (you just stand still)
     if (!paused) handleInput(dt); else { input.dx = 0; input.dy = 0; input.endFrame(); }
     G.acc += dt;
-    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, mortar: false, use: false, slot: 0 } : cmd;
+    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, mortar: false, use: false, heal: false, slot: 0 } : cmd;
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
       sim.step(STEP, keys);
-      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
+      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }
@@ -356,6 +383,7 @@ function frame(now) {
     G.world.update(dt, camera.position.x, camera.position.z);
     G.atmo.update(dt, camera.position); G.cview.update(dt, camera.position.x, camera.position.z, p.id);
     G.vview.update(dt, p.id, G.particles);
+    G.lview?.update(dt, camera.position);
     {                                                   // engine hum: pitch follows speed, only while somebody is in the nearest vehicle
       let nearest = null, nd = 40;
       for (const v of sim.vehicles.list) if (!v.dead && v.driver >= 0) { const d = Math.hypot(v.x - camera.position.x, v.z - camera.position.z); if (d < nd) { nd = d; nearest = v; } }

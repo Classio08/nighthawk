@@ -10,7 +10,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${extra}`); if (!ok) failed++; };
 
-const server = createServer({ lobbySecs: 1, total: 5 });
+const server = createServer({ lobbySecs: 1, total: 5, loot: false });      // the baseline sections test netcode with every gun in hand; loot has its own section (4) on a second server
 await server.listen(PORT);
 
 /** runs a client's fixed 60 Hz loop in real time. `cmdFn(ns, t)` returns the keys for this tick */
@@ -145,5 +145,47 @@ check('the match is still running for A', sim.state === 'playing');
 
 clearInterval(protect);
 A.leave(); await sleep(500);
+
+// ---- 4. loot (a second server with loot on): same item layout from the seed, a pickup reaches the owner AND everybody's map, armor/medkit state is replicated, a death drops items
+{
+  const PORT2 = PORT + 1, URL2 = `ws://localhost:${PORT2}`;
+  const server2 = createServer({ lobbySecs: 1, total: 4, loot: true, vehicles: false });
+  await server2.listen(PORT2);
+  const [A2, B2] = await Promise.all([NetSim.join(URL2, { name: 'Roms', operator: 'roms', lag: 80 }), NetSim.join(URL2, { name: 'Shadow', operator: 'shadow', lag: 0 })]);
+  const room2 = [...MatchRoom.instances].find((r) => r.cfg.loot !== false && r.sim && r.sim.opts.loot), sim2 = room2.sim;
+  const prot2 = setInterval(() => { for (const h of sim2.humans) if (h.alive) h.hp = Math.max(h.hp, h.maxHp * 0.99); }, 40);
+  const dA = drive(A2, () => ({})), dB = drive(B2, () => ({}));
+  await sleep(500);
+  const key = (L) => L.items.filter((i) => !i.dyn).slice(0, 40).map((i) => `${i.id},${i.type},${i.sub},${i.x.toFixed(2)},${i.z.toFixed(2)}`).join('|');
+  check('loot: welcome says loot is on; the browser builds the same starting items as the server', A2.welcome.loot === true && A2.loot.items.length === sim2.loot.items.length && key(A2.loot) === key(sim2.loot), `items ${A2.loot.items.length}/${sim2.loot.items.length}`);
+  check('loot: a human lands with a pistol only', A2.me.weapons.pistol.have && !A2.me.weapons.ar.have && A2.me.cur === 'pistol');
+  const tp2 = (f, x, z) => { if (!f.alive) return; f.rb.setTranslation({ x, y: 0.9, z }, true); f.rb.setNextKinematicTranslation({ x, y: 0.9, z }); sim2.world.propagateModifiedBodyPositionsToColliders(); f.x = x; f.y = 0.9; f.z = z; };
+  const fA = sim2.fighters[A2.myId], fB = sim2.fighters[B2.myId];
+  for (const f of sim2.fighters) if (!f.human) { f.brain = null; if (!f.npc) tp2(f, -110 + f.id * 4, -110); }      // bots out of the way, guards stand still (nobody shoots a tester mid-heal)
+  const free = (it) => sim2.fighters.every((f) => !f.alive || f === fA || f === fB || Math.hypot(f.x - it.x, f.z - it.z) > 25);
+  const gun = sim2.loot.items.find((i) => i.type === 'weapon' && !i.gone && free(i));
+  A2.drainEvents(); tp2(fA, gun.x, gun.z); await sleep(900);
+  const ev = A2.drainEvents().filter((e) => e.t === 'pickup' && e.by === A2.myId);
+  check('loot: walking over a gun - the server gives it to A, A\'s own state agrees (guns, equip)', fA.weapons[gun.sub].have && A2.me.weapons[gun.sub].have && A2.me.cur === gun.sub, `server=${fA.weapons[gun.sub].have} client=${A2.me.weapons[gun.sub].have} cur=${A2.me.cur}`);
+  check('loot: the pickup event reaches A and the item is gone on both clients', ev.length >= 1 && A2.loot.byId.get(gun.id)?.gone === true && B2.loot.byId.get(gun.id)?.gone === true, `events=${ev.length}`);
+  fA.armor = 80; fA.armorLv = 2; fA.meds = 2; await sleep(350);
+  check('loot: armor and medkits are part of A\'s replicated self-state', A2.me.armor === 80 && A2.me.armorLv === 2 && A2.me.meds === 2, `armor=${A2.me.armor} lv=${A2.me.armorLv} meds=${A2.me.meds}`);
+  // heal: A presses H once (the key flag is one tick), the server channels 3 s, health comes back
+  fA.hp = 30; fA.noHurtT = -999; prot2 && clearInterval(prot2);
+  let sent = false; dA.fn = () => { if (!sent) { sent = true; return { heal: true }; } return {}; };
+  await sleep(1200);
+  check('loot: H starts a heal on the server and A\'s client shows it channelling', fA.healT > 0.5 && A2.me.healT > 0, `server healT=${fA.healT.toFixed(2)} client healT=${A2.me.healT.toFixed(2)}`);
+  await sleep(2600);
+  check('loot: after ~3 s the server heals +60 and spends one medkit', fA.hp >= 85 && fA.meds === 1 && fA.healT === 0, `hp=${Math.round(fA.hp)} meds=${fA.meds}`);
+  const heals = A2.drainEvents().filter((e) => e.t === 'heal' && e.by === A2.myId).map((e) => e.phase);
+  check('loot: A hears the heal start and end exactly once', heals.join(',') === 'start,end', heals.join(','));
+  // a death drops what the dead fighter carried, and both clients see the drops
+  fB.armor = 60; fB.armorLv = 2; fB.meds = 1; fB.weapons.dmr = { ammo: 7, reserve: 40, have: true }; const spot = [[30, 30], [-30, 30], [30, -30], [-30, -30], [60, 0], [-60, 0], [0, 60], [0, -60]].find(([x, z]) => sim2.fighters.every((f) => !f.alive || f === fB || Math.hypot(f.x - x, f.z - z) > 25) && !sim2.map.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + 3 && Math.abs(z - b.z) < b.d / 2 + 3)) ?? [30, 30];
+  tp2(fB, spot[0], spot[1]); dA.stop(); fA.x = -120; fA.z = -120; tp2(fA, -120, -120);      // (nobody near the corpse: guards and bots would pick the drops up)
+  sim2.damage(fB, 9999, fA, { cause: 'bullet', head: true }); await sleep(500);      // (a head shot: armor does not soak it, so the vest survives to be dropped)
+  const drops = (n) => n.loot.items.filter((i) => i.dyn && !i.gone);
+  check('loot: a dead player\'s gear shows up on the ground for both clients (gun, armor, medkit)', ['weapon', 'armor', 'med'].every((t) => drops(A2).some((i) => i.type === t) && drops(B2).some((i) => i.type === t)), `A sees ${drops(A2).map((i) => i.type + ':' + i.sub).join(' ')} / B sees ${drops(B2).length}`);
+  dA.stop(); dB.stop(); clearInterval(prot2); B2.leave(); A2.leave(); await sleep(300);
+}
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll netcode checks passed');
 process.exit(failed ? 1 : 0);

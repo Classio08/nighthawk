@@ -7,7 +7,7 @@ import { sanitizeCmd, repeatCmd } from '../../src/sim/cmd.js';
 import { STEP, SNAP_EVERY, packSnapshot, packRoster, unpackCmd } from '../../src/net/protocol.js';
 
 const STEP_MS = 1000 / 60;
-export const DEFAULTS = { lobbySecs: 15, total: 16, maxClients: 16, overLingerSecs: 12, vehicles: true };
+export const DEFAULTS = { lobbySecs: 15, total: 16, maxClients: 16, overLingerSecs: 12, vehicles: true, loot: true };
 const MAX_QUEUE = 40;           // never hold more than this many unprocessed inputs per player (stops flooding)
 const REPEAT_MAX = 3;           // if a player's input is late, repeat the last one for at most 3 ticks, then stand still
 
@@ -68,12 +68,12 @@ export class MatchRoom extends Room {
       used.add(op.id); humans.push({ operator: op.id, name: p.name, skin: p.skin, sessionId: sid });
     }
     const seed = (Math.random() * 1e9) | 0;
-    this.sim = await Simulation.create({ seed, bots: Math.max(0, this.cfg.total - humans.length), humans, propsFixed: true, ...(this.cfg.vehicles === false ? { vehicles: false } : {}) });
+    this.sim = await Simulation.create({ seed, bots: Math.max(0, this.cfg.total - humans.length), humans, propsFixed: true, ...(this.cfg.vehicles === false ? { vehicles: false } : {}), ...(this.cfg.loot === false ? {} : { loot: true }) });
     const roster = packRoster(this.sim);
     for (const f of this.sim.humans) {
       this.byClient.set(f.sessionId, f);
       this.q.set(f.id, { cmds: [], last: null, ack: 0, started: false, repeats: 0 });
-      this.lobby.get(f.sessionId)?.client.send('welcome', { id: f.id, seed, mapSeed: this.sim.opts.mapSeed ?? 7, weather: this.sim.weather.id, vehicles: this.cfg.vehicles === false ? false : true, tick: this.sim.tick, roster, self: f.exportSelf() });
+      this.lobby.get(f.sessionId)?.client.send('welcome', { id: f.id, seed, mapSeed: this.sim.opts.mapSeed ?? 7, weather: this.sim.weather.id, vehicles: this.cfg.vehicles === false ? false : true, loot: this.cfg.loot === false ? false : true, tick: this.sim.tick, roster, self: f.exportSelf() });
     }
     this.last = performance.now(); this.acc = 0;
     this.setSimulationInterval(() => this._pump(), 8);

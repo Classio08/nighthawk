@@ -11,7 +11,7 @@ const check = (name, ok, detail = '') => { if (!ok) failed++; console.log(`${ok 
 const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 720 });
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error' || /Shader Error|WebGLProgram/i.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
-await page.goto(URL + '?autostart&bots=1&seed=4', { waitUntil: 'load' });
+await page.goto(URL + '?autostart&bots=1&seed=4&loot=0', { waitUntil: 'load' });
 await page.waitForFunction('window.__nh && window.__nh.sim', { timeout: 40000 });
 const w = (ms) => new Promise((r) => setTimeout(r, ms));
 await w(800);

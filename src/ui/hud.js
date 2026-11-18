@@ -1,6 +1,7 @@
 // All the on-screen numbers and flashes. It only READS the simulation and writes to HTML elements.
 import { WEAPONS, SLOT_ORDER } from '../sim/weapons.js';
 import { MAP_HALF } from '../sim/map.js';
+import { ARMOR, HEAL_T, MAX_MEDS } from '../sim/loot.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -12,6 +13,7 @@ export class Hud {
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
       cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'),
+      arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'),
     };
     this.mctx = this.el.mini.getContext('2d');
     this.hurt = 0; this.hitT = 0; this.msgT = 0; this.flashV = 0; this.pings = [];
@@ -35,6 +37,11 @@ export class Hud {
     this.mapBg = c;
   }
 
+  /** a small line above the ammo box: what you just picked up */
+  pickup(text, color = '#ffffff') {
+    const d = document.createElement('div'); d.textContent = text; d.style.color = color; this.el.pk.appendChild(d); setTimeout(() => d.remove(), 2600);
+    while (this.el.pk.children.length > 4) this.el.pk.firstChild.remove();
+  }
   message(text, color = '#ff4d4d', secs = 1.4) { this.el.msg.textContent = text; this.el.msg.style.color = color; this.msgT = secs; }
   hitmarker(kill, head) {
     this.el.hitm.className = kill ? 'kill' : ''; this.hitT = kill ? 0.45 : 0.18;
@@ -64,10 +71,11 @@ export class Hud {
     e.hpbar.style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
     e.hpbar.style.background = p.hp / p.maxHp > 0.5 ? '#5be37a' : p.hp / p.maxHp > 0.25 ? '#ffcf4d' : '#ff4d4d';
     e.hpn.textContent = Math.ceil(Math.max(0, p.hp)); e.opname.textContent = p.name.toUpperCase();
-    const key = `${p.cur}${st.ammo}${st.reserve}${p.nades}|${p.mortar}|${p.streak % 3}`;
+    const own = sim.loot && sim.loot.items.length > 0, haveKey = own ? SLOT_ORDER.map((k) => (p.weapons[k].have ? 1 : 0)).join('') : '';
+    const key = `${p.cur}${st.ammo}${st.reserve}${p.nades}|${p.mortar}|${p.streak % 3}|${haveKey}`;
     if (key !== this.lastKey) {
       this.lastKey = key; e.wname.textContent = w.name; e.mag.innerHTML = `${st.ammo} <small>/ ${st.reserve}</small>`; e.nades.innerHTML = `GRENADES ${p.nades}` + (p.mortar > 0 ? ` &nbsp;·&nbsp; <b style="color:#ff7a4d">MORTAR ${p.mortar} [T]</b>` : p.streak % 3 > 0 ? ` &nbsp;·&nbsp; <span style="opacity:.65">STREAK ${p.streak % 3}/3</span>` : '');
-      this.slotEls.forEach((d, i) => d.classList.toggle('on', SLOT_ORDER[i] === p.cur));
+      this.slotEls.forEach((d, i) => { d.classList.toggle('on', SLOT_ORDER[i] === p.cur); d.classList.toggle('no', own && !p.weapons[SLOT_ORDER[i]].have); });
     }
     e.mag.style.color = st.ammo <= w.mag * 0.25 ? '#ff6b6b' : '#fff';
     if (p.reloadT > 0) { e.rl.style.opacity = 1; e.rl.firstChild.style.width = `${(1 - p.reloadT / (p.reloadTot || w.reload)) * 100}%`; } else e.rl.style.opacity = 0;
@@ -89,9 +97,25 @@ export class Hud {
     // fps (smoothed)
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { e.fps.textContent = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; e.ping.textContent = sim.rtt !== undefined ? ` · ${Math.round(sim.rtt)} ms` : ''; }
+    this.drawLoot(sim, p);
     this.drawContracts(sim, p);
     this.drawVehicle(sim, p);
     this.drawMini(dt, sim, p);
+  }
+
+  /** armor bar, medkit count and the "healing..." progress (only in a loot match) */
+  drawLoot(sim, p) {
+    const e = this.el, on = !!sim.loot && sim.loot.items.length > 0;
+    e.arm.style.display = e.kit.style.display = on ? '' : 'none';
+    if (on) {
+      const cap = ARMOR[p.armorLv]?.pts ?? ARMOR[1].pts;
+      e.armbar.style.width = `${Math.max(0, Math.min(100, (p.armor / cap) * 100))}%`;
+      e.armn.textContent = p.armor > 0 ? `ARMOR LV${p.armorLv} · ${Math.ceil(p.armor)}` : 'NO ARMOR';
+      e.medn.innerHTML = `MEDKITS ${p.meds}/${MAX_MEDS} <b style="color:#5be37a">[H]</b>`;
+    }
+    const healing = on && p.alive && p.healT > 0;
+    e.heal.style.display = healing ? 'block' : 'none';
+    if (healing) e.heal.querySelector('i').style.width = `${(1 - p.healT / HEAL_T) * 100}%`;
   }
 
   /** speed + health while driving, or the "press E" prompt when a free vehicle is close */

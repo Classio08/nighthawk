@@ -1,6 +1,6 @@
 // How much CPU does ONE 16-fighter match cost the server? (60 ticks = 1 second of game)
 import { Simulation } from '../src/sim/world.js';
-const sim = await Simulation.create({ seed: 9, bots: 14, humans: [{ operator: 'roms' }, { operator: 'shadow' }], propsFixed: true });
+const sim = await Simulation.create({ seed: 9, bots: 14, humans: [{ operator: 'roms' }, { operator: 'shadow' }], propsFixed: true, loot: process.env.LOOT !== '0' });      // LOOT=0 benchmarks the classic mode
 for (let i = 0; i < 120; i++) { sim.step(1 / 60, new Map()); sim.drainEvents(); }       // warm-up (JIT, wasm)
 const N = 1800; const times = [];
 for (let i = 0; i < N; i++) { const a = performance.now(); sim.step(1 / 60, new Map()); sim.drainEvents(); times.push(performance.now() - a); }

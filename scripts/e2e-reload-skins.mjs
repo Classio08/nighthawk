@@ -14,7 +14,7 @@ async function open(query) {
   const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 720 });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' || /Shader Error|WebGLProgram|VALIDATE_STATUS|compile/i.test(m.text())) errors.push('console: ' + m.text().slice(0, 300)); });
-  await page.goto(URL + query, { waitUntil: 'load' });
+  await page.goto(URL + query + (query.includes('loot=') ? '' : '&loot=0'), { waitUntil: 'load' });
   await page.waitForFunction('window.__nh && window.__nh.sim', { timeout: 40000 });
   return page;
 }

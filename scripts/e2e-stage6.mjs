@@ -13,7 +13,7 @@ async function open(q) {
   const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 720 });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' || /Shader Error|WebGLProgram/i.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
-  await page.goto(URL + '?autostart&' + q, { waitUntil: 'load' });
+  await page.goto(URL + '?autostart&loot=0&' + q, { waitUntil: 'load' });
   await page.waitForFunction('window.__nh && window.__nh.sim && window.__nh.G.atmo', { timeout: 45000 });
   await w(900);
   return page;

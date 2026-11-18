@@ -5,6 +5,7 @@
 // Squad radio / flanking lives in squad.js, personalities in personality.js.
 import * as YUKA from 'yuka';
 import { WEAPONS, SLOT_ORDER } from './weapons.js';
+import { WEAPON_RANK } from './loot.js';
 import { findCover, findPerch, insideAnyBox, MAP_HALF } from './map.js';
 import { PERSONALITIES } from './personality.js';
 
@@ -25,7 +26,8 @@ export class BotBrain {
     this.supT = 0; this.supOn = false; this.flankPt = null; this.barrelAim = null;
     this.radio = null; this.perch = null; this.perchPhase = -1; this.campT = 0; this.post = null; this.leash = 18;
     this.main = this.p.weapons.includes(f.op.weapon) ? f.op.weapon : this.p.weapons[f.id % this.p.weapons.length];
-    if (f.weapons[this.main] && f.cur !== this.main) f.cur = this.main;
+    if (f.weapons[this.main].have && f.cur !== this.main) f.cur = this.main;
+    this.mainT = 0; this.lootScanT = 0; this.lootPickPrev = null; this.lootBan = new Map(); this.lootId = -1; this.lootT = 0;
     this.reaction = lerp(1.0, 0.4, skill);
     this.turnSpeed = lerp(3.0, 7.5, skill);
     this.aimErr = lerp(0.11, 0.035, skill);
@@ -141,13 +143,22 @@ export class BotBrain {
     const { sim, f } = this;
     const st = f.weapons[f.cur];
     if (st.ammo <= 0 && st.reserve <= 0) {                      // empty: switch to anything that still has ammo
-      for (const id of ['pistol', ...SLOT_ORDER]) { const s = f.weapons[id]; if (s.ammo + s.reserve > 0) { sim.switchWeapon(f, id); return; } }
+      for (const id of ['pistol', ...SLOT_ORDER]) { const s = f.weapons[id]; if (s.have && s.ammo + s.reserve > 0) { sim.switchWeapon(f, id); return; } }
       return;
     }
     if (f.switchT > 0 || f.reloadT > 0) return;
     const main = this.main;
-    if (dist < 6 && f.cur !== 'shotgun' && f.weapons.shotgun.ammo > 0 && this.skill > 0.5 && sim.rng() < 0.02) sim.switchWeapon(f, 'shotgun');
-    else if (dist > 16 && f.cur !== main && f.weapons[main].ammo + f.weapons[main].reserve > 0) sim.switchWeapon(f, main);
+    if (dist < 6 && f.cur !== 'shotgun' && f.weapons.shotgun.have && f.weapons.shotgun.ammo > 0 && this.skill > 0.5 && sim.rng() < 0.02) sim.switchWeapon(f, 'shotgun');
+    else if (dist > 16 && f.cur !== main && f.weapons[main].have && f.weapons[main].ammo + f.weapons[main].reserve > 0) sim.switchWeapon(f, main);
+  }
+
+  /** loot matches: use the best gun you actually have (your personality's favourites first), re-checked about once a second */
+  _refreshMain() {
+    const { f } = this;
+    const owned = SLOT_ORDER.filter((k) => f.weapons[k].have && f.weapons[k].ammo + f.weapons[k].reserve > 0);
+    let best = this.p.weapons.find((k) => owned.includes(k));
+    if (!best) best = owned.filter((k) => k !== 'pistol').sort((a, b) => WEAPON_RANK[b] - WEAPON_RANK[a])[0] ?? 'pistol';
+    this.main = best;
   }
 
   /**
@@ -196,6 +207,16 @@ export class BotBrain {
         S.steal = clamp(0.18 + 0.5 * p.drive + (far ? 0.3 : 0) + (outNow > 0 || relocating ? 0.25 : 0) - (tgt ? 0.35 : 0), 0, 0.95);
       }
     }
+    // loot matches: go and pick up what you need (guns first), and use a medkit when hurt and nobody is shooting at you
+    this.lootPick = null;
+    if (sim.opts.loot && !p.guard && !f.veh) {
+      if (this.lootScanT <= 0 || (this.lootPickPrev && this.lootPickPrev.it.gone)) { this.lootScanT = 0.3 + sim.rng() * 0.2;       // look around for loot a few times a second, not every tick
+        this.lootPickPrev = sim.loot.wantedBy(f, 55, (id) => (this.lootBan.get(id) ?? 0) > sim.time); }
+      const lp = this.lootPickPrev && !this.lootPickPrev.it.gone ? this.lootPickPrev : null;
+      if (lp) { this.lootPick = lp; S.loot = clamp(0.18 + 0.52 * lp.score + 0.1 * p.greed - (tgt ? 0.45 : 0), 0, 0.9); }
+      if (f.meds > 0 && f.hp < f.maxHp * 0.62 && f.hp < f.maxHp && !tgt && this.hurtT > 1.5) S.heal = 0.93;
+      if (f.healT > 0 && !tgt) S.heal = 1.0;
+    }
     if (S[this.state] !== undefined) S[this.state] += 0.1;       // stickiness: do not flip-flop
     this.scores = S;
     let best = 'roam', bv = -1;
@@ -239,6 +260,8 @@ export class BotBrain {
     const zone = sim.zone;
     this.noVehT = Math.max(0, (this.noVehT ?? 0) - dt);
     if (f.veh) { this._drive(dt); return; }                       // sitting in a vehicle: a different kind of thinking
+    sim.tickHeal(f, dt); this.lootScanT -= dt;
+    if (sim.opts.loot) { this.mainT -= dt; if (this.mainT <= 0) { this.mainT = 1; this._refreshMain(); } }
     this.hurtT += dt; this.lastSeenT += dt; this.heardT += dt;
     this.coverT = Math.max(0, this.coverT - dt); this.coverCool = Math.max(0, this.coverCool - dt);
     this.jumpCool = Math.max(0, this.jumpCool - dt); this.nadeCool = Math.max(0, this.nadeCool - dt);
@@ -275,6 +298,8 @@ export class BotBrain {
     if (this.coverT > 0 && hpF > 0.6 && f.weapons[f.cur].ammo > WEAPONS[f.cur].mag * 0.5) this.coverT = 0;
 
     this.state = this._decide({ outNow, relocating, tgt, dist, hpF });
+    if (this.state !== 'heal') f.healT = 0;                       // anything more important than healing stops the medkit
+    if (!tgt && sim.opts.loot && f.cur !== this.main && f.switchT <= 0 && f.reloadT <= 0 && f.weapons[this.main].have) sim.switchWeapon(f, this.main);   // out of a fight: equip the best gun
 
     // ---- movement goal for this state ----
     const w = WEAPONS[f.cur];
@@ -316,6 +341,15 @@ export class BotBrain {
         if (Math.hypot(gx - f.x, gz - f.z) < 4) { this.heard = null; move = false; }
         break;
       }
+      case 'loot': {
+        const lp = this.lootPick; if (!lp) break;
+        gx = lp.x; gz = lp.z; sprint = !tgt;
+        if (this.lootId !== lp.it.id) { this.lootId = lp.it.id; this.lootT = 0; }
+        this.lootT += dt;
+        if (this.lootT > 14) this.lootBan.set(lp.it.id, sim.time + 45);         // cannot reach it (walled in?): leave it for a while
+        break;
+      }
+      case 'heal': { move = false; sim.startHeal(f); break; }
       case 'steal': {
         const sv = this.stealVeh;
         if (!sv || sv.driver >= 0 || sv.dead) { this.noVehT = 4; break; }

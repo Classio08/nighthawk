@@ -11,7 +11,7 @@ const check = (name, ok, detail = '') => { if (!ok) failed++; console.log(`${ok 
 const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 720 });
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error' || /Shader Error|WebGLProgram/i.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
-await page.goto(URL + '?autostart&bots=3&seed=5&weather=clear&gore=0&cstart=999', { waitUntil: 'load' });
+await page.goto(URL + '?autostart&bots=3&seed=5&weather=clear&gore=0&cstart=999&loot=0', { waitUntil: 'load' });
 await page.waitForFunction('window.__nh && window.__nh.sim && window.__nh.G.vview', { timeout: 45000 });
 await new Promise((r) => setTimeout(r, 900));
 
@@ -60,7 +60,7 @@ const b = await page.evaluate(async () => {
   const n = window.__nh, s = n.sim, p = s.player, v = s.vehicles.list.find((q) => q.kind === 'bike'), w = (ms) => new Promise((r) => setTimeout(r, ms));
   const x = v.x + 2.2, z = v.z; p.rb.setTranslation({ x, y: 0.9, z }, true); p.rb.setNextKinematicTranslation({ x, y: 0.9, z }); s.world.propagateModifiedBodyPositionsToColliders(); p.x = x; p.z = z; p.y = 0.9;
   await w(400); n.input.pressed.add('KeyE'); await w(400);
-  const on = p.veh?.kind; n.input.keys.add('KeyW'); await w(1200); const sp = Math.abs(p.veh.speed); n.input.keys.delete('KeyW');
+  const on = p.veh?.kind; n.input.keys.add('KeyW'); let sp = 0; for (let i = 0; i < 12; i++) { await w(100); sp = Math.max(sp, Math.abs(p.veh?.speed ?? 0)); } n.input.keys.delete('KeyW');      // peak speed: a wall right in front of a random bike must not fail the test
   const hud = document.getElementById('veh').textContent.slice(0, 50);
   return { on, sp: +sp.toFixed(1), hud };
 });

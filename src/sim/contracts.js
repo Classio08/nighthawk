@@ -94,8 +94,11 @@ export class Contracts {
   _reward(f, c) {
     f.hp = Math.min(f.maxHp, f.hp + (c.type === 'bounty' ? 50 : c.type === 'airdrop' ? 60 : f.maxHp));
     if (c.type !== 'bounty') {
-      for (const k of SLOT_ORDER) f.weapons[k].reserve = Math.max(f.weapons[k].reserve, WEAPONS[k].reserve);
-      f.nades = Math.min(4, f.nades + (c.type === 'airdrop' ? 2 : 1));
+      if (this.sim.opts.loot) { if (c.type === 'airdrop') this.sim.loot.dropCrate(c.x, c.z, this.sim.rng); else f.nades = Math.min(4, f.nades + 1); }      // loot match: an airdrop spills the good stuff on the ground
+      else {
+        for (const k of SLOT_ORDER) f.weapons[k].reserve = Math.max(f.weapons[k].reserve, WEAPONS[k].reserve);
+        f.nades = Math.min(4, f.nades + (c.type === 'airdrop' ? 2 : 1));
+      }
     }
     f.mortar = Math.min(2, f.mortar + 1);
   }

@@ -14,19 +14,20 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 5 | Destructible cover, explosive barrels, chain reactions | built | `src/sim/world.js` (`damageProp`, `_stepBarrels`) | `tests/props.test.js`, `scripts/e2e-props.mjs` |
 | 6 | Contracts (airdrop, hardpoint, bounty), mortar killstreak, weather and night, gore toggle | built | `contracts.js`, `weather.js`, `src/render/atmosphere.js` | `tests/contracts.test.js`, `scripts/e2e-stage6.mjs` |
 | 7 | Vehicles: arcade buggy (2 seats) and bike (1 seat), roadkill, bots that steal and drive | built | `src/sim/vehicles.js`, `src/render/vehicles-view.js` | `tests/vehicles.test.js`, `scripts/e2e-vehicles.mjs`, section 2c of `server/test/match.mjs` |
+| 8 | Loot: guns, ammo, armor, medkits and grenades on the ground, death drops, airdrop crates, bots that loot and heal | built | `src/sim/loot.js`, `src/render/loot-view.js` | `tests/loot.test.js`, `scripts/e2e-loot.mjs`, `scripts/e2e-online-loot.mjs`, section 4 of `server/test/match.mjs` |
 
-Run everything: `npm test` (75 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (91 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
-`WASD` move, `Shift` sprint, `Space` jump, mouse aim, left click fire, right click aim, `R` reload, `1`-`6` or wheel weapons, `G` grenade, **`T` mortar strike**, **`E` enter or leave a vehicle**, `F` flashlight (night and storm only), `Esc` pause.
+`WASD` move, `Shift` sprint, `Space` jump, mouse aim, left click fire, right click aim, `R` reload, `1`-`6` or wheel weapons, `G` grenade, **`T` mortar strike**, **`E` enter or leave a vehicle**, **`H` use a medkit**, `F` flashlight (night and storm only), `Esc` pause.
 
 In a vehicle: `W/S` gas and reverse, `A/D` steer, `Space` handbrake, `Shift` boost. The driver cannot shoot. A passenger can (drive-by).
 
 ## URL switches (handy for testing)
 
-`?seed=7` same map and match every time, `?bots=4` number of bots, `?weather=clear|rain|fog|night|storm`, `?gore=0|1`, `?vehicles=0` (no buggies or bikes), `?cstart=5` seconds until the first contract, `?lag=120` fake network lag, `?online=ws://host:2567` use another server.
-On the server: `VEHICLES=0` turns vehicles off for every match.
+`?seed=7` same map and match every time, `?bots=4` number of bots, `?weather=clear|rain|fog|night|storm`, `?gore=0|1`, `?vehicles=0` (no buggies or bikes), `?loot=0` (everybody has every gun from the start, nothing on the ground), `?cstart=5` seconds until the first contract, `?lag=120` fake network lag, `?online=ws://host:2567` use another server.
+On the server: `VEHICLES=0` turns vehicles off for every match, `LOOT=0` turns loot off (classic loadout).
 
 ## Stage 3: Utility AI
 
@@ -80,10 +81,32 @@ Our own arcade driving model (not Rapier dynamics, so it is cheap and determinis
 - **Netcode:** the server drives. While you sit in a vehicle your own client does not predict anything: your body follows the smoothed vehicle state from the snapshots and the drawn vehicle eases towards it. Walking, shooting and prediction come back the moment you step out. Vehicle poses ride in the snapshot as `vh`.
 - Where to tune: the `VEHICLE_TYPES` table at the top of `src/sim/vehicles.js` (speed, acceleration, steering, hp, roadkill) and the crash lines in `_move`.
 
+## Stage 8: loot, armor and medkits
+
+A loot match (the default in solo and on the server) starts every fighter with a **pistol and nothing else**. Guns, ammo, vests, medkits and grenades lie on the ground; walk over one to take it.
+
+| Thing | Rule |
+|---|---|
+| Starting items | 120, placed from the match seed next to buildings, containers and crates (60 %) or in the open. The middle of the map has better stuff (quality tier 1-3) |
+| Weapons | a gun you do not have is picked up (and equipped if you hold the pistol or are out of ammo). A gun you already have only gives ammo. Full of ammo: the item stays |
+| Ammo | only for guns you own, up to 1.5 x the normal reserve |
+| Armor | LV1 40 / LV2 80 / LV3 120 points. It soaks 55 % of every body bullet and blast until used up (head shots, crashes, roadkill and the zone ignore it). A worse vest than yours is left on the ground |
+| Medkit | `H`, 3 seconds, +60 hp, max 4 carried. You move at 55 % speed while using it. Shooting, reloading, switching, throwing, sprinting, getting in a vehicle or taking a hit cancels it and keeps the medkit |
+| Natural regen | in a loot match you only walk off damage up to 30 % health (classic mode: 65 %). Medkits are how you heal |
+| Death drops | everything a fighter carried (not the pistol) falls around the body: guns with their ammo, the pistol ammo if 15+, the vest with the points it has left, medkits, grenades |
+| Airdrop crates | opening one spills a DMR / LMG / AR with ammo, an LV3 vest, 2 medkits and 2 grenades on the ground (instead of silently topping up your ammo) |
+| Guards | the garrison carries an SMG and an LV1 vest |
+| Bots | `S.loot`: walk to the best item they actually need within 55 m (guns first, then armor and medkits; ignored while fighting). `S.heal`: use a medkit when below ~60 % hp, nobody in sight and not hit for 1.5 s. They equip the best gun they own (their personality preference first) when out of a fight |
+
+- **Netcode:** every browser builds the same 120 starting items from the seed (nothing is sent). The server only tells them which starting items are gone (`lt.g`) and the dropped items in full (`lt.d`, rows of `[id, type, sub, x, z, qty, qty2]`). `lt` is included in a snapshot only when a pickup or drop happened, plus a refresh every 2 seconds. Picking things up is decided by the server alone (a browser never picks anything up itself); the `pickup` and `heal` events come from the server. Your own guns, armor, medkits and heal progress are part of your private self-state (`hv/ar/al/md/hl`), so prediction and reconciliation agree. `H` is the `heal` command flag (bit 256).
+- **Cost:** items are bucketed in 4 m cells and bots look for loot about 3 times a second, so loot adds about 0.03 ms per server tick (16 fighters).
+- **Where to tune:** `ARMOR`, `ARMOR_ABSORB`, `MED_HEAL`, `HEAL_T`, `PICK_R` at the top of `src/sim/loot.js`; the item mix and the quality tiers in `_roll` / `_layout`; the regen cap in `step()` of `world.js`.
+- **Look:** `src/render/loot-view.js` (little low-poly shapes that spin and bob, a light ring on the floor, a beam on green / blue / gold items). Items further than 75 m are not drawn.
+
 ## What to look at next (open items)
 
 1. **Put the server on a VPS** and play a real match with a friend on another network (`docs/DEPLOY.md`). Everything so far was tested on one machine with fake lag.
 2. **Load test** with 16 real humans, and measure network bytes per player.
-3. Roadmap milestone 2: one real handcrafted arena, real weapon models and sounds from CC0 packs (`ASSETS.md`), loot on the ground, health and armor.
+3. Roadmap milestone 2: one real handcrafted arena, real weapon models and sounds from CC0 packs (`ASSETS.md`). (Loot, health and armor are done: Stage 8.)
 4. Vehicle polish: engine sound mix, a respawn timer for wrecks, tyre tracks, a horn.
 5. Portal pass: cut the main bundle (about 5 MB, 1.9 MB gzipped) so the first load stays under the Poki target of 8 MB.

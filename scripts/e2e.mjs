@@ -23,7 +23,7 @@ async function open(query) {
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   page.on('response', (r) => { if (r.status() >= 400) errors.push('http ' + r.status() + ' ' + r.url()); });
-  await page.goto(URL + query, { waitUntil: 'load' });
+  await page.goto(URL + query + (query.includes('loot=') ? '' : '&loot=0'), { waitUntil: 'load' });
   await page.waitForFunction('window.__nh && window.__nh.sim', { timeout: 40000 });
   return page;
 }

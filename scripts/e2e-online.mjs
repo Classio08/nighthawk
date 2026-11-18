@@ -18,7 +18,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0; const errors = [];
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${extra}`); if (!ok) failed++; };
 
-const server = createServer({ lobbySecs: 2, total: 6, vehicles: false });      // vehicle netcode is covered by server/test/match.mjs; here an exploding buggy must not kill a tester
+const server = createServer({ lobbySecs: 2, total: 6, vehicles: false, loot: false });      // vehicle netcode is covered by server/test/match.mjs; here an exploding buggy must not kill a tester
 await server.listen(PORT);
 // the match starts a couple of seconds after the first player joins: from its very first tick keep bots / guards from killing the (idle) humans
 // while the pages load (random spawns next to a guard post made this flaky). `protect` is cleared when the real test starts.
