@@ -343,7 +343,7 @@ function frame(now) {
 
   // The local full-body fighter is visible only in third-person; simulation hitboxes stay unchanged.
   G.playerView.setVisible(thirdPerson && p.alive);
-  if (thirdPerson && p.alive) G.playerView.update(dt, 0);
+  if (thirdPerson && p.alive) { G.playerView.update(dt, 0); G.playerView.label.visible = false; }
 
   // fighters, ragdolls, effects
   for (const v of G.views.values()) {
