@@ -22,7 +22,7 @@ Drop into a small shrinking map with 15 other fighters, pick up weapons, use you
 Roms, Shadow, Douglas, Cliffhanger, Navy Blue, Rampol, Maetja, Cleiseis. Roles, abilities and short backstories are in `data/operators.json`. Each has one active ability with a cooldown and a favourite weapon.
 
 ## Feel and physics (what makes it satisfying)
-- First-person view: exact crosshair aim, no animation needed for the player.
+- Both first-person and third-person camera modes are intended. First-person keeps exact crosshair aim and a weapon viewmodel; third-person needs a full-body player rig, shoulder camera, collision-aware camera boom, animation and aim/weapon alignment. Camera mode must not change server-authoritative hit validation.
 - Rapier physics: jumping, stairs/step-up, sliding along walls, crates you can shove and shoot, bouncing grenades, explosion impulses.
 - Hitscan shooting (instant), with recoil, muzzle flash, tracers, hit markers and screen shake. Hit feedback matters more than realism.
 - Health plus armor, red screen-edge flash when hurt, directional damage indicator.
@@ -40,3 +40,11 @@ Vehicles, huge maps, voice chat, ranked mode, a story campaign. They can come af
 
 ## Known issues from the first prototype (all must be fixed)
 Strafe keys inverted (fixed + unit tested), aim not on the crosshair (first-person fixes this), weak gun visuals, single life, no hit feedback. See `OLD_CHAT_CONTEXT.md`.
+
+
+## Approved visual direction (2026-11-18)
+- The unit is fictional and African-inspired; it is not the NDF or any real-world defence organisation.
+- Modern, credible tactical equipment; realistic human characters and grounded PBR materials.
+- Both first- and third-person perspectives are intended. This is a target, not a statement that both are currently implemented.
+- Use fictional locations inspired by Southern African dryland, industrial, semi-urban and remote outpost environments. Do not use real unit insignia or imply real military affiliation.
+- The eight original operator names remain Roms, Shadow, Douglas, Cliffhanger, Navy Blue, Rampol, Maetja and Cleiseis.
