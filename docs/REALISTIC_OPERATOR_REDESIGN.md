@@ -24,7 +24,7 @@ Replace the early generic operator look with a coherent, realistic character-art
 7. Do not use real unit insignia, flags, brands or copyrighted logos without permission.
 8. Use the generated concept art as mood-board material only; it is not a production model sheet.
 
-## First two characters
+## Characters with supplied likeness references
 
 ### Roms
 Reference available: outdoor full-body photo with short hair, sunglasses and facial hair. Redesign the outfit from the ground up. Preserve recognisable facial cues. Role and equipment are undecided.
@@ -32,8 +32,19 @@ Reference available: outdoor full-body photo with short hair, sunglasses and fac
 ### Cleiseis
 References available: mirror/full-body selfie and a clearer portrait with short hair. Preserve recognisable facial proportions. Redesign the outfit from the ground up. Role and equipment are undecided.
 
+### Shadow
+Reference available: full-body photo in a black button-up outfit. Preserve facial likeness and hair/facial-hair cues; redesign the clothing as modern tactical equipment.
+
+### Rampol
+Reference available: photo in a dark green work overall with high-visibility bands and a respirator around the neck. Preserve facial likeness; treat the workwear and respirator as reference-only, not a required uniform.
+
+### Maetja
+Reference available: close portrait in a blue shirt with short hair and prominent beard/moustache. Preserve facial likeness; redesign clothing and equipment.
+
 ### Remaining roster
-Shadow, Douglas, Cliffhanger, Navy Blue, Rampol and Maetja have no usable likeness references in the first batch. Wait for references or owner-approved descriptions.
+Douglas, Cliffhanger and Navy Blue have no usable likeness references in this batch. Keep their faces undefined until references or owner-approved descriptions arrive.
+
+See `CHARACTER_VISUAL_BIBLE.md` for the current full roster, existing gameplay roles and visual proposal. See `REALISTIC_ASSET_SPEC.md` for runtime model and texture budgets.
 
 ## Character production stages
 
