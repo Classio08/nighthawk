@@ -25,3 +25,23 @@ Rule: every milestone ends with something you can open in a browser and play. Es
 - Milestone 1 is the hardest technical step (prediction + lag compensation + deploy). Milestones 2-4 are where it starts to feel like a game. Milestone 7 is where it can earn.
 - Portal acceptance is not guaranteed and terms change. Our own domain with ads and cosmetics is the fallback.
 - Multiplayer adds running costs (a small server, roughly $15-25/month at the start) and latency work for players far from the server.
+
+
+## Visual production track (runs alongside gameplay milestones)
+
+The owner selected a realistic visual direction, a fictional African-inspired unit identity, modern equipment and both first- and third-person perspectives. This track must not block gameplay/networking work.
+
+| Stage | Deliverable | Acceptance gate |
+|---|---|---|
+| V0 | Art direction and world bible | Fictional faction, operator names, palette and map mood approved |
+| V1 | First photo-derived material | One seamless dry-soil PBR set tested in the current Three.js renderer |
+| V2 | Environment material kit | Soil, sand, concrete, painted steel and corrugated metal with provenance logged |
+| V3 | Modular environment prototype | One playable sector built from reusable modules with Rapier collision kept separate |
+| V4 | Shared operator rig prototype | One likeness-preserving operator with modular kit, animation and GLB export |
+| V5 | Remote fighter visual replacement | Replace box-built remote fighters while preserving simulation/network interpolation |
+| V6 | Third-person camera | Collision-aware shoulder camera, rig/aim alignment and multiplayer fairness tests |
+| V7 | Remaining seven operators | Reuse validated rig, materials and animation pipeline |
+
+**Performance gate:** measure on integrated graphics before raising polygon or texture budgets. Prefer shared materials, LODs, instancing, lazy loading and KTX2/Meshopt where they provide measurable gains.
+
+**Do not start with all eight operators.** Prove one complete operator and one material first. The photo-to-texture workflow and realistic asset specification define the production process.
