@@ -2,7 +2,7 @@
 
 A fast, addictive browser shooter: **COD-style operators and abilities + PUBG-style last-one-standing matches**, in short sessions, with simple low-poly looks and real physics. Web first (PC browsers), then mobile and a desktop download.
 
-Status: **offline battle royale + online multiplayer (Milestone 1) are built and tested** (two real browsers against a real server, prediction, lag compensation). Next: put the server on a VPS and test with a friend, then the big gameplay wave. See `docs/ROADMAP.md`.
+Status: **offline battle royale + online multiplayer (Milestone 1) are built and tested** (two real browsers against a real server, prediction, lag compensation). Next: put the server on a VPS and test with a friend, then the big gameplay wave. See `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md` and `docs/ASSET_CATALOG.md`.
 
 ---
 
@@ -76,7 +76,7 @@ npm run check          # all of the above in one go
 | `src/ui/` | HUD and minimap |
 | `src/input/` | keyboard, mouse, movement maths (touch controls plug in here later) |
 | `data/` | operators and weapons as plain data (`operators.json`) |
-| `docs/` | design, roadmap, tech stack, `COMBAT_SYSTEMS.md` (how the fighting works + what to tune), notes from the old chat |
+| `docs/` | design, verified roadmap, master systems plan, asset catalogue and technical notes |
 | `assets/` | models, textures, sounds (empty for now, see `ASSETS.md`) |
 | `public/` | files copied as-is into the website (favicon) |
 | `server/` | the multiplayer server (Colyseus room that runs `src/sim`), its Dockerfile and test |
