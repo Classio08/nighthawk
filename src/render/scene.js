@@ -9,6 +9,12 @@ const KIND_COLORS = {
   wall: [0x7a7f86, 0x8a7a5e],
   crates: [0x8a6a3e],
   edge: [0x3a3f47],
+  'poi-building': [0x9a8d75],
+  'poi-container': [0x4d6650],
+  'poi-wall': [0x8c806c],
+  'poi-mast': [0x454b52],
+  'poi-rock': [0x756d60],
+  'poi-fence': [0x6d7478],
 };
 
 export function makeSand() {                       // little noise texture so you can SEE yourself moving
@@ -61,6 +67,43 @@ export class WorldView {
         stripe.position.set(b.x, b.y + 0.4, b.z); scene.add(stripe);
       }
     }
+
+    // Kavari Basin landmark dressing. These meshes are visual-only; collision remains in sim.map.boxes.
+    this.poiMeshes = [];
+    const addPoiMesh = (mesh) => { scene.add(mesh); this.poiMeshes.push(mesh); return mesh; };
+    const padMat = lambert(0x77715f), paintMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b5 });
+    // Dry River: a shallow, winding gravel wash through the centre of the arena.
+    const riverSegments = [
+      [-20, -48, -0.18], [-13, -20, 0.12], [0, 8, 0.22], [13, 37, -0.12], [18, 66, -0.28],
+    ];
+    for (const [x, z, angle] of riverSegments) {
+      const bed = new THREE.Mesh(new THREE.PlaneGeometry(13, 34), padMat);
+      bed.rotation.x = -Math.PI / 2; bed.rotation.z = angle; bed.position.set(x, 0.012, z);
+      addPoiMesh(bed);
+    }
+    // Relay Ridge: a visible mast and cross-arms above the collision mast footprint.
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 10, 8), lambert(0x50545a));
+    mast.position.set(64, 5, -49); addPoiMesh(mast);
+    for (const y of [8.4, 9.2]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.09, 0.09), lambert(0x343a40));
+      arm.position.set(64, y, -49); addPoiMesh(arm);
+    }
+    // Forward Outpost: elevated water tank on a simple four-leg stand.
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 2.4, 12), lambert(0x667b83));
+    tank.position.set(-57, 3.6, 60); addPoiMesh(tank);
+    for (const dx of [-1, 1]) for (const dz of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.8, 6), lambert(0x41474a));
+      leg.position.set(-57 + dx, 1.4, 60 + dz); addPoiMesh(leg);
+    }
+    // Extraction Pad: flat marked landing zone, intentionally not a physics obstacle.
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(7.5, 48), lambert(0x686b65));
+    pad.rotation.x = -Math.PI / 2; pad.position.set(56, 0.025, 56); addPoiMesh(pad);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(6.8, 7.1, 48), paintMat);
+    ring.rotation.x = -Math.PI / 2; ring.position.set(56, 0.04, 56); addPoiMesh(ring);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.025, 10), paintMat);
+    stripe.position.set(56, 0.05, 56); addPoiMesh(stripe);
+    const crossbar = new THREE.Mesh(new THREE.BoxGeometry(10, 0.025, 0.45), paintMat);
+    crossbar.position.set(56, 0.05, 56); addPoiMesh(crossbar);
 
     // loose crates (their bodies are simulated, we just copy their pose)
     const cg = new THREE.BoxGeometry(1.2, 1.2, 1.2);
