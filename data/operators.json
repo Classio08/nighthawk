@@ -1,5 +1,5 @@
 {
-  "_note": "The 8 original NDF operators. Names are the original names. Surnames are deliberately not invented. Backstories are short and gender-neutral; edit freely. Roles/abilities carried over from the v0.2 prototype.",
+  "_note": "The 8 original NIGHTHAWK operators in a fictional African-inspired unit. Names are the original names. Surnames are deliberately not invented. Backstories are short and gender-neutral; edit freely. Roles/abilities carried over from the v0.2 prototype.",
   "operators": [
     { "id": "roms", "name": "Roms", "role": "Heavy Gunner", "weapon": "lmg", "hp": 170, "speed": 9, "color": "#d4a017",
       "ability": { "name": "Overclock", "text": "Fire rate up and damage resistance for 5s", "cooldown": 16 },
@@ -9,7 +9,7 @@
       "backstory": "No photo, no file, no first name. Vanished for nine days during a desert-survival course and came back with a hand-drawn map of the whole range. The enemy only learns the name after the lights go out." },
     { "id": "douglas", "name": "Douglas", "role": "Combat Medic", "weapon": "ar", "hp": 140, "speed": 10, "color": "#39d98a",
       "ability": { "name": "Trauma Kit", "text": "Heal burst plus regeneration for 5s", "cooldown": 13 },
-      "backstory": "A Windhoek ER paramedic before the NDF. After a bus pile-up on the B1 kept eleven people alive for ninety minutes until help arrived. Patches wounds mid-sprint and refuses to lose anyone on the watch." },
+      "backstory": "A Windhoek ER paramedic before joining the fictional unit. After a bus pile-up on the B1 kept eleven people alive for ninety minutes until help arrived. Patches wounds mid-sprint and refuses to lose anyone on the watch." },
     { "id": "cliffhanger", "name": "Cliffhanger", "role": "Demolitions", "weapon": "ar", "hp": 135, "speed": 10, "color": "#ff8c42",
       "ability": { "name": "Blast Dash", "text": "Dash forward and detonate a charge", "cooldown": 9 },
       "backstory": "Named after a jump over the Fish River Canyon that went wrong: hung from one strap on the cliff face for twenty minutes, cracking jokes on the radio. Loves anything that goes boom and has never planned an exit route." },
