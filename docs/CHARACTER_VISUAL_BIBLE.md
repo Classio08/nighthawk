@@ -7,13 +7,13 @@ Branch: `art/character-visual-foundation`
 
 Build a grounded, recognisable Southern African tactical-shooter identity: believable human proportions, readable silhouettes, practical kit, restrained olive/tan/charcoal palette, sun-worn materials, and strong face identity. Avoid generic sci-fi armour, oversized accessories, and excessive camouflage noise.
 
-The uploaded photographs are likeness references for two original fictional game characters. Use them only as design references; do not reproduce social-media UI, captions, watermarks, or clothing logos.
+The owner selected a realistic redesign and supplied likeness references for Roms, Cleiseis, Shadow, Rampol and Maetja. Use photographs only as design references; do not reproduce social-media UI, captions, watermarks, or clothing logos.
 
 ## Character roster
 
 The original eight are: Roms, Shadow, Douglas, Cliffhanger, Navy Blue, Rampol, Maetja, and Cleiseis.
 
-Only Roms and Cleiseis have usable visual references in the first reference batch. The other six must remain visually undefined until their references and/or creative direction are supplied. Do not invent their facial likenesses.
+Five characters have likeness references: Roms, Cleiseis, Shadow, Rampol and Maetja. Douglas, Cliffhanger and Navy Blue remain visually undefined until references or owner-approved descriptions are supplied. Do not invent their facial likenesses.
 
 ### Roms — reference batch 01
 
@@ -76,13 +76,13 @@ Proposed game translation (editable design proposal):
 |---|---|---|
 | Roms | First photo supplied | First-pass proposal |
 | Cleiseis | Two photos supplied | First-pass proposal |
-| Shadow | Not supplied | Awaiting reference |
+| Shadow | Black-shirt full-body photo supplied | Redesign proposal |
 | Douglas | Not supplied | Awaiting reference |
 | Cliffhanger | Not supplied | Awaiting reference |
 | Navy Blue | Not supplied | Awaiting reference |
-| Rampol | Not supplied | Awaiting reference |
-| Maetja | Not supplied | Awaiting reference |
+| Rampol | Green work-overall photo supplied | Redesign proposal |
+| Maetja | Blue-shirt portrait supplied | Redesign proposal |
 
 ## Next approval gate
 
-Before detailed modelling, approve the two first-pass concepts and decide whether the overall visual target should be realistic/stylised-realistic or low-poly. Keep this document as the source of truth for character art direction.
+Owner decision: realistic art style, redesign the characters, fictional African special-operations unit, modern equipment, first- and third-person camera support. The five likeness references are approved as design inputs. Keep this document as the source of truth for character art direction.
