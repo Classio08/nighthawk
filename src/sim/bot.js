@@ -7,6 +7,7 @@ import * as YUKA from 'yuka';
 import { WEAPONS, SLOT_ORDER } from './weapons.js';
 import { WEAPON_RANK } from './loot.js';
 import { findCover, findPerch, insideAnyBox, MAP_HALF } from './map.js';
+import { searchWaypoint } from './guard-doctrine.js';
 import { PERSONALITIES } from './personality.js';
 
 const BASE_SPEED = 7;
@@ -45,6 +46,8 @@ export class BotBrain {
     this.state = 'roam'; this.decideT = 0; this.scores = {};
     this.supT = 0; this.supOn = false; this.flankPt = null; this.barrelAim = null;
     this.radio = null; this.perch = null; this.perchPhase = -1; this.campT = 0; this.post = null; this.leash = 18;
+    this.patrolRoute = null; this.patrolIndex = 0;
+    this.searchAnchor = null; this.searchGoal = null; this.searchIndex = 0;
     this.main = this.p.weapons.includes(f.op.weapon) ? f.op.weapon : this.p.weapons[f.id % this.p.weapons.length];
     if (f.weapons[this.main].have && f.cur !== this.main) f.cur = this.main;
     this.mainT = 0; this.lootScanT = 0; this.lootPickPrev = null; this.lootBan = new Map(); this.lootId = -1; this.lootT = 0;
@@ -137,9 +140,18 @@ export class BotBrain {
       }
     }
     if (best) {
+      const newContact = this.target !== best || !this.visible;
       if (this.target !== best) { this.target = best; this.engageT = 0; this.burstT = 0.5; this.burstPause = 0; }
       this.visible = true;
       this.lastSeen = { x: best.x, z: best.z }; this.lastSeenT = 0;
+      if (newContact && this.p.guard) {
+        for (const ally of sim.fighters) {
+          if (ally === f || !ally.alive || !ally.npc || !ally.brain?.p.guard) continue;
+          const d = Math.hypot(ally.x - f.x, ally.z - f.z);
+          if (d <= 70) ally.brain.radioIn(this.lastSeen, 0.18 + d / 120);
+        }
+      }
+      if (this.p.guard) { this.searchAnchor = { ...this.lastSeen }; this.searchGoal = null; this.searchIndex = 0; }
       f.squad?.report(f, best);
     } else {
       this.visible = false;
@@ -207,6 +219,8 @@ export class BotBrain {
       const dPost = Math.hypot(f.x - this.post.x, f.z - this.post.z);
       S.return = dPost > this.leash ? 1.0 : (dPost > this.leash * 0.45 && !tgt ? 0.4 : 0);
       S.hold = 0.3;
+      if (!tgt && this.lastSeen && this.lastSeenT >= 3 && this.lastSeenT < 9) S.search = 0.54;
+      else if (!tgt && (!this.lastSeen || this.lastSeenT >= 9) && (!this.heard || this.heardT >= 8) && this.patrolRoute?.length) S.patrol = 0.38;
     }
     if (tgt) S.engage = clamp(0.58 + 0.35 * p.aggr - 0.2 * clamp(dist / 65, 0, 1) - (hpF < 0.35 ? 0.25 * p.caution : 0), 0, 1);
     if (this.lastSeen && this.lastSeenT < 3) S.hunt = 0.3 + 0.45 * p.aggr;
@@ -371,7 +385,41 @@ export class BotBrain {
       }
       case 'hunt': {
         gx = this.lastSeen.x; gz = this.lastSeen.z;
-        if (Math.hypot(gx - f.x, gz - f.z) < 3) { move = false; idleLook = true; if (this.lastSeenT > 2.5) this.lastSeenT = 99; }
+        if (Math.hypot(gx - f.x, gz - f.z) < 3) { move = false; idleLook = true; if (this.lastSeenT > 2.5 && !this.p.guard) this.lastSeenT = 99; }
+        break;
+      }
+      case 'search': {
+        if (!this.searchAnchor || Math.hypot(this.searchAnchor.x - this.lastSeen.x, this.searchAnchor.z - this.lastSeen.z) > 4) {
+          this.searchAnchor = { ...this.lastSeen }; this.searchIndex = 0; this.searchGoal = null;
+        }
+        if (!this.searchGoal) {
+          // Skip sweep points embedded in collision geometry or outside the playable square.
+          for (let tries = 0; tries < 8; tries++) {
+            const candidate = searchWaypoint(this.searchAnchor, this.searchIndex + tries, 5.5);
+            if (Math.abs(candidate.x) < MAP_HALF - 3 && Math.abs(candidate.z) < MAP_HALF - 3 &&
+                !insideAnyBox(sim.map, candidate.x, candidate.z, 1.2)) {
+              this.searchIndex += tries; this.searchGoal = candidate; break;
+            }
+          }
+          if (!this.searchGoal) this.searchGoal = { ...this.searchAnchor };
+        }
+        gx = this.searchGoal.x; gz = this.searchGoal.z;
+        if (Math.hypot(gx - f.x, gz - f.z) < 2.4) {
+          this.searchIndex++; this.searchGoal = null; move = false; idleLook = true;
+        }
+        break;
+      }
+      case 'patrol': {
+        const route = this.patrolRoute ?? [];
+        if (route.length) {
+          const pt = route[this.patrolIndex % route.length];
+          gx = pt.x; gz = pt.z;
+          if (Math.hypot(gx - f.x, gz - f.z) < 2.5) {
+            this.patrolIndex = (this.patrolIndex + 1) % route.length;
+            move = false; idleLook = true;
+          }
+          sp *= 0.78;
+        } else { move = false; idleLook = true; }
         break;
       }
       case 'investigate': {
