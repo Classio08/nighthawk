@@ -1,96 +1,112 @@
 # NIGHTHAWK — Character Visual Bible
 
-Status: realistic redesign direction approved; individual character designs remain proposals pending owner review.
+Status: realistic African special operations direction selected. Character likeness references received for Roms, Cleiseis, Shadow, Rampol and Maetja. All roles and personalities below remain proposals pending approval.
 Branch: `art/character-visual-foundation`
 
 ## Approved overall visual direction
 
-**Realistic tactical shooter.** Aim for grounded, believable human proportions and equipment, convincing skin, fabric, metal, rubber and dust materials, physically based lighting, restrained colour grading and readable silhouettes. The art should feel premium and cinematic without sacrificing browser performance.
+**Realistic African special operations unit.** Grounded human proportions, recognisable faces, believable equipment, physically based materials, cinematic presentation and browser-game performance.
 
 Visual language:
-- Southern African dryland / desert-industrial environments.
-- Muted charcoal, olive drab, faded khaki, earth brown and restrained identification accents.
-- Practical layered clothing and modular tactical equipment; no oversized sci-fi armour.
-- Natural facial anatomy, subtle skin detail and individual hairlines/facial hair.
-- Realistic wear, dust and fabric folds, but avoid excessive grime that obscures character readability.
-- Cinematic presentation for menus; efficient meshes, materials, LODs and texture sizes in gameplay.
+- A fictional African special operations unit operating in Southern African dryland, semi-urban and industrial environments.
+- Practical modern kit with locally grounded colour palettes: charcoal, olive, faded khaki, earth brown and restrained character identifiers.
+- Modular carriers, radios, pouches, gloves, boots and optional headgear.
+- Natural facial anatomy, skin detail, hairlines and facial hair.
+- Realistic wear and dust without obscuring character readability.
+- Cinematic menu presentation; optimised meshes, materials, LODs and texture sizes in gameplay.
+- Avoid sci-fi armour, generic stock-soldier faces and unsupported real-world insignia.
 
-The uploaded photographs are likeness references for two original fictional game characters. Use them only as design references; do not reproduce social-media UI, captions, watermarks, clothing logos or unrelated people in the screenshots.
+The supplied photos are likeness references for original fictional game characters. Preserve the real facial appearance as closely as the available image quality allows. Do not reproduce Instagram UI, captions, watermarks, clothing logos or unrelated people.
 
-## Redesign decision
+## Character design principles
 
-The owner rejected the earlier first-pass character concepts and requested a **redesign**. Treat previous roles, abilities, height/build figures, quotes, biographies, factions and equipment assignments as unapproved suggestions. Do not encode them as canon or implement them in gameplay without approval.
+1. Likeness and silhouette come before armour.
+2. Give every operator a distinct personality, combat role, visual silhouette and gameplay purpose.
+3. Roles and personalities must be owner-approved before they become canon.
+4. Equipment should support the approved role and remain modular.
+5. Do not infer personality, biography, exact height, weight or military history from a photograph.
+6. Keep helmets, eyewear, scarves, carriers and packs modular; preserve face visibility in character selection and story scenes.
+7. No gameplay abilities or operator definitions should be changed based only on this visual document.
 
-A new generated duo concept sheet is a visual exploration only. It is not a final likeness approval, model sheet or factual character specification.
+## Character roster and reference notes
 
-## Character roster
+### Roms — first reference batch
+Reference: outdoor full-body photo. Visible cues include short dark hair, sunglasses and moustache/goatee-style facial hair. Sports shirt and shorts are reference clothing only.
+Status: likeness reference received; redesign open.
 
-The eight original characters are: Roms, Shadow, Douglas, Cliffhanger, Navy Blue, Rampol, Maetja and Cleiseis.
+### Cleiseis — first reference batch
+References: mirror/full-body selfie and clearer portrait. Visible cues include short/buzzed hair and distinctive facial proportions. Small ear jewellery is visible and may be an optional cosmetic. Black T-shirt is reference clothing only.
+Status: likeness references received; redesign open.
 
-Only Roms and Cleiseis have usable visual references in the first reference batch. The other six must remain visually undefined until references and/or creative direction are supplied. Do not invent their facial likenesses.
+### Shadow — reference batch 02
+Reference: full-body photo wearing a black button-up outfit, dark trousers and light-coloured shoes.
+Visible cues: short dark hair, moustache/beard facial hair, lean-looking silhouette in the photograph.
+Status: likeness reference received. Preserve face and general silhouette; redesign clothing as tactical kit. The black outfit in the photo is not a required uniform.
 
-### Roms — reference batch 01
+### Rampol — reference batch 02
+Reference: photo wearing a dark green work overall with high-visibility bands and a respirator hanging around the neck.
+Visible cues: short hair, clean-shaven appearance in the supplied photo, youthful facial expression.
+Status: likeness reference received. The work overall and respirator are reference clothing/equipment only, not a final operator loadout.
 
-Reference: first supplied Instagram screenshot, showing an outdoor full-body photograph.
+### Maetja — reference batch 02
+Reference: close portrait wearing a blue shirt.
+Visible cues: short hair, prominent beard and moustache, broad smile in the reference.
+Status: likeness reference received. Blue shirt is reference clothing only, not a final uniform.
 
-Visible reference cues:
-- Short dark hair.
-- Sunglasses in the outdoor photograph.
-- Moustache/goatee-style facial hair.
-- Use the supplied image as a guide to facial appearance and body silhouette.
-- Sports shirt and shorts are reference clothing only, not final uniform.
+### Douglas, Cliffhanger and Navy Blue
+No likeness references supplied in this batch. Keep their facial appearance undefined until references or owner-approved descriptions arrive.
 
-Redesign status: open. Do not assume assault role, height, weight, personality, abilities or biography. Explore several grounded uniform/loadout silhouettes after the owner provides direction.
+## Role and personality proposals — not canon
 
-### Cleiseis — reference batch 01
+The owner wants distinct personalities and combat roles. These are creative starting points, not established facts:
 
-References: second supplied screenshot (mirror/full-body selfie) and third supplied portrait screenshot.
+| Character | Proposed personality direction | Proposed gameplay role |
+|---|---|---|
+| Roms | Calm, adaptable, quietly confident | Reconnaissance / flexible field operator |
+| Cleiseis | Analytical, disciplined, composed | Tactical support / coordination |
+| Shadow | Reserved, observant, patient | Stealth / intelligence gathering |
+| Rampol | Energetic, resourceful, hands-on | Engineer / field utility |
+| Maetja | Sociable, reassuring, resilient | Medic / squad sustainment |
+| Douglas | Awaiting owner input | Awaiting owner input |
+| Cliffhanger | Awaiting owner input | Awaiting owner input |
+| Navy Blue | Awaiting owner input | Awaiting owner input |
 
-Visible reference cues:
-- Short/buzzed hair.
-- Preserve the face shape and recognisable facial proportions visible in the portrait.
-- Small ear jewellery is visible; optional cosmetic only.
-- Black T-shirt is reference clothing only, not final uniform.
-
-Redesign status: open. Do not assume support role, height, weight, personality, abilities or biography. Explore several grounded uniform/loadout silhouettes after the owner provides direction.
+These role ideas should be reviewed with the owner before ability design, voice lines, bios or equipment are written.
 
 ## Standard deliverables per approved operator
 
 1. Neutral face portrait, front and 3/4 views.
 2. Full-body front, side and back views on a neutral background.
 3. Headgear-off and headgear-on variants.
-4. Approved base uniform and one alternate palette.
+4. Approved base uniform and alternate palette.
 5. Gear breakdown: vest, belt, backpack, gloves, boots, radio and pouches.
 6. Expression set: neutral, focused, injured and radio-call.
 7. PBR textures: base colour, normal and roughness; optional AO/height where useful.
 8. Game-ready GLB model, separate texture maps, source project and thumbnail.
-9. LODs and texture budgets suitable for the browser game.
-10. In-engine preview under the actual NIGHTHAWK lighting.
+9. LODs and texture budgets suitable for the NIGHTHAWK browser game.
+10. In-engine preview under actual game lighting.
 
-## Production rules
+## Production and rights rules
 
-- Preserve likeness from supplied references; do not beautify or change identity-defining features.
-- Do not infer height, exact weight, personality, military history or biography from photographs.
-- All roles, equipment, colour schemes and abilities remain proposals until approved.
-- Do not commit original identifiable reference photos or social-media screenshots to the public repository without explicit rights and consent. Prefer private reference storage and approved derived game assets.
-- Make gear modular so one rig can support multiple loadouts.
-- Maintain consistent scale, rig naming, material naming and export settings across all eight operators.
-- Keep face topology and hair/beard details readable at gameplay camera distance.
-- Optimise for the existing browser-based Three.js game; validate on modest hardware.
+- Preserve identity-defining facial features from supplied references; do not beautify or alter likeness.
+- Do not commit original identifiable reference photos or social-media screenshots to the public repository without explicit rights and consent. Keep source photos private; commit only approved derived game assets and provenance metadata.
+- Make gear modular and reuse rigs/materials where appropriate.
+- Maintain consistent scale, rig naming, material naming and export settings.
+- Validate in the actual Three.js renderer and on modest hardware.
 
-## Current status
+## Current reference status
 
 | Character | Reference status | Design status |
 |---|---|---|
-| Roms | First photo supplied | Redesign pending approval |
-| Cleiseis | Two photos supplied | Redesign pending approval |
-| Shadow | Not supplied | Awaiting reference |
+| Roms | Supplied | Redesign open |
+| Cleiseis | Supplied | Redesign open |
+| Shadow | Supplied | Redesign open |
+| Rampol | Supplied | Redesign open |
+| Maetja | Supplied | Redesign open |
 | Douglas | Not supplied | Awaiting reference |
 | Cliffhanger | Not supplied | Awaiting reference |
 | Navy Blue | Not supplied | Awaiting reference |
-| Rampol | Not supplied | Awaiting reference |
-| Maetja | Not supplied | Awaiting reference |
 
 ## Next approval gate
 
-Confirm each character's role/personality and approve face, uniform and gear concepts before detailed modelling. Keep this document as the source of truth for character art direction.
+Approve or revise each proposed personality and role. Then approve face likeness, body silhouette, uniform, gear and colour before detailed modelling.
