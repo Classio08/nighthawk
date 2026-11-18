@@ -15,6 +15,21 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrapAngle = (a) => { a %= Math.PI * 2; if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2; return a; };
 const wrap = (a) => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
 
+/**
+ * Lower is better. A bot still favours nearby enemies, but can deliberately
+ * finish a weakened opponent, answer incoming fire, or honour squad focus.
+ * Kept pure so target-selection tuning can be regression-tested.
+ */
+export function scoreTargetCandidate({ distance, current = false, lastHurt = false, attacking = false, wounded = false, isolated = false, squadFocus = false }) {
+  return distance
+    - (current ? 9 : 0)
+    - (lastHurt ? 12 : 0)
+    - (attacking ? 5 : 0)
+    - (wounded ? 4 : 0)
+    - (isolated ? 2 : 0)
+    - (squadFocus ? 7 : 0);
+}
+
 export class BotBrain {
   /** @param skill 0..1 (higher = faster reactions, better aim, turns quicker)  @param personality key of PERSONALITIES */
   constructor(sim, f, skill = 0.6, personality = 'brawler') {
@@ -91,7 +106,20 @@ export class BotBrain {
       const d = Math.hypot(o.x - f.x, o.z - f.z);
       if (d > 65) continue;
       if (!sim.canSee(f, o, 65, this.fov)) continue;
-      const s = d - (o === this.target ? 9 : 0) - (o === this.lastHurtBy ? 12 : 0);
+      // Threat-aware target selection: do not tunnel on the nearest body.
+      // Facing + firing means this opponent is an immediate threat; low-health
+      // enemies are finishable, and squad contacts receive a modest focus bonus.
+      const toBot = Math.atan2(-(f.x - o.x), -(f.z - o.z));
+      const facingBot = Math.abs(wrap(toBot - o.yaw)) < 0.72;
+      const attacking = facingBot && (o.wasFiring || o.fireT > 0);
+      const wounded = o.maxHp > 0 && o.hp / o.maxHp <= 0.45;
+      const isolated = !!o.squad && o.squad.alive.every((mate) =>
+        mate === o || Math.hypot(mate.x - o.x, mate.z - o.z) > 14);
+      const squadFocus = !!(f.squad?.fresh() && f.squad.contact.id === o.id);
+      const s = scoreTargetCandidate({
+        distance: d, current: o === this.target, lastHurt: o === this.lastHurtBy,
+        attacking, wounded, isolated, squadFocus,
+      });
       if (s < bs) { bs = s; best = o; }
     }
     // an enemy standing next to an explosive barrel: shoot the BARREL (from a safe distance), not the enemy
