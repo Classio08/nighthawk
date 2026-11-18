@@ -1,27 +1,50 @@
 # Roadmap
 
-Rule: every milestone ends with something you can open in a browser and play. Estimates are "focused working sessions" with Claude, not calendar promises.
+Rule: every milestone ends with something you can open in a browser and play. The statuses below are based on the current `main` branch history as checked 18 November 2026. "Built" means code exists; it does not mean production deployment, load testing or external playtesting is complete.
 
-**Change (decided with Cleis):** multiplayer moves from Milestone 7 to Milestone 1. The game is built on a server-authoritative loop from the start. See `MULTIPLAYER.md`.
+## Current verified baseline
+
+| Area | Status | Evidence / limitation |
+|---|---|---|
+| Offline BR simulation | Built | 16-fighter simulation, six weapons, bots, zone, ragdolls, HUD |
+| Online multiplayer | Built locally | Colyseus authoritative room, prediction/reconciliation, interpolation, lag-compensated hits; real VPS/friend test pending |
+| Bot AI | Built first pass | Utility scoring, personalities, squads, radio, flanking and outpost guards |
+| Weapon feel | Built first pass | Tactical/empty reload, dropped-mag visuals, five shader skins |
+| Destruction | Built first pass | Crates/props, explosive barrels, chain reactions |
+| Match events | Built first pass | Contracts, airdrops, hardpoint, bounty, mortar, weather/night/fog/rain |
+| Character visuals | Design only | Five likeness references documented; renderer still uses block-built fighters |
+| Environment art | Prototype only | Procedural sand canvas + Lambert world materials; no selected PBR set integrated |
+| FPP/TPP | Not implemented | Current first-person view; third-person requires a rig and fair camera rules |
+| Profiles/progression | Not implemented | No persistent cross-device player account system verified |
+| Vehicles | Not implemented | Planned; physics and netcode require dedicated tests |
+| Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
+| Monetisation | Not implemented | Platform adapters and policy review required |
+| Production deployment | Pending | Deploy and test with players on separate networks; load tests outstanding |
+
+## Next milestones
 
 | # | Milestone | Done when | Status |
 |---|---|---|---|
-| 0 | **Tech proof** | Move, jump, shoot, grenades, physics crates, AI bots, tests, build | DONE |
-| 0.5 | **Multiplayer spike** | Colyseus 0.18 server runs Rapier; two fake clients join, move, get blocked by a wall, and shoot each other with server-validated hits | DONE (replaced by Milestone 1) |
-| 0.7 | **Battle-royale core (offline)** | Rules split into a graphics-free `Simulation` (`src/sim/`); 6 data-driven weapons with recoil / ADS / reload; bots with line-of-sight, hearing, cover, grenades; shrinking zone; win/lose + play again; zzfx sounds, blood/spark particles, bullet holes, ragdoll deaths, screen shake, HUD + minimap; 25 tests + 22-step browser test | DONE |
-| 1 | **Two tabs, one match** | Server-authoritative Colyseus room runs the real `Simulation`; browser prediction + reconciliation, interpolation, lag-compensated capsule hits, lobby with bots filling slots, leaver replaced by a bot, Dockerfile + `DEPLOY.md`. Tested with a real server and two real browsers. **Still to do: deploy to a VPS and test with a friend on another network** | DONE (code) / deploy pending |
-| 2 | **Playable arena (online)** | One real map, 6 weapons from CC0 packs (reload, ammo, recoil), sounds, hit markers, damage direction, health + armor, death and respawn, pause on focus loss | |
-| 3 | **Server bots** | Yuka bots with line-of-sight + recast navmesh living on the server; they fill empty slots so a match always starts instantly | |
-| 4 | **Battle royale loop** | 16 fighters, drop-in, loot on the ground, shrinking zone, win/lose screen, "play again" in one click | |
-| 5 | **The eight operators** | Roms, Shadow, Douglas, Cliffhanger, Navy Blue, Rampol, Maetja, Cleiseis: pickable, abilities work, visible on other players | |
-| 6 | **Addiction layer** | XP, levels, daily challenges, unlockable cosmetics, settings, saved progress (needs accounts or local save) | |
-| 7 | **Portal-ready** | Fast loading, under-5 MB first load, portal SDK hooks (ads, rewarded revive), portal rules for external servers checked, performance pass on weak laptops | |
-| 8 | **Launch on web** | Own domain on Cloudflare Pages; portals (Poki / CrazyGames / itch.io) submitted; watch the numbers | |
-| 9 | **Mobile** | Touch controls on the same input layer, landscape lock, Capacitor wrap | |
-| 10 | **Desktop** | Tauri/Electron Windows build, Steam page if web numbers justify it | |
+| 7 | **Production multiplayer validation** | Deploy server to a test VPS; friend joins from another network; reconnect, packet loss, jitter, 2/8/16 clients and many-room tests documented | NEXT |
+| 8 | **First real visual slice** | One CC0 PBR ground set integrated; one modular environment kit; one realistic GLB operator with shared rig, LODs and animation; browser performance measured | NEXT |
+| 9 | **FPP + TPP** | V toggle, collision-safe shoulder camera, camera/aim alignment, online fairness and vehicle camera tests | PLANNED |
+| 10 | **Movement and combat polish** | Correct camera-relative movement, slide/mantle prototype, melee, fall damage, aim/recoil practice range; accessibility controls | PLANNED |
+| 11 | **One complete map** | Sector 09 vertical slice with three routes per POI, cover, navmesh/AI, story props, weather presets and extraction point | PLANNED |
+| 12 | **Operators and customisation** | Eight visual designs; shared rig; passive + tactical abilities; cosmetic-only loadout builder; balanced online validation | PLANNED |
+| 13 | **Mission modes** | Extraction contracts and a short Black Site social-deduction PvPvE mode with evidence, sabotage, counterplay and replayable objectives | PLANNED |
+| 14 | **Profiles and progression** | Guest-first profile, local save, optional account linking, XP, weapon mastery and cosmetics; privacy policy and migration tests | PLANNED |
+| 15 | **Replay and creator tools** | Short replay buffer, kill snapshot export, streamer mode, custom lobby links, consent-based sharing | PLANNED |
+| 16 | **Platform readiness** | Low-end performance pass, mobile touch UI, portal-specific builds/SDK adapters, policy and privacy review | PLANNED |
+| 17 | **Monetisation** | Cosmetics-only store/battle pass after retention evidence; platform-specific ads/IAP compliance; no pay-to-win | PLANNED |
+| 18 | **Expansion** | Vehicles, extra maps, named boss events, wildlife, advanced gadgets and optional Web3 research only after core metrics justify them | LATER |
 
-## Honest expectations
-- By 5pm today you have: the project on GitHub, the plan, a proven engine, a proven multiplayer server, and a playable single-player tech demo. Not a finished battle royale.
-- Milestone 1 is the hardest technical step (prediction + lag compensation + deploy). Milestones 2-4 are where it starts to feel like a game. Milestone 7 is where it can earn.
-- Portal acceptance is not guaranteed and terms change. Our own domain with ads and cosmetics is the fallback.
-- Multiplayer adds running costs (a small server, roughly $15-25/month at the start) and latency work for players far from the server.
+## Quality gates
+
+- Preserve server authority for all gameplay outcomes.
+- Run unit tests, server tests, browser E2E and build after each gameplay stage.
+- Measure real FPS, load time, memory, RTT, jitter and packet loss on target hardware.
+- Every external asset must be logged in `ASSETS.md` with its exact licence.
+- Do not merge a feature just because it compiles; playtest it.
+- Keep the first-frame download small and load map/character assets on demand.
+
+See `MASTER_SYSTEMS.md` for the complete product architecture and `ASSET_CATALOG.md` for candidate material sources.
