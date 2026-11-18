@@ -53,7 +53,7 @@ export class WorldView {
       const cols = KIND_COLORS[b.kind] ?? KIND_COLORS.block;
       const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), lambert(cols[k++ % cols.length]));
       m.position.set(b.x, b.y, b.z); scene.add(m);
-      if (b.kind === 'block') {
+      if (b.kind === 'block' || b.kind === 'poi-building') {
         const roof = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.5, 0.35, b.d + 0.5), lambert(0x3d4249));
         roof.position.set(b.x, b.h + 0.17, b.z); scene.add(roof);
         const door = new THREE.Mesh(new THREE.BoxGeometry(Math.min(2.2, b.w * 0.3), 2.4, 0.12), lambert(0x22262b));
@@ -62,7 +62,7 @@ export class WorldView {
           const win = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.1, Math.min(2.4, b.d * 0.3)), lambert(0x1b2a3a));
           win.position.set(b.x + s * (b.w / 2 + 0.03), Math.min(b.h - 1, 3), b.z); scene.add(win);
         }
-      } else if (b.kind === 'container') {
+      } else if (b.kind === 'container' || b.kind === 'poi-container') {
         const stripe = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.04, 0.3, b.d + 0.04), lambert(0x222222));
         stripe.position.set(b.x, b.y + 0.4, b.z); scene.add(stripe);
       }
