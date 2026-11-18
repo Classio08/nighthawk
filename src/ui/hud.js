@@ -29,7 +29,7 @@ export class Hud {
     g.fillStyle = 'rgba(30,36,28,.85)'; g.fillRect(0, 0, S, S);
     for (const b of map.boxes) {
       if (b.kind === 'edge' || b.kind === 'crates') continue;
-      g.fillStyle = b.kind === 'block' ? '#8a8d92' : b.kind === 'container' ? '#a9794a' : '#5d6168';
+      g.fillStyle = b.kind === 'block' || b.kind === 'poi-building' ? '#8a8d92' : b.kind === 'container' || b.kind === 'poi-container' ? '#a9794a' : b.kind === 'poi-fence' || b.kind === 'poi-wall' ? '#b4a17f' : b.kind === 'poi-rock' ? '#756d60' : '#5d6168';
       g.fillRect(S / 2 + (b.x - b.w / 2) * k, S / 2 + (b.z - b.d / 2) * k, Math.max(1.5, b.w * k), Math.max(1.5, b.d * k));
     }
     // Persistent landmark markers make the five Kavari Basin POIs readable on the minimap.
