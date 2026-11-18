@@ -48,3 +48,8 @@ Use this after pulling the latest `main`. The owner is running Claude Code in th
 
 ## Completion report
 Report: branch name, commit SHA, files changed, tests actually run and results, performance measurements (if any), known gaps, and a browser screenshot/playtest result if available.
+
+## Owner-approved implementation ticket
+- Track the first realistic operator + PBR environment vertical slice in GitHub issue #4: https://github.com/Classio08/nighthawk/issues/4
+- Use `docs/PRODUCTION_READINESS.md`, `docs/PERFORMANCE_BUDGET.md` and `docs/VISUAL_ASSET_REVIEW.md` as acceptance gates.
+- The issue is a task brief, not permission to overwrite another agent's work. Branch from latest `main` and report actual tests and measurements.
