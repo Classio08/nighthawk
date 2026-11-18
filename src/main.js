@@ -22,6 +22,7 @@ import { Hud } from './ui/hud.js';
 import { Atmosphere } from './render/atmosphere.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings } from './settings.js';
+import { thirdPersonCameraPosition } from './render/camera.js';
 
 const STEP = 1 / 60, BASE_FOV = 78;
 const $ = (id) => document.getElementById(id);
@@ -52,7 +53,7 @@ addEventListener('resize', resize); resize();
 let G = null;
 const cmd = { yaw: 0, pitch: 0, forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false, mortar: false };
 let hud = null;
-let paused = false, started = false;
+let paused = false, started = false, thirdPerson = false;
 const tmp = new THREE.Vector3();
 
 function disposeScene(scene) {
@@ -76,14 +77,17 @@ async function newMatch(online = null) {
   const views = new Map();
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
   const p = sim.player;
+  const playerView = new FighterView(p, scene);
+  playerView.setVisible(thirdPerson && p.alive);
+  playerView.label.visible = false;
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, atmo, cview, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
+  G = { sim, net: online, scene, world, atmo, cview, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
-  viewmodel.root.visible = true;
+  viewmodel.root.visible = !thirdPerson;
   window.__nh = { G, sim, cmd, input, hud, camera, audio, net: online };     // handles for the automatic browser test
   return G;
 }
@@ -249,6 +253,12 @@ function handleInput(dt) {
   cmd.yaw += look.yaw; cmd.pitch = clamp(cmd.pitch + look.pitch, -1.5, 1.5);
   Object.assign(cmd, input.readMove());
   cmd.fire = input.fire; cmd.ads = input.ads;
+  if (input.wasPressed('KeyV')) {
+    thirdPerson = !thirdPerson;
+    viewmodel.root.visible = !thirdPerson;
+    G.playerView.setVisible(thirdPerson && p.alive);
+    hud.message(thirdPerson ? 'THIRD-PERSON VIEW' : 'FIRST-PERSON VIEW', '#ffffff', 1.1);
+  }
   if (input.wasPressed('KeyR')) cmd.reload = true;
   if (input.wasPressed('KeyG')) cmd.grenade = true;
   if (input.wasPressed('KeyT')) { if (p.mortar > 0) cmd.mortar = true; else hud.message(p.streak % 3 ? `MORTAR NEEDS 3 KILLS IN A ROW (${p.streak % 3}/3)` : 'NO MORTAR STRIKE - 3 KILLS IN A ROW OR A CONTRACT', '#ffffff', 1.4); }
@@ -266,9 +276,15 @@ function updateCamera(dt, alpha) {
   const shake = camfx.update(dt);
   if (p.alive) {
     const x = lerp(G.prev.x, G.cur.x, alpha), y = lerp(G.prev.y, G.cur.y, alpha), z = lerp(G.prev.z, G.cur.z, alpha);
-    camera.position.set(x, y + 0.72, z);
-    G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
-    camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
+    if (thirdPerson) {
+      const pos = thirdPersonCameraPosition({ x, y, z }, cmd.yaw, sim.map);
+      camera.position.set(pos.x, pos.y, pos.z);
+      camera.rotation.set(cmd.pitch * 0.72 + shake.pitch, cmd.yaw + shake.yaw, shake.roll);
+    } else {
+      camera.position.set(x, y + 0.72, z);
+      G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
+      camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
+    }
     const targetFov = lerp(BASE_FOV + (p.sprinting ? 6 : 0), w.adsFov, G.adsK);
     G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
   } else {
@@ -324,6 +340,10 @@ function frame(now) {
     // player footsteps
     if (p.grounded && p.speedH > 2) { G.stepT -= dt; if (G.stepT <= 0) { G.stepT = p.sprinting ? 0.27 : 0.4; audio.play('step', { vol: p.ads ? 0.4 : 1 }); } } else G.stepT = 0.1;
   }
+
+  // The local full-body fighter is visible only in third-person; simulation hitboxes stay unchanged.
+  G.playerView.setVisible(thirdPerson && p.alive);
+  if (thirdPerson && p.alive) G.playerView.update(dt, 0);
 
   // fighters, ragdolls, effects
   for (const v of G.views.values()) {
