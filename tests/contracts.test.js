@@ -102,7 +102,13 @@ test('relay uplink mobilizes existing garrison guards and restores their origina
   sim.contracts._spawn('uplink');
   const c = sim.contracts.list[0];
   assert.deepEqual(guards[0].brain.post, { x: c.x, z: c.z }, 'guards redeploy to the relay');
-  assert.notEqual(guards[0].brain.patrolRoute, homeRoute, 'guards receive a relay patrol route');
+  const responseRoute = guards[0].brain.patrolRoute;
+  assert.notEqual(responseRoute, homeRoute, 'guards receive a relay patrol route');
+  sim.humans[0].x = c.x; sim.humans[0].z = c.z;
+  sim.contracts._uplink(c, [sim.humans[0]], 7);
+  assert.equal(c.stage, 1, 'relay enters the upload phase');
+  assert.equal(guards[0].brain.leash, 11, 'defenders tighten their patrol during the upload');
+  assert.notEqual(guards[0].brain.patrolRoute, responseRoute, 'second phase escalates the response');
   sim.contracts._end(c, 'expired');
   assert.deepEqual(guards[0].brain.post, home, 'guards return to their outpost');
   assert.equal(guards[0].brain.patrolRoute, homeRoute, 'original patrol route is restored');
