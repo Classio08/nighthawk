@@ -76,7 +76,7 @@ npm run check          # all of the above in one go
 | `src/ui/` | HUD and minimap |
 | `src/input/` | keyboard, mouse, movement maths (touch controls plug in here later) |
 | `data/` | operators and weapons as plain data (`operators.json`) |
-| `docs/` | design, roadmap, tech stack, character visual bible, world/faction bible, photo-to-texture workflow, realistic asset spec and camera design |
+| `docs/` | design, roadmap, tech stack, character visual bible, world/faction bible, photo-to-texture workflow, realistic asset spec, web 3D research and camera design |
 | `assets/` | models, textures, sounds (empty for now, see `ASSETS.md`) |
 | `public/` | files copied as-is into the website (favicon) |
 | `server/` | the multiplayer server (Colyseus room that runs `src/sim`), its Dockerfile and test |
@@ -85,7 +85,7 @@ npm run check          # all of the above in one go
 
 ## Art production
 
-The realistic art direction and production workflow are documented in `docs/CHARACTER_VISUAL_BIBLE.md`, `docs/WORLD_AND_FACTION_BIBLE.md`, `docs/PHOTO_TO_TEXTURE_WORKFLOW.md`, `docs/REALISTIC_ASSET_SPEC.md` and `docs/DUAL_CAMERA_DESIGN.md`. Raw personal reference photos stay outside the public repository.
+The realistic art direction and production workflow are documented in `docs/CHARACTER_VISUAL_BIBLE.md`, `docs/WORLD_AND_FACTION_BIBLE.md`, `docs/PHOTO_TO_TEXTURE_WORKFLOW.md`, `docs/REALISTIC_ASSET_SPEC.md`, `docs/WEB_3D_ART_RESEARCH.md` and `docs/DUAL_CAMERA_DESIGN.md`. Raw personal reference photos stay outside the public repository.
 
 ## Rules for this project
 - Every downloaded asset (model, texture, sound) gets a line in `ASSETS.md` with its source and license **before** it is used.
