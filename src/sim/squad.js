@@ -6,6 +6,14 @@
 const RADIO_RANGE = 75, CONTACT_LIFE = 6;
 const SQUAD_BREAK_PHASE = 3;
 
+/** Deterministic squad doctrine from shared battlefield state. */
+export function chooseSquadOrder({ contactFresh = false, averageHealth = 1, isPinner = false, united = true } = {}) {
+  if (!united) return 'independent';
+  if (averageHealth < 0.32 && contactFresh) return 'fallback';
+  if (!contactFresh) return 'patrol';
+  return isPinner ? 'suppress' : 'flank';
+}
+
 export class Squad {
   constructor(sim, id) { this.sim = sim; this.id = id; this.members = []; this.contact = null; this.radioLog = 0; }
   add(f) { this.members.push(f); f.squad = this; }
@@ -28,6 +36,20 @@ export class Squad {
   }
 
   fresh() { return this.contact && this.sim.time - this.contact.t < CONTACT_LIFE ? this.contact : null; }
+
+  /** Commander doctrine: the squad adapts as a unit instead of every bot freelancing. */
+  orderFor(f) {
+    const alive = this.alive;
+    const averageHealth = alive.length
+      ? alive.reduce((sum, member) => sum + member.hp / Math.max(1, member.maxHp), 0) / alive.length
+      : 1;
+    return chooseSquadOrder({
+      contactFresh: !!this.fresh(),
+      averageHealth,
+      isPinner: this.pinner() === f,
+      united: this.united,
+    });
+  }
 
   /** the member closest to the contact is the "pinner" (keeps the enemy busy), everybody else may flank */
   pinner() {
