@@ -1,37 +1,170 @@
 {
-  "_note": "The 8 original NDF operators. Names are the original names. Surnames are deliberately not invented. Backstories are short and gender-neutral; edit freely. Roles/abilities carried over from the v0.2 prototype.",
+  "_note": "The 8 original NIGHTHAWK operators in a fictional African-inspired unit. Names are the original names. Surnames are deliberately not invented. Backstories are short and gender-neutral; edit freely. Roles/abilities carried over from the v0.2 prototype.",
   "operators": [
-    { "id": "roms", "name": "Roms", "role": "Heavy Gunner", "weapon": "lmg", "hp": 170, "speed": 9, "color": "#d4a017",
-      "ability": { "name": "Overclock", "text": "Fire rate up and damage resistance for 5s", "cooldown": 16 },
-      "backstory": "Grew up hauling fuel drums across the Namib, so a heavy LMG feels light. Once held a lone border checkpoint for six hours and brought everyone home. Rule one: nobody gets left behind. Rule two: the belt is never empty." },
-    { "id": "shadow", "name": "Shadow", "role": "Infiltrator", "weapon": "smg", "hp": 120, "speed": 11, "color": "#6c7a90",
-      "ability": { "name": "Cloak", "text": "Enemies lose track of you; speed boost for 4s", "cooldown": 15 },
-      "backstory": "No photo, no file, no first name. Vanished for nine days during a desert-survival course and came back with a hand-drawn map of the whole range. The enemy only learns the name after the lights go out." },
-    { "id": "douglas", "name": "Douglas", "role": "Combat Medic", "weapon": "ar", "hp": 140, "speed": 10, "color": "#39d98a",
-      "ability": { "name": "Trauma Kit", "text": "Heal burst plus regeneration for 5s", "cooldown": 13 },
-      "backstory": "A Windhoek ER paramedic before the NDF. After a bus pile-up on the B1 kept eleven people alive for ninety minutes until help arrived. Patches wounds mid-sprint and refuses to lose anyone on the watch." },
-    { "id": "cliffhanger", "name": "Cliffhanger", "role": "Demolitions", "weapon": "ar", "hp": 135, "speed": 10, "color": "#ff8c42",
-      "ability": { "name": "Blast Dash", "text": "Dash forward and detonate a charge", "cooldown": 9 },
-      "backstory": "Named after a jump over the Fish River Canyon that went wrong: hung from one strap on the cliff face for twenty minutes, cracking jokes on the radio. Loves anything that goes boom and has never planned an exit route." },
-    { "id": "navy-blue", "name": "Navy Blue", "role": "Marksman", "weapon": "dmr", "hp": 115, "speed": 9.5, "color": "#4aa3ff",
-      "ability": { "name": "Deadeye", "text": "Next shot: massive piercing damage", "cooldown": 11 },
-      "backstory": "Former naval intelligence out of Walvis Bay. Plans three moves ahead and leaves a blue chalk mark on every casing. Holds the unit record for the longest confirmed shot across the Skeleton Coast dunes." },
-    { "id": "rampol", "name": "Rampol", "role": "Breacher", "weapon": "shotgun", "hp": 210, "speed": 8, "color": "#c0c6d0",
-      "ability": { "name": "Bulwark", "text": "Heavy damage resistance for 5s", "cooldown": 12 },
-      "backstory": "Built like a door and twice as stubborn. Welded a riot shield out of a scrapped APC hatch. First through every breach, last one out." },
-    { "id": "maetja", "name": "Maetja", "role": "Hacker", "weapon": "smg", "hp": 125, "speed": 10, "color": "#2bd4c4",
-      "ability": { "name": "EMP Breach", "text": "Stuns every nearby enemy for 3s", "cooldown": 14 },
-      "backstory": "Taught themself to code on a hand-me-down laptop in a Katutura internet cafe. Cracks enemy comms before the first shot and can hijack a drone mid-flight. Names every enemy network after a dessert." },
-    { "id": "cleiseis", "name": "Cleiseis", "role": "Assassin", "weapon": "pistol", "hp": 125, "speed": 12, "color": "#e5484d",
-      "ability": { "name": "Crimson Rush", "text": "Dash strike; finishes wounded enemies", "cooldown": 10 },
-      "backstory": "The quietest and fastest operator in the unit, and unnervingly polite about it. Treats a firefight like a conversation that ends early." }
+    {
+      "id": "roms",
+      "name": "Roms",
+      "role": "Heavy Gunner",
+      "weapon": "lmg",
+      "hp": 170,
+      "speed": 9,
+      "color": "#d4a017",
+      "ability": {
+        "name": "Overclock",
+        "text": "Fire rate up and damage resistance for 5s",
+        "cooldown": 16
+      },
+      "backstory": "Grew up hauling fuel drums across the Namib, so a heavy LMG feels light. Once held a lone border checkpoint for six hours and brought everyone home. Rule one: nobody gets left behind. Rule two: the belt is never empty."
+    },
+    {
+      "id": "shadow",
+      "name": "Shadow",
+      "role": "Infiltrator",
+      "weapon": "smg",
+      "hp": 120,
+      "speed": 11,
+      "color": "#6c7a90",
+      "ability": {
+        "name": "Cloak",
+        "text": "Enemies lose track of you; speed boost for 4s",
+        "cooldown": 15
+      },
+      "backstory": "No photo, no file, no first name. Vanished for nine days during a desert-survival course and came back with a hand-drawn map of the whole range. The enemy only learns the name after the lights go out."
+    },
+    {
+      "id": "douglas",
+      "name": "Douglas",
+      "role": "Combat Medic",
+      "weapon": "ar",
+      "hp": 140,
+      "speed": 10,
+      "color": "#39d98a",
+      "ability": {
+        "name": "Trauma Kit",
+        "text": "Heal burst plus regeneration for 5s",
+        "cooldown": 13
+      },
+      "backstory": "A Windhoek ER paramedic before the NDF. After a bus pile-up on the B1 kept eleven people alive for ninety minutes until help arrived. Patches wounds mid-sprint and refuses to lose anyone on the watch."
+    },
+    {
+      "id": "cliffhanger",
+      "name": "Cliffhanger",
+      "role": "Demolitions",
+      "weapon": "ar",
+      "hp": 135,
+      "speed": 10,
+      "color": "#ff8c42",
+      "ability": {
+        "name": "Blast Dash",
+        "text": "Dash forward and detonate a charge",
+        "cooldown": 9
+      },
+      "backstory": "Named after a jump over the Fish River Canyon that went wrong: hung from one strap on the cliff face for twenty minutes, cracking jokes on the radio. Loves anything that goes boom and has never planned an exit route."
+    },
+    {
+      "id": "navy-blue",
+      "name": "Navy Blue",
+      "role": "Marksman",
+      "weapon": "dmr",
+      "hp": 115,
+      "speed": 9.5,
+      "color": "#4aa3ff",
+      "ability": {
+        "name": "Deadeye",
+        "text": "Next shot: massive piercing damage",
+        "cooldown": 11
+      },
+      "backstory": "Former naval intelligence out of Walvis Bay. Plans three moves ahead and leaves a blue chalk mark on every casing. Holds the unit record for the longest confirmed shot across the Skeleton Coast dunes."
+    },
+    {
+      "id": "rampol",
+      "name": "Rampol",
+      "role": "Breacher",
+      "weapon": "shotgun",
+      "hp": 210,
+      "speed": 8,
+      "color": "#c0c6d0",
+      "ability": {
+        "name": "Bulwark",
+        "text": "Heavy damage resistance for 5s",
+        "cooldown": 12
+      },
+      "backstory": "Built like a door and twice as stubborn. Welded a riot shield out of a scrapped APC hatch. First through every breach, last one out."
+    },
+    {
+      "id": "maetja",
+      "name": "Maetja",
+      "role": "Hacker",
+      "weapon": "smg",
+      "hp": 125,
+      "speed": 10,
+      "color": "#2bd4c4",
+      "ability": {
+        "name": "EMP Breach",
+        "text": "Stuns every nearby enemy for 3s",
+        "cooldown": 14
+      },
+      "backstory": "Taught themself to code on a hand-me-down laptop in a Katutura internet cafe. Cracks enemy comms before the first shot and can hijack a drone mid-flight. Names every enemy network after a dessert."
+    },
+    {
+      "id": "cleiseis",
+      "name": "Cleiseis",
+      "role": "Assassin",
+      "weapon": "pistol",
+      "hp": 125,
+      "speed": 12,
+      "color": "#e5484d",
+      "ability": {
+        "name": "Crimson Rush",
+        "text": "Dash strike; finishes wounded enemies",
+        "cooldown": 10
+      },
+      "backstory": "The quietest and fastest operator in the unit, and unnervingly polite about it. Treats a firefight like a conversation that ends early."
+    }
   ],
   "weapons": {
-    "ar":      { "name": "AR-91 Rifle",  "damage": 17, "fireInterval": 0.11, "mag": 30,  "auto": true },
-    "smg":     { "name": "Vektor SMG",   "damage": 12, "fireInterval": 0.07, "mag": 36,  "auto": true },
-    "shotgun": { "name": "Breach-12",    "damage": 11, "fireInterval": 0.8,  "mag": 7,   "auto": false, "pellets": 8 },
-    "dmr":     { "name": "Kudu DMR",     "damage": 70, "fireInterval": 0.9,  "mag": 8,   "auto": false },
-    "lmg":     { "name": "PKX LMG",      "damage": 18, "fireInterval": 0.09, "mag": 100, "auto": true },
-    "pistol":  { "name": "Sidearm",      "damage": 24, "fireInterval": 0.24, "mag": 14,  "auto": false }
+    "ar": {
+      "name": "AR-91 Rifle",
+      "damage": 17,
+      "fireInterval": 0.11,
+      "mag": 30,
+      "auto": true
+    },
+    "smg": {
+      "name": "Vektor SMG",
+      "damage": 12,
+      "fireInterval": 0.07,
+      "mag": 36,
+      "auto": true
+    },
+    "shotgun": {
+      "name": "Breach-12",
+      "damage": 11,
+      "fireInterval": 0.8,
+      "mag": 7,
+      "auto": false,
+      "pellets": 8
+    },
+    "dmr": {
+      "name": "Kudu DMR",
+      "damage": 70,
+      "fireInterval": 0.9,
+      "mag": 8,
+      "auto": false
+    },
+    "lmg": {
+      "name": "PKX LMG",
+      "damage": 18,
+      "fireInterval": 0.09,
+      "mag": 100,
+      "auto": true
+    },
+    "pistol": {
+      "name": "Sidearm",
+      "damage": 24,
+      "fireInterval": 0.24,
+      "mag": 14,
+      "auto": false
+    }
   }
 }
