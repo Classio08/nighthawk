@@ -1,8 +1,8 @@
 # NIGHTHAWK
 
-A fast, addictive browser shooter: **COD-style operators and abilities + PUBG-style last-one-standing matches**, in short sessions, with simple low-poly looks and real physics. Web first (PC browsers), then mobile and a desktop download.
+A realistic browser tactical shooter built around an original fictional African-inspired special-operations unit. NIGHTHAWK combines responsive gunplay, squad tactics, AI-driven match stories and a Southern African-inspired setting. The visual direction is a realistic redesign with modern equipment; the current renderer still contains placeholder/block-built character and environment art. Web first, with mobile support planned.
 
-Status: **offline battle royale + online multiplayer (Milestone 1) are built and tested** (two real browsers against a real server, prediction, lag compensation). Next: put the server on a VPS and test with a friend, then the big gameplay wave. See `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md`, `docs/ASSET_CATALOG.md`, `docs/PHOTO_TO_TEXTURE_WORKFLOW.md` and `docs/CLAUDE_HANDOFF.md`.
+Status: offline battle royale and a local online multiplayer milestone are implemented. This is not yet a public production release: external-network validation, load testing, realistic operator models and integrated PBR materials remain outstanding. See `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md`, `docs/PRODUCTION_READINESS.md`, `docs/PERFORMANCE_BUDGET.md`, `docs/ASSET_CATALOG.md`, `docs/PHOTO_TO_TEXTURE_WORKFLOW.md`, `docs/VISUAL_ASSET_REVIEW.md` and `docs/CLAUDE_HANDOFF.md`.
 
 ---
 
@@ -76,7 +76,7 @@ npm run check          # all of the above in one go
 | `src/ui/` | HUD and minimap |
 | `src/input/` | keyboard, mouse, movement maths (touch controls plug in here later) |
 | `data/` | operators and weapons as plain data (`operators.json`) |
-| `docs/` | design, verified roadmap, master systems plan, asset catalogue and technical notes |
+| `docs/` | verified roadmap, master systems, visual production, performance budgets, production gates and technical notes |
 | `assets/` | models, textures, sounds (empty for now, see `ASSETS.md`) |
 | `public/` | files copied as-is into the website (favicon) |
 | `server/` | the multiplayer server (Colyseus room that runs `src/sim`), its Dockerfile and test |
