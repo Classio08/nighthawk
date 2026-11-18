@@ -2,7 +2,7 @@
 
 A fast, addictive browser shooter: **COD-style operators and abilities + PUBG-style last-one-standing matches**, in short sessions, with simple low-poly looks and real physics. Web first (PC browsers), then mobile and a desktop download.
 
-Status: **offline battle royale + online multiplayer (Milestone 1) are built and tested** (two real browsers against a real server, prediction, lag compensation). Next: put the server on a VPS and test with a friend, then the big gameplay wave. See `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md` and `docs/ASSET_CATALOG.md`.
+Status: **offline battle royale + online multiplayer (Milestone 1) are built and tested** (two real browsers against a real server, prediction, lag compensation). Next: put the server on a VPS and test with a friend, then the big gameplay wave. See `docs/ROADMAP.md`, `docs/MASTER_SYSTEMS.md`, `docs/ASSET_CATALOG.md`, `docs/PHOTO_TO_TEXTURE_WORKFLOW.md` and `docs/CLAUDE_HANDOFF.md`.
 
 ---
 
