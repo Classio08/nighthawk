@@ -92,6 +92,24 @@ test('hardpoint: capture time only counts while exactly one fighter stands insid
   ct._spawn('hardpoint'); const d = ct.list[0]; tp(p, d.x, d.z); run(sim, 5); const hi = d.prog; tp(p, d.x + 40, d.z); run(sim, 5); assert.ok(d.prog < hi);
 });
 
+test('relay uplink: secure first, then upload; contest pauses progress and completion pays out', async () => {
+  const sim = await arena(); const ct = manual(sim); const [p, b1] = sim.fighters;
+  ct._spawn('uplink'); const c = ct.list[0];
+  assert.equal(c.stage, 0); assert.equal(c.r, 6.5);
+  farAway(sim, ...sim.fighters.slice(1)); tp(p, c.x, c.z); p.hp = 100; p.mortar = 0;
+  run(sim, 3); const secured = c.prog; assert.ok(secured > 0.4 && secured < 0.5);
+  tp(b1, c.x + 1, c.z); run(sim, 2);
+  assert.equal(c.who, -2, 'multiple operators contest the relay');
+  assert.ok(Math.abs(c.prog - secured) < 0.02, 'contested progress pauses');
+  tp(b1, 100, 100); run(sim, 4.2);
+  assert.equal(c.stage, 1, 'first phase arms the relay');
+  assert.ok(sim.drainEvents().some((e) => e.t === 'contract' && e.phase === 'armed' && e.type === 'uplink'));
+  run(sim, 10.5);
+  assert.equal(ct.active.length, 0, 'intel upload completes');
+  assert.equal(p.mortar, 1); assert.ok(p.hp >= 135, 'uplink reward restores 35 health');
+  assert.ok(sim.drainEvents().some((e) => e.t === 'contract' && e.phase === 'done' && e.type === 'uplink' && e.by === p.id));
+});
+
 test('bounty: the top killer is marked; whoever kills them is paid; a zone death only ends it', async () => {
   const sim = await arena(); const ct = manual(sim); const [p, b1, b2, b3] = sim.fighters;
   b2.kills = 5; ct._spawn('bounty'); const c = ct.list[0];
@@ -143,9 +161,11 @@ test('mortar: aiming with the crosshair + the mortar key marks the spot you look
 test('wire format: mortar key survives packCmd, contracts survive a snapshot round trip', async () => {
   const c = idle(); c.mortar = true; c.slot = 2; const back = unpackCmd(packCmd({ seq: 5, vt: 9, ...c }));
   assert.equal(back.mortar, true); assert.equal(back.grenade, false); assert.equal(back.slot, 2);
-  const sim = await arena(); const ct = manual(sim); ct._spawn('airdrop'); ct._spawn('hardpoint');
-  const snap = packSnapshot(sim, []); assert.equal(snap.ct.length, 2);
+  const sim = await arena(); const ct = manual(sim); ct._spawn('airdrop'); ct._spawn('hardpoint'); ct._spawn('uplink');
+  ct.list[2].stage = 1; ct.list[2].prog = 0.4;
+  const snap = packSnapshot(sim, []); assert.equal(snap.ct.length, 3);
   const list = Contracts.unpack(JSON.parse(JSON.stringify(snap.ct)));
   assert.deepEqual(list.map((x) => [x.id, x.type, x.state]), ct.list.map((x) => [x.id, x.type, x.state]));
   assert.ok(Math.abs(list[0].x - ct.list[0].x) < 0.01 && list[1].r === 9);
+  assert.equal(list[2].r, 6.5); assert.equal(list[2].stage, 1); assert.equal(list[2].prog, 0.4);
 });
