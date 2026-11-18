@@ -14,6 +14,11 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wrapAngle = (a) => { a %= Math.PI * 2; if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2; return a; };
 const wrap = (a) => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
 
+/** Cover triggers for damage, active incoming pressure, or a risky reload. */
+export function shouldSeekCover({ hurtBadly = false, underFire = false, reloadFight = false }) {
+  return hurtBadly || underFire || reloadFight;
+}
+
 export class BotBrain {
   /** @param skill 0..1 (higher = faster reactions, better aim, turns quicker)  @param personality key of PERSONALITIES */
   constructor(sim, f, skill = 0.6, personality = 'brawler') {
@@ -265,8 +270,11 @@ export class BotBrain {
     // run for cover when hurt badly, or while reloading in a fight (a cautious personality does it sooner, a Rusher never)
     if (!pers.noCover && !pers.guard && this.coverT <= 0 && this.coverCool <= 0 && outNow < -4) {
       const hurtBadly = hpF < 0.38 + 0.25 * (pers.caution - 0.5) && this.hurtT < 5;
+      // React to incoming fire before health becomes critical. Rushers still
+      // ignore cover through their existing noCover personality trait.
+      const underFire = !!(this.lastHurtBy?.alive && this.hurtT < 1.8);
       const reloadFight = tgt && f.reloadT > 0 && dist < 45 && sim.rng() < 0.25 + 0.3 * pers.caution;
-      if (hurtBadly || reloadFight) {
+      if (shouldSeekCover({ hurtBadly, underFire, reloadFight })) {
         const th = tgt ?? this.lastSeen ?? (this.lastHurtBy ? { x: this.lastHurtBy.x, z: this.lastHurtBy.z } : null);
         this.coverCool = 1.6;
         if (th) { const pt = findCover(sim.map, f, th, 28); if (pt) { this.coverPt = pt; this.coverT = 4.5 + sim.rng() * 2; } }
