@@ -58,20 +58,20 @@ No likeness references supplied in this batch. Keep their facial appearance unde
 
 ## Role and personality proposals — not canon
 
-The owner wants distinct personalities and combat roles. These are creative starting points, not established facts:
+The existing operator data already defines gameplay classes and ability names. The table below uses those existing roles as the starting point and proposes a personality/visual direction around them. These are still proposals for owner review; no gameplay stats or abilities are changed here.
 
-| Character | Proposed personality direction | Proposed gameplay role |
-|---|---|---|
-| Roms | Calm, adaptable, quietly confident | Reconnaissance / flexible field operator |
-| Cleiseis | Analytical, disciplined, composed | Tactical support / coordination |
-| Shadow | Reserved, observant, patient | Stealth / intelligence gathering |
-| Rampol | Energetic, resourceful, hands-on | Engineer / field utility |
-| Maetja | Sociable, reassuring, resilient | Medic / squad sustainment |
-| Douglas | Awaiting owner input | Awaiting owner input |
-| Cliffhanger | Awaiting owner input | Awaiting owner input |
-| Navy Blue | Awaiting owner input | Awaiting owner input |
+| Character | Existing gameplay role | Personality direction (proposal) | Visual silhouette direction (proposal) |
+|---|---|---|---|
+| Roms | Heavy Gunner | Dependable, calm under pressure, protective of the squad | Sturdy carrier, extra ammunition, reinforced gloves; keep sunglasses optional |
+| Shadow | Infiltrator | Reserved, patient, observant | Low-profile dark/earth-tone kit, compact pack, minimal loose equipment |
+| Douglas | Combat Medic | Empathetic, steady, decisive when others panic | Medical pouch, trauma shears, compact pack; keep medical markings fictional |
+| Cliffhanger | Demolitions | Bold, humorous, improvisational | Utility harness, protected tools and clearly fictional demolition equipment |
+| Navy Blue | Marksman | Analytical, disciplined, deliberate | Streamlined rig, optics support, rangefinder pouch; restrained blue identifier |
+| Rampol | Breacher | Practical, stubborn, physically confident | Reinforced workwear-inspired trousers, breaching tools, gloves and robust carrier |
+| Maetja | Hacker | Curious, quick-thinking, technically inventive | Communications/electronic kit, compact antenna, rugged tablet or field terminal |
+| Cleiseis | Assassin | Quiet, fast, controlled and direct | Lean low-profile kit, compact belt, minimal bulk; preserve recognisable face |
 
-These role ideas should be reviewed with the owner before ability design, voice lines, bios or equipment are written.
+The existing game data supplies the role labels and short backstories; the personality language above is a creative interpretation for review, not a fact inferred from the reference photographs. Keep all abilities, weapon assignments and balance unchanged until separately approved.
 
 ## Standard deliverables per approved operator
 
@@ -111,31 +111,8 @@ These role ideas should be reviewed with the owner before ability design, voice 
 
 Approve or revise each proposed personality and role. Then approve face likeness, body silhouette, uniform, gear and colour before detailed modelling.
 
-## Owner-approved franchise direction (2026-11-18)
-
-- Faction identity: entirely fictional African special operations unit. Do not call the unit NDF or imply affiliation with a real defence force.
-- Equipment: modern, credible, modular tactical equipment. Keep it practical and regionally grounded; avoid sci-fi armour.
-- Visual target: realistic proportions, likeness-preserving faces, PBR skin/fabric/nylon/metal/rubber, detailed but readable gear, cinematic lighting.
-- Camera modes: both first-person and third-person are part of the intended game. This is a design requirement, not a claim that both modes are implemented today.
-- Environment: fictional Southern African-inspired dryland, semi-urban, industrial and remote outpost locations. No real military insignia or copied real-world unit branding.
-
-## Provisional operator identity concepts
-
-These are creative proposals to give each operator a gameplay purpose. The owner has approved distinct personalities and combat roles as a design goal, but has not yet approved the specific assignments below. Do not change `data/operators.json`, gameplay abilities, balance or lore until reviewed.
-
-| Operator | Personality direction (proposal) | Combat role (proposal) | Visual silhouette direction (proposal) |
-|---|---|---|---|
-| Roms | Calm, dependable, adaptable | Heavy support / suppressive fire | Broad utility carrier, ammo pouches, sturdy gloves; retain short hair and facial-hair cues; sunglasses optional |
-| Cleiseis | Precise, composed, observant | Recon / close-quarters specialist | Lean modular rig, compact pack, low-profile kit; preserve short hair and face proportions |
-| Shadow | Quiet, patient, watchful | Infiltration / reconnaissance | Low-profile dark/earth-tone kit, reduced snag points, light pack; retain beard and facial likeness |
-| Rampol | Practical, energetic, mechanically minded | Combat engineer / breacher | Workwear-inspired reinforced trousers, tool/utility pouches, gloves; respirator is optional kit, not fixed identity |
-| Maetja | Warm, confident, quick-thinking | Signals / electronic support | Radio/comms pack, antenna and tablet/field terminal; preserve beard and facial features |
-| Douglas | Awaiting owner direction | Awaiting owner direction | Awaiting reference |
-| Cliffhanger | Awaiting owner direction | Awaiting owner direction | Awaiting reference |
-| Navy Blue | Awaiting owner direction | Awaiting owner direction | Awaiting reference |
-
 ## Existing lore/data conflict to resolve
 
-The current `data/operators.json` calls the roster “NDF operators” and contains Namibian Defence Force references in individual backstories. This conflicts with the newly approved fictional faction identity. The data file is deliberately NOT changed in this art-only branch. Before those profiles become canon, rewrite faction references and review every role, ability, weapon, stat and backstory with the owner. Preserve the original character names.
+The original `data/operators.json` contains NDF affiliation wording in its note and Douglas's backstory. This conflicts with the newly approved fictional faction identity. The art branch updates only those affiliation references to a fictional unit while preserving the existing eight names, role labels, weapon assignments, abilities, stats and other story details. Any broader lore rewrite remains subject to owner review.
 
-The current `docs/GAME_DESIGN.md` and `README.md` still describe low-poly visuals and first-person-only play. The art branch updates the design brief, but rendering/gameplay implementation remains a separate milestone.
+The visual direction is a target, not a claim that realistic character models or third-person camera are implemented. Current box-built rendering and first-person gameplay remain a separate implementation milestone.
