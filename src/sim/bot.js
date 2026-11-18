@@ -167,7 +167,9 @@ export class BotBrain {
     if (tgt) S.engage = clamp(0.58 + 0.35 * p.aggr - 0.2 * clamp(dist / 65, 0, 1) - (hpF < 0.35 ? 0.25 * p.caution : 0), 0, 1);
     if (this.lastSeen && this.lastSeenT < 3) S.hunt = 0.3 + 0.45 * p.aggr;
     if (this.heard && this.heardT < 8) S.investigate = 0.15 + 0.5 * p.curiosity;
-    if (sq) {                                                    // squad play
+    if (sq) {                                                    // squad commander doctrine
+      const order = sq.orderFor(f);
+      if (order === 'fallback') S.fallback = 0.92 + 0.05 * p.caution;
       this.flankPt = sq.flankPoint(f, insideAnyBox);
       if (this.flankPt) S.flank = 0.5 + 0.3 * p.tact;
       if (!tgt && sq.united && sq.pinner() === f && sq.alive.some((m) => m !== f && m.brain && m.brain.state === 'flank')) S.suppress = 0.66;
@@ -334,6 +336,20 @@ export class BotBrain {
       case 'flank': {
         gx = this.flankPt.x; gz = this.flankPt.z; sprint = true;
         if (Math.hypot(gx - f.x, gz - f.z) < 2.5) { move = false; idleLook = true; }
+        break;
+      }
+      case 'fallback': {
+        // Break contact as a coordinated unit when the squad is badly hurt.
+        const contact = f.squad?.fresh();
+        const cover = contact ? findCover(sim.map, f, contact, 24) : null;
+        if (cover) { gx = cover.x; gz = cover.z; }
+        else if (contact) {
+          const dx = f.x - contact.x, dz = f.z - contact.z, d = Math.max(1, Math.hypot(dx, dz));
+          gx = clamp(f.x + dx / d * 18, -MAP_HALF + 5, MAP_HALF - 5);
+          gz = clamp(f.z + dz / d * 18, -MAP_HALF + 5, MAP_HALF - 5);
+        } else { gx = zone.nextX; gz = zone.nextZ; }
+        sprint = true;
+        if (Math.hypot(gx - f.x, gz - f.z) < 2) { move = false; idleLook = true; }
         break;
       }
       case 'suppress': { move = false; break; }
