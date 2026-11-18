@@ -347,14 +347,24 @@ export class BotBrain {
       }
       case 'hunt': {
         gx = this.lastSeen.x; gz = this.lastSeen.z;
-        if (Math.hypot(gx - f.x, gz - f.z) < 3) { move = false; idleLook = true; if (this.lastSeenT > 2.5) this.lastSeenT = 99; }
+        if (Math.hypot(gx - f.x, gz - f.z) < 3) { move = false; idleLook = true; if (this.lastSeenT > 2.5 && !this.p.guard) this.lastSeenT = 99; }
         break;
       }
       case 'search': {
         if (!this.searchAnchor || Math.hypot(this.searchAnchor.x - this.lastSeen.x, this.searchAnchor.z - this.lastSeen.z) > 4) {
           this.searchAnchor = { ...this.lastSeen }; this.searchIndex = 0; this.searchGoal = null;
         }
-        if (!this.searchGoal) this.searchGoal = searchWaypoint(this.searchAnchor, this.searchIndex, 5.5);
+        if (!this.searchGoal) {
+          // Skip sweep points embedded in collision geometry or outside the playable square.
+          for (let tries = 0; tries < 8; tries++) {
+            const candidate = searchWaypoint(this.searchAnchor, this.searchIndex + tries, 5.5);
+            if (Math.abs(candidate.x) < MAP_HALF - 3 && Math.abs(candidate.z) < MAP_HALF - 3 &&
+                !insideAnyBox(sim.map, candidate.x, candidate.z, 1.2)) {
+              this.searchIndex += tries; this.searchGoal = candidate; break;
+            }
+          }
+          if (!this.searchGoal) this.searchGoal = { ...this.searchAnchor };
+        }
         gx = this.searchGoal.x; gz = this.searchGoal.z;
         if (Math.hypot(gx - f.x, gz - f.z) < 2.4) {
           this.searchIndex++; this.searchGoal = null; move = false; idleLook = true;
