@@ -96,6 +96,7 @@ export class Contracts {
     if (c.prog < 1) return;
     if (c.stage === 0) {
       c.stage = 1; c.prog = 0;
+      this.sim.alertGarrison?.(c, 2); // the upload stage tightens the defender patrol around the relay
       this.sim.emit({ t: 'contract', phase: 'armed', type: c.type, id: c.id, x: c.x, z: c.z, by: operator.id, byName: operator.name });
     } else {
       this._reward(operator, c);
