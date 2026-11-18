@@ -151,6 +151,7 @@ function handleEvents() {
       case 'switch': if (e.by === p.id) audio.play('switch'); break;
       case 'throw': { const f = sim.fighters[e.by]; audio.play('throw', e.by === p.id ? {} : { x: f.x, z: f.z, maxD: 45 }); break; }
       case 'end': {
+        if (e.to !== undefined && e.to !== p.id) break;        // somebody else's result
         G.over = true;
         if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(e), 1200); }
         else { audio.play('lose'); setTimeout(() => hud.showEnd(e, G.killer), 1900); }
@@ -220,6 +221,7 @@ function frame(now) {
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
       sim.step(STEP, cmd);
+      cmd.reload = false; cmd.grenade = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }

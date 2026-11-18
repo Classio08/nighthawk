@@ -58,3 +58,19 @@ test('zone: shrinks over time, never grows, next circle stays inside the old one
   }
   assert.ok(z2.outside(200, 0) > 0 && z2.outside(z2.cx, z2.cz) < 0);
 });
+
+import { rayCapsule, raySphere } from '../src/sim/geom.js';
+
+test('geom: ray vs vertical capsule (the fighter shape)', () => {
+  // standing capsule at x=0,z=0 from y=0.4..1.4, radius .4. Shoot along -z from z=10 at chest height
+  assert.ok(Math.abs(rayCapsule(0, 0.9, 10, 0, 0, -1, 0, 0.4, 0, 1.4, 0.4) - 9.6) < 1e-6);
+  // too high (over the head), too wide, behind the shooter
+  assert.equal(rayCapsule(0, 2.2, 10, 0, 0, -1, 0, 0.4, 0, 1.4, 0.4), -1);
+  assert.equal(rayCapsule(1.0, 0.9, 10, 0, 0, -1, 0, 0.4, 0, 1.4, 0.4), -1);
+  assert.equal(rayCapsule(0, 0.9, -10, 0, 0, -1, 0, 0.4, 0, 1.4, 0.4), -1);
+  // from above straight down hits the rounded top (y1 + r = 1.8)
+  assert.ok(Math.abs(rayCapsule(0, 5, 0, 0, -1, 0, 0, 0.4, 0, 1.4, 0.4) - 3.2) < 1e-6);
+  // glancing shot at the edge of the radius still hits
+  assert.ok(rayCapsule(0.39, 0.9, 10, 0, 0, -1, 0, 0.4, 0, 1.4, 0.4) > 0);
+  assert.ok(raySphere(0, 0, 5, 0, 0, -1, 0, 0, 0, 1) > 0);
+});

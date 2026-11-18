@@ -19,8 +19,8 @@ const JOINTS = [['torso', 'head', [0, 1.45, 0]], ['torso', 'armL', [-0.33, 1.38,
 const GROUP_RAGDOLL = (0x0002 << 16) | 0x0001;  // ragdoll parts collide with the world only, not with each other
 
 export class RagdollWorld {
-  constructor(map, { max = 10, life = 9 } = {}) {
-    this.max = max; this.life = life; this.list = []; this.acc = 0;
+  constructor(map, { max = 10, life = 9, rng = Math.random } = {}) {
+    this.rng = rng; this.max = max; this.life = life; this.list = []; this.acc = 0;
     this.world = new RAPIER.World({ x: 0, y: -22, z: 0 });
     this.world.timestep = 1 / 60;
     this.world.numSolverIterations = 12;
@@ -58,7 +58,7 @@ export class RagdollWorld {
     for (const [name, body] of Object.entries(rag.parts)) {
       const extra = name === 'head' && o.head ? 1.5 : 1;
       body.setLinvel({ x: (o.vx ?? 0) * 0.5 + (o.dx ?? 0) * k * extra, y: up + (o.dy ?? 0) * k * 0.5, z: (o.vz ?? 0) * 0.5 + (o.dz ?? 0) * k * extra }, true);
-      body.setAngvel({ x: (Math.random() - 0.5) * 6, y: (Math.random() - 0.5) * 4, z: (Math.random() - 0.5) * 6 }, true);
+      body.setAngvel({ x: (this.rng() - 0.5) * 6, y: (this.rng() - 0.5) * 4, z: (this.rng() - 0.5) * 6 }, true);
     }
     this.list.push(rag);
     return rag;
@@ -71,6 +71,15 @@ export class RagdollWorld {
     while (this.acc >= 1 / 60) { this.world.step(); this.acc -= 1 / 60; }
     for (let i = this.list.length - 1; i >= 0; i--) {
       const r = this.list[i]; r.age += dt;
+      if (!r.calm && r.age > 2.2) {                       // after the first tumble, bleed off the remaining wobble so bodies come to rest
+        r.calm = true;
+        for (const b of Object.values(r.parts)) { b.setLinearDamping(2.5); b.setAngularDamping(6); }
+      }
+      if (r.calm && !r.asleep && r.age > 2.6) {           // once it has (nearly) stopped, freeze it: no more twitching, and it costs nothing
+        let fast = 0;
+        for (const b of Object.values(r.parts)) { const v = b.linvel(); fast = Math.max(fast, Math.hypot(v.x, v.y, v.z)); }
+        if (fast < 0.7) { r.asleep = true; for (const b of Object.values(r.parts)) b.setBodyType(RAPIER.RigidBodyType.Fixed, false); }
+      }
       if (r.age > this.life) { this._free(r); this.list.splice(i, 1); }
     }
   }
