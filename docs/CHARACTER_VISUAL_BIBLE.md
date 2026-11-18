@@ -1,13 +1,12 @@
 # NIGHTHAWK — Character Visual Bible
 
 Status: first-pass art direction; gameplay implementation is intentionally untouched.
-Branch: `art/character-visual-foundation`
 
 ## Visual target
 
-Build a grounded, recognisable Southern African tactical-shooter identity: believable human proportions, readable silhouettes, practical kit, restrained olive/tan/charcoal palette, sun-worn materials, and strong face identity. Avoid generic sci-fi armour, oversized accessories, and excessive camouflage noise.
+Build a grounded, recognisable fictional African special-operations unit identity: believable human proportions, readable silhouettes, practical kit, restrained olive/tan/charcoal palette, sun-worn materials, and strong face identity. Avoid generic sci-fi armour, oversized accessories, and excessive camouflage noise.
 
-The owner selected a realistic redesign and supplied likeness references for Roms, Cleiseis, Shadow, Rampol and Maetja. Use photographs only as design references; do not reproduce social-media UI, captions, watermarks, or clothing logos.
+The owner selected a realistic redesign, confirmed the unit is fictional (not a real military or police unit), specified modern equipment, and supplied likeness references for Roms, Cleiseis, Shadow, Rampol and Maetja. Use photographs only as design references; do not reproduce social-media UI, captions, watermarks, or clothing logos.
 
 ## Character roster
 
