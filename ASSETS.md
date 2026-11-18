@@ -1,29 +1,37 @@
 # Asset log
 
-Add a line **before** using any asset. If you cannot fill in the license, do not use it.
+Rule: every asset must be logged before it is used. A public URL or a free download does not by itself prove permission to ship the file. Record the exact pack/page, creator, licence version, download date, files and hashes.
 
-Preferred sources (all free for commercial use):
-- Kenney (kenney.nl) - CC0
-- Quaternius (quaternius.com) - CC0
-- KayKit (kaylousberg.itch.io) - CC0
-- Poly Haven (polyhaven.com) - CC0 textures and HDRIs
-- Mixamo (animations/characters) - free for commercial use, needs an Adobe login; read their current terms
-- Poly Pizza - mostly CC-BY, which requires credit; log the author
+## Existing project assets
 
-| Asset | Source URL | License | Author (if credit needed) | Used in |
-|---|---|---|---|---|
-| zzfx 1.4.0 (npm package, code) | github.com/KilledByAPixel/ZzFX | MIT | Frank Force | `src/fx/audio.js` - all 20 sounds are generated from numbers, no audio files |
-| Everything else (guns, soldiers, buildings, ragdolls, particles) | built from box shapes in our own code | ours | | `src/render/*`, `src/fx/*` |
-
-## Candidates (NOT downloaded yet, license must be re-checked on the author page first)
-
-| Candidate | Where | Claimed license | Planned use |
+| Asset | Source URL | Licence | Used in |
 |---|---|---|---|
-| Quaternius Ultimate Gun Pack | quaternius.itch.io/50-lowpoly-guns, opengameart.org/content/low-poly-guns-pack | CC0 | Milestone 2 weapons |
-| Kenney Blaster Kit | kenney-assets.itch.io/blaster-kit | CC0 | Milestone 2 weapons, bullets, crates |
-| KayKit Adventurers + Character Animations | kaylousberg.itch.io | CC0 | Milestone 3 bot/player characters |
-| Quaternius Universal Base Characters | quaternius.com/packs/universalbasecharacters.html | CC0 | Milestone 3 characters |
-| Kenney audio packs | kenney.nl | CC0 | Sounds |
-| The Free Firearm Sound Library | opengameart.org/content/the-free-firearm-sound-library | listed CC0 | Gun sounds |
-| ZzFX (code) | github.com/KilledByAPixel/ZzFX | MIT | Generated placeholder sounds |
-| recast-navigation (code) | npmjs.com/package/recast-navigation | MIT | Bot navmesh |
+| zzfx 1.4.0 | https://github.com/KilledByAPixel/ZzFX | MIT | `src/fx/audio.js` — synthesised sounds |
+| Procedural block geometry and placeholder materials | authored in this repository | Project-owned code | `src/render/*`, `src/fx/*` |
+
+## Selected environment material candidates (not yet downloaded or integrated)
+
+| Asset | Official source | Licence | Intended use |
+|---|---|---|---|
+| Ground 087 | https://ambientcg.com/view?id=Ground087 | ambientCG CC0 1.0 | pale dry sand |
+| Ground 064 | https://ambientcg.com/view?id=Ground064 | ambientCG CC0 1.0 | sandy gravel / outpost ground |
+| Rocks Ground 03 | https://polyhaven.com/a/rocks_ground_03 | Poly Haven CC0 | rocky paths and dry riverbed |
+| Coast Sand 01 | https://polyhaven.com/a/coast_sand_01 | Poly Haven CC0 | coastal shoreline |
+| Sandy Gravel 02 | https://polyhaven.com/a/sandy_gravel_02 | Poly Haven CC0 | compacted earth |
+| Gravelly Sand | https://polyhaven.com/a/gravelly_sand | Poly Haven CC0 | secondary ground blend |
+
+These are candidates only. No binary texture files have been added to the runtime yet. See `docs/ASSET_CATALOG.md` for the workflow and exact licence references.
+
+## Other libraries — check each pack's current licence
+
+- Kenney: https://kenney.nl/assets — many packs are CC0; inspect the archive's licence file.
+- Poly Haven: https://polyhaven.com — assets are CC0.
+- ambientCG: https://ambientcg.com — downloadable assets are CC0 1.0.
+- OpenGameArt: https://opengameart.org — mixed licences; use only after checking each asset.
+- Poly Pizza: https://poly.pizza — licence is per model; retain creator attribution where required.
+- Quaternius: https://quaternius.com — newer packs may use the Quaternius Asset License, not CC0. Verify the exact pack and restrictions before use.
+- Mixamo: https://www.mixamo.com — review current Adobe terms and redistribution restrictions before including animations or character files.
+
+## Never import without review
+
+Random search-engine images, Instagram photos, movie screenshots, ripped commercial-game assets, trademarks/logos, or GitHub files without a clear licence. Do not redistribute proprietary GTA/Vice City game data. A game engine port is not permission to use the original game's art/audio/maps.
