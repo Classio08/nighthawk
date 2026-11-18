@@ -2,13 +2,15 @@
 //   AIRDROP   a crate floats down (marked on the map); stand next to it for 2.5 s to open it: ammo, health, grenades, a mortar charge. Contested = timer resets.
 //   HARDPOINT a circle on the ground; be the ONLY one inside for 14 s (in total) to cash in: full health, ammo, a mortar charge.
 //   BOUNTY    one fighter is marked on everybody's map for 50 s; whoever kills them is paid (health + mortar charge).
+//   UPLINK    secure a relay, then hold it alone to upload intel; a contested relay pauses progress.
 import { makeRng } from './rng.js';
 import { findFreeSpot } from './map.js';
 import { WEAPONS, SLOT_ORDER } from './weapons.js';
 
-export const CONTRACT_TYPES = ['airdrop', 'hardpoint', 'bounty'];
-export const FALL_T = 9, OPEN_T = 2.5, HOLD_T = 14, HP_R = 9, OPEN_R = 2.8;
-const LIFE = { airdrop: 80, hardpoint: 75, bounty: 50 };
+export const CONTRACT_TYPES = ['airdrop', 'hardpoint', 'bounty', 'uplink'];
+export const FALL_T = 9, OPEN_T = 2.5, HOLD_T = 14, HP_R = 9, OPEN_R = 2.8, UPLINK_R = 6.5;
+export const ARM_T = 7, UPLOAD_T = 10;
+const LIFE = { airdrop: 80, hardpoint: 75, bounty: 50, uplink: 110 };
 const r2 = (v) => Math.round(v * 100) / 100;
 
 export class Contracts {
@@ -27,7 +29,7 @@ export class Contracts {
     if (this.off) return;
     const sim = this.sim, t = sim.time;
     if (t >= this.nextAt && this.active.length < 2 && !sim.zone.done && sim.zone.phase < 4) {
-      this._spawn(CONTRACT_TYPES[this.n < 3 ? this.n : Math.floor(this.rng() * 3)]); this.n++;
+      this._spawn(CONTRACT_TYPES[this.n < 3 ? this.n : Math.floor(this.rng() * CONTRACT_TYPES.length)]); this.n++;
       this.nextAt = t + 30 + this.rng() * 14;
     }
     const people = sim.fighters.filter((f) => f.alive && !f.npc);
@@ -36,6 +38,7 @@ export class Contracts {
       c.age += dt;
       if (c.type === 'airdrop') this._airdrop(c, people, dt);
       else if (c.type === 'hardpoint') this._hardpoint(c, people, dt);
+      else if (c.type === 'uplink') this._uplink(c, people, dt);
       else this._bounty(c, dt);
       if (c.state !== 'done' && c.age > c.life + (c.type === 'airdrop' ? FALL_T : 0)) this._end(c, 'expired');
     }
@@ -44,7 +47,7 @@ export class Contracts {
 
   _spawn(type) {
     const sim = this.sim, z = sim.zone;
-    const c = { id: this.nextId++, type, x: 0, z: 0, r: type === 'hardpoint' ? HP_R : OPEN_R, state: 'active', prog: 0, who: -1, age: 0, life: LIFE[type] };
+    const c = { id: this.nextId++, type, x: 0, z: 0, r: type === 'hardpoint' ? HP_R : type === 'uplink' ? UPLINK_R : OPEN_R, state: 'active', prog: 0, stage: 0, who: -1, age: 0, life: LIFE[type] };
     if (type === 'bounty') {
       const cand = sim.fighters.filter((f) => f.alive && !f.npc);
       if (cand.length < 3) return;
@@ -77,6 +80,27 @@ export class Contracts {
     else c.who = -2;                                            // contested: nobody makes progress
   }
 
+  _uplink(c, people, dt) {
+    const inside = people.filter((f) => Math.hypot(f.x - c.x, f.z - c.z) < c.r);
+    if (inside.length > 1) { c.who = -2; return; } // contested: progress is paused, never reset
+    if (inside.length === 0) {
+      c.who = -1;
+      c.prog = Math.max(0, c.prog - dt * 0.12); // abandoned work slowly decays
+      return;
+    }
+    const operator = inside[0];
+    c.who = operator.id;
+    c.prog += dt / (c.stage === 0 ? ARM_T : UPLOAD_T);
+    if (c.prog < 1) return;
+    if (c.stage === 0) {
+      c.stage = 1; c.prog = 0;
+      this.sim.emit({ t: 'contract', phase: 'armed', type: c.type, id: c.id, x: c.x, z: c.z, by: operator.id, byName: operator.name });
+    } else {
+      this._reward(operator, c);
+      this._end(c, 'done', operator);
+    }
+  }
+
   _bounty(c, dt) {
     void dt;
     const f = this.sim.fighters[c.who];
@@ -92,10 +116,14 @@ export class Contracts {
   }
 
   _reward(f, c) {
-    f.hp = Math.min(f.maxHp, f.hp + (c.type === 'bounty' ? 50 : c.type === 'airdrop' ? 60 : f.maxHp));
+    const heal = c.type === 'bounty' ? 50 : c.type === 'airdrop' ? 60 : c.type === 'uplink' ? 35 : f.maxHp;
+    f.hp = Math.min(f.maxHp, f.hp + heal);
     if (c.type !== 'bounty') {
-      if (this.sim.opts.loot) { if (c.type === 'airdrop') this.sim.loot.dropCrate(c.x, c.z, this.sim.rng); else f.nades = Math.min(4, f.nades + 1); }      // loot match: an airdrop spills the good stuff on the ground
-      else {
+      if (this.sim.opts.loot) {
+        if (c.type === 'airdrop') this.sim.loot.dropCrate(c.x, c.z, this.sim.rng);
+        else if (c.type === 'uplink') f.meds = Math.min(4, f.meds + 1);
+        else f.nades = Math.min(4, f.nades + 1);
+      } else {
         for (const k of SLOT_ORDER) f.weapons[k].reserve = Math.max(f.weapons[k].reserve, WEAPONS[k].reserve);
         f.nades = Math.min(4, f.nades + (c.type === 'airdrop' ? 2 : 1));
       }
@@ -120,8 +148,8 @@ export class Contracts {
   }
 
   /* ---------- wire format ---------- */
-  pack() { return this.list.filter((c) => c.state !== 'done').map((c) => [c.id, CONTRACT_TYPES.indexOf(c.type), r2(c.x), r2(c.z), ['active', 'falling', 'landed'].indexOf(c.state), r2(c.prog), c.who, r2(c.age)]); }
+  pack() { return this.list.filter((c) => c.state !== 'done').map((c) => [c.id, CONTRACT_TYPES.indexOf(c.type), r2(c.x), r2(c.z), ['active', 'falling', 'landed'].indexOf(c.state), r2(c.prog), c.who, r2(c.age), c.stage ?? 0]); }
   static unpack(a) {
-    return a.map(([id, t, x, z, st, prog, who, age]) => ({ id, type: CONTRACT_TYPES[t], x, z, r: t === 1 ? HP_R : OPEN_R, state: ['active', 'falling', 'landed'][st] ?? 'active', prog, who, age }));
+    return a.map(([id, t, x, z, st, prog, who, age, stage = 0]) => ({ id, type: CONTRACT_TYPES[t], x, z, r: t === 1 ? HP_R : t === 3 ? UPLINK_R : OPEN_R, state: ['active', 'falling', 'landed'][st] ?? 'active', prog, who, age, stage }));
   }
 }
