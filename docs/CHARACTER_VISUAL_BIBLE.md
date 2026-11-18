@@ -1,6 +1,6 @@
 # NIGHTHAWK — Character Visual Bible
 
-Status: realistic African special operations direction selected. Character likeness references received for Roms, Cleiseis, Shadow, Rampol and Maetja. All roles and personalities below remain proposals pending approval.
+Status: owner-approved direction — realistic, modern, fictional African special operations unit; first- and third-person play. Character likeness references received for Roms, Cleiseis, Shadow, Rampol and Maetja. Proposed roles/personality concepts remain unapproved.
 Branch: `art/character-visual-foundation`
 
 ## Approved overall visual direction
@@ -110,3 +110,32 @@ These role ideas should be reviewed with the owner before ability design, voice 
 ## Next approval gate
 
 Approve or revise each proposed personality and role. Then approve face likeness, body silhouette, uniform, gear and colour before detailed modelling.
+
+## Owner-approved franchise direction (2026-11-18)
+
+- Faction identity: entirely fictional African special operations unit. Do not call the unit NDF or imply affiliation with a real defence force.
+- Equipment: modern, credible, modular tactical equipment. Keep it practical and regionally grounded; avoid sci-fi armour.
+- Visual target: realistic proportions, likeness-preserving faces, PBR skin/fabric/nylon/metal/rubber, detailed but readable gear, cinematic lighting.
+- Camera modes: both first-person and third-person are part of the intended game. This is a design requirement, not a claim that both modes are implemented today.
+- Environment: fictional Southern African-inspired dryland, semi-urban, industrial and remote outpost locations. No real military insignia or copied real-world unit branding.
+
+## Provisional operator identity concepts
+
+These are creative proposals to give each operator a gameplay purpose. The owner has approved distinct personalities and combat roles as a design goal, but has not yet approved the specific assignments below. Do not change `data/operators.json`, gameplay abilities, balance or lore until reviewed.
+
+| Operator | Personality direction (proposal) | Combat role (proposal) | Visual silhouette direction (proposal) |
+|---|---|---|---|
+| Roms | Calm, dependable, adaptable | Heavy support / suppressive fire | Broad utility carrier, ammo pouches, sturdy gloves; retain short hair and facial-hair cues; sunglasses optional |
+| Cleiseis | Precise, composed, observant | Recon / close-quarters specialist | Lean modular rig, compact pack, low-profile kit; preserve short hair and face proportions |
+| Shadow | Quiet, patient, watchful | Infiltration / reconnaissance | Low-profile dark/earth-tone kit, reduced snag points, light pack; retain beard and facial likeness |
+| Rampol | Practical, energetic, mechanically minded | Combat engineer / breacher | Workwear-inspired reinforced trousers, tool/utility pouches, gloves; respirator is optional kit, not fixed identity |
+| Maetja | Warm, confident, quick-thinking | Signals / electronic support | Radio/comms pack, antenna and tablet/field terminal; preserve beard and facial features |
+| Douglas | Awaiting owner direction | Awaiting owner direction | Awaiting reference |
+| Cliffhanger | Awaiting owner direction | Awaiting owner direction | Awaiting reference |
+| Navy Blue | Awaiting owner direction | Awaiting owner direction | Awaiting reference |
+
+## Existing lore/data conflict to resolve
+
+The current `data/operators.json` calls the roster “NDF operators” and contains Namibian Defence Force references in individual backstories. This conflicts with the newly approved fictional faction identity. The data file is deliberately NOT changed in this art-only branch. Before those profiles become canon, rewrite faction references and review every role, ability, weapon, stat and backstory with the owner. Preserve the original character names.
+
+The current `docs/GAME_DESIGN.md` and `README.md` still describe low-poly visuals and first-person-only play. The art branch updates the design brief, but rendering/gameplay implementation remains a separate milestone.
