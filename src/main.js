@@ -20,6 +20,7 @@ import { tickSkins, skinReact, SKIN_INFO } from './render/skins.js';
 import { audio } from './fx/audio.js';
 import { Hud } from './ui/hud.js';
 import { Atmosphere } from './render/atmosphere.js';
+import { VehiclesView } from './render/vehicles-view.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings } from './settings.js';
 
@@ -50,7 +51,7 @@ addEventListener('resize', resize); resize();
 
 /** everything that belongs to ONE match (recreated by PLAY AGAIN) */
 let G = null;
-const cmd = { yaw: 0, pitch: 0, forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false, mortar: false };
+const cmd = { yaw: 0, pitch: 0, forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false, mortar: false, use: false };
 let hud = null;
 let paused = false, started = false;
 const tmp = new THREE.Vector3();
@@ -63,22 +64,22 @@ function disposeScene(scene) {
 }
 
 async function newMatch(online = null) {
-  if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
+  if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms', skin: SKIN, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined });
+  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: params.get('op') ?? 'roms', skin: SKIN, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}) });      // ?vehicles=0 turns buggies/bikes off
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
   particles.onBloodLand = (x, z) => { if (settings.gore) decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4); };
-  const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim);
+  const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim), vview = new VehiclesView(scene, sim);
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
   const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
   const views = new Map();
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
   const p = sim.player;
   viewmodel.setSkin(p.skin);
-  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, atmo, cview, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
+  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.slot = 0;
+  G = { sim, net: online, scene, world, atmo, cview, vview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
@@ -156,7 +157,7 @@ function handleEvents() {
       case 'kill': {
         const t = sim.fighters[e.target], you = e.by === p.id, me = e.target === p.id;
         if (you) skinReact(0.7);
-        const wName = WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.w === 'barrel' ? 'BARREL' : e.cause === 'zone' ? 'THE ZONE' : 'FALL');
+        const wName = e.cause === 'vehicle' ? 'ROADKILL' : e.cause === 'crash' ? 'CRASH' : (WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.w === 'barrel' ? 'BARREL' : e.w === 'mortar' ? 'MORTAR' : e.w === 'vehicle' ? 'WRECK' : e.cause === 'zone' ? 'THE ZONE' : 'FALL'));
         hud.addFeed(e.byName === 'The zone' ? `<b>THE ZONE</b> ✕ ${e.name}` : `<b>${e.byName}</b> [${wName}${e.head ? ' ✦' : ''}] ${e.name}`, you || me);
         blood(e.x, e.y + 0.3, e.z, e.dx, e.dy + 0.2, e.dz, 24, 1.3);
         if (settings.gore) G.decals.stain(e.x, 0.02, e.z, 0, 1, 0, 1.1);
@@ -198,6 +199,12 @@ function handleEvents() {
         break;
       }
       case 'mortarFail': if (e.by === p.id) hud.message('TOO CLOSE TO YOURSELF', '#ff4d4d', 1.2); break;
+      case 'vehicle': {
+        if (e.phase === 'enter' && e.by === p.id) { hud.message(`${e.kind === 'bike' ? 'BIKE' : 'BUGGY'} - ${e.seat === 0 ? 'DRIVER' : 'PASSENGER'}`, '#5fd6ff', 1.6); audio.play('switch', { vol: 1 }); }
+        else if (e.phase === 'enter') audio.play('switch', { x: sim.fighters[e.by]?.x ?? p.x, z: sim.fighters[e.by]?.z ?? p.z, maxD: 40, vol: 0.7 });
+        else if (e.phase === 'crash') { particles.sparks(e.x, 0.7, e.z, 0, 1, 0, 10); particles.dust(e.x, 0.5, e.z, 0, 1, 0, 6); audio.play('crash', { x: e.x, z: e.z, maxD: 100, vol: 0.9 }); if (Math.hypot(e.x - p.x, e.z - p.z) < 14) camfx.add(clamp(e.imp / 30, 0.15, 0.7)); }
+        break;
+      }
       case 'shell': G.cview.shell(e.x, e.z, e.eta ?? 1); audio.play('whistle', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); break;
       case 'explosion': {
         particles.explosion(e.x, e.y, e.z, e.r);
@@ -247,10 +254,15 @@ function handleInput(dt) {
   const look = input.readLook(dt, sens);
   G.lookYaw = look.yaw; G.lookPitch = look.pitch;
   cmd.yaw += look.yaw; cmd.pitch = clamp(cmd.pitch + look.pitch, -1.5, 1.5);
+  if (p.veh && p.seat === 0) {                         // driving: the camera swings back behind the vehicle unless you are looking around with the mouse
+    if (Math.abs(look.yaw) + Math.abs(look.pitch) > 0.0004) G.freeLookT = 1.1; else G.freeLookT = Math.max(0, G.freeLookT - dt);
+    if (G.freeLookT <= 0) { const dy = Math.atan2(Math.sin(p.veh.yaw - cmd.yaw), Math.cos(p.veh.yaw - cmd.yaw)); cmd.yaw += dy * (1 - Math.exp(-3.2 * dt)); cmd.pitch *= Math.exp(-3 * dt); }
+  }
   Object.assign(cmd, input.readMove());
   cmd.fire = input.fire; cmd.ads = input.ads;
   if (input.wasPressed('KeyR')) cmd.reload = true;
   if (input.wasPressed('KeyG')) cmd.grenade = true;
+  if (input.wasPressed('KeyE')) cmd.use = true;
   if (input.wasPressed('KeyT')) { if (p.mortar > 0) cmd.mortar = true; else hud.message(p.streak % 3 ? `MORTAR NEEDS 3 KILLS IN A ROW (${p.streak % 3}/3)` : 'NO MORTAR STRIKE - 3 KILLS IN A ROW OR A CONTRACT', '#ffffff', 1.4); }
   if (input.wasPressed('KeyF') && G.atmo.light) hud.message(G.atmo.toggleFlashlight() ? 'FLASHLIGHT ON' : 'FLASHLIGHT OFF', '#ffffff', 0.8);
   const slot = input.readSlot(); if (slot) cmd.slot = slot;
@@ -266,10 +278,18 @@ function updateCamera(dt, alpha) {
   const shake = camfx.update(dt);
   if (p.alive) {
     const x = lerp(G.prev.x, G.cur.x, alpha), y = lerp(G.prev.y, G.cur.y, alpha), z = lerp(G.prev.z, G.cur.z, alpha);
-    camera.position.set(x, y + 0.72, z);
-    G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
-    camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
-    const targetFov = lerp(BASE_FOV + (p.sprinting ? 6 : 0), w.adsFov, G.adsK);
+    const driving = !!p.veh && p.seat === 0;
+    if (driving) {                                                  // chase camera behind the vehicle; mouse up/down lifts it
+      const d = p.veh.kind === 'bike' ? 4.4 : 6.2, pe = clamp(cmd.pitch - 0.22, -1.3, 1.2), cp = Math.cos(pe);
+      camera.position.set(x + Math.sin(cmd.yaw) * cp * d, Math.max(0.5, y + 1.25 - Math.sin(pe) * d), z + Math.cos(cmd.yaw) * cp * d);
+      G.roll = lerp(G.roll, 0, 1 - Math.exp(-8 * dt));
+      camera.rotation.set(pe + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
+    } else {
+      camera.position.set(x, y + 0.72, z);
+      G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
+      camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
+    }
+    const targetFov = driving ? BASE_FOV + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(BASE_FOV + (p.sprinting ? 6 : 0), w.adsFov, G.adsK);
     G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
   } else {
     // death cam: slowly orbit the ragdoll
@@ -294,11 +314,11 @@ function frame(now) {
   if (!paused || G.net) {                       // online, the world keeps running when you open the pause menu (you just stand still)
     if (!paused) handleInput(dt); else { input.dx = 0; input.dy = 0; input.endFrame(); }
     G.acc += dt;
-    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, mortar: false, slot: 0 } : cmd;
+    const keys = paused ? { ...cmd, forward: 0, strafe: 0, fire: false, ads: false, jump: false, sprint: false, reload: false, grenade: false, mortar: false, use: false, slot: 0 } : cmd;
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
       sim.step(STEP, keys);
-      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
+      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }
@@ -315,6 +335,7 @@ function frame(now) {
   audio.setListener(camera.position.x, camera.position.z, cmd.yaw);
   const moving = p.speedH > 1.2;
   if (p.alive) {
+    viewmodel.root.visible = !(p.veh && p.seat === 0);          // no gun in your hands while driving
     viewmodel.update(dt, {
       weapon: p.cur, adsTime: w.adsTime, ads: p.ads, sprint: p.sprinting && p.speedH > 3, grounded: p.grounded, speed: p.speedH,
       lookYaw: G.lookYaw || 0, lookPitch: G.lookPitch || 0,
@@ -334,6 +355,13 @@ function frame(now) {
     G.rag.update(dt);
     G.world.update(dt, camera.position.x, camera.position.z);
     G.atmo.update(dt, camera.position); G.cview.update(dt, camera.position.x, camera.position.z, p.id);
+    G.vview.update(dt, p.id, G.particles);
+    {                                                   // engine hum: pitch follows speed, only while somebody is in the nearest vehicle
+      let nearest = null, nd = 40;
+      for (const v of sim.vehicles.list) if (!v.dead && v.driver >= 0) { const d = Math.hypot(v.x - camera.position.x, v.z - camera.position.z); if (d < nd) { nd = d; nearest = v; } }
+      G.engT -= dt;
+      if (nearest && G.engT <= 0) { G.engT = nearest.kind === 'bike' ? 0.16 : 0.2; audio.play('engine', { x: nearest.x, z: nearest.z, maxD: 45, vol: 0.5 + Math.min(0.5, Math.abs(nearest.speed) / 30), rate: 0.7 + Math.abs(nearest.speed) / 25 }); }
+    }
     G.particles.update(dt); G.tracers.update(dt); G.mags.update(dt);
     for (let i = G.later.length - 1; i >= 0; i--) if (now >= G.later[i].at) { const j = G.later.splice(i, 1)[0]; j.fn(); }
   }

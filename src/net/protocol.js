@@ -11,16 +11,16 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
 /* ---------- input: client -> server (one tick of keys, packed into a small array) ---------- */
-export const CF = { jump: 1, sprint: 2, fire: 4, ads: 8, reload: 16, grenade: 32, mortar: 64 };
+export const CF = { jump: 1, sprint: 2, fire: 4, ads: 8, reload: 16, grenade: 32, mortar: 64, use: 128 };
 export function packCmd(c) {
-  const flags = (c.jump ? CF.jump : 0) | (c.sprint ? CF.sprint : 0) | (c.fire ? CF.fire : 0) | (c.ads ? CF.ads : 0) | (c.reload ? CF.reload : 0) | (c.grenade ? CF.grenade : 0) | (c.mortar ? CF.mortar : 0);
+  const flags = (c.jump ? CF.jump : 0) | (c.sprint ? CF.sprint : 0) | (c.fire ? CF.fire : 0) | (c.ads ? CF.ads : 0) | (c.reload ? CF.reload : 0) | (c.grenade ? CF.grenade : 0) | (c.mortar ? CF.mortar : 0) | (c.use ? CF.use : 0);
   return [c.seq, r3(c.yaw), r3(c.pitch), c.forward, c.strafe, flags, c.slot | 0, c.vt | 0];
 }
 export function unpackCmd(a) {
   if (!Array.isArray(a) || a.length < 8) return null;
   const f = a[5] | 0;
   return { seq: a[0], yaw: a[1], pitch: a[2], forward: a[3], strafe: a[4], jump: !!(f & CF.jump), sprint: !!(f & CF.sprint), fire: !!(f & CF.fire),
-    ads: !!(f & CF.ads), reload: !!(f & CF.reload), grenade: !!(f & CF.grenade), mortar: !!(f & CF.mortar), slot: a[6], vt: a[7] };
+    ads: !!(f & CF.ads), reload: !!(f & CF.reload), grenade: !!(f & CF.grenade), mortar: !!(f & CF.mortar), use: !!(f & CF.use), slot: a[6], vt: a[7] };
 }
 
 /* ---------- state: server -> client ---------- */
@@ -60,6 +60,6 @@ export function packSnapshot(sim, events) {
     k: sim.tick, z: packZone(sim.zone), f: sim.fighters.map(packFighter),
     g: sim.grenades.map((g) => { const t = g.body.translation(); return [r2(t.x), r2(t.y), r2(t.z)]; }),
     e: events.map(packEvent), o: sim.state === 'playing' ? 0 : 1,
-    pd: sim.destroyed, ct: sim.contracts.pack(),
+    pd: sim.destroyed, ct: sim.contracts.pack(), vh: sim.vehicles.pack(),
   };
 }

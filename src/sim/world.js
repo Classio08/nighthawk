@@ -10,6 +10,7 @@ import { buildMap, pickSpawns, findFreeSpot, insideAnyBox } from './map.js';
 import { Squad } from './squad.js';
 import { pickPersonality } from './personality.js';
 import { Contracts } from './contracts.js';
+import { VehicleSystem } from './vehicles.js';
 import { pickWeather } from './weather.js';
 import { Zone } from './zone.js';
 import { moveVector } from '../input/move.js';
@@ -36,7 +37,7 @@ export class Fighter {
   constructor(id, name, op, human) {
     this.id = id; this.name = name; this.op = op; this.human = human; this.isPlayer = human; this.placement = 0; this.lagTicks = 0; this.rngKey = id; this.shotN = 0; this.squad = null; this.npc = false;
     this.color = op.color; this.maxHp = op.hp; this.hp = op.hp;
-    this.alive = true; this.kills = 0;
+    this.alive = true; this.kills = 0; this.veh = null; this.seat = -1;
     this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.vy = 0; this.grounded = false; this.speedH = 0; this.moveX = 0; this.moveZ = 0;
     this.ads = false; this.sprinting = false;
@@ -54,7 +55,7 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, mt: this.mortar, ks: this.streak, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
@@ -146,6 +147,7 @@ export class Simulation {
     if (this.opts.squads !== false) this._makeSquads(this.fighters.filter((f) => f.brain));
     this._makeGuards(this.opts.guards ?? 4);
     this.zone = new Zone(this.rng);
+    this.vehicles = new VehicleSystem(this);      // buggies + bikes (vehicles.js): needs the world, the map and the props to exist
   }
 
   /** ~60% of the bots fight in radio squads of 2-3 who start next to each other (see squad.js) */
@@ -371,9 +373,10 @@ export class Simulation {
         this.damage(target, dmg, f, { head, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: e.ex, y: e.ey, z: e.ez, cause: 'bullet' });
       } else if (hit) {
         e.hit = 'world'; e.nx = hit.normal.x; e.ny = hit.normal.y; e.nz = hit.normal.z;
-        const prop = this.propByCol.get(hit.collider.handle);
+        const prop = this.propByCol.get(hit.collider.handle), veh = this.vehicles.byCol.get(hit.collider.handle);
         const rb = hit.collider.parent();
         if (rb && rb.isDynamic()) rb.applyImpulseAtPoint({ x: dir.x * 5, y: dir.y * 5, z: dir.z * 5 }, { x: e.ex, y: e.ey, z: e.ez }, true);
+        if (veh) { e.veh = veh.id; this.vehicles.damage(veh, damageAt(w, tHit, false) * (w.pellets > 1 ? 1.2 : 1), f); }     // last: a wreck removes its body
         if (prop) { e.prop = prop.id; this.damageProp(prop, damageAt(w, tHit, false) * (w.pellets > 1 ? 1.4 : 1), f); }     // last: this may remove the body
       }
       this.emit(e);
@@ -462,6 +465,11 @@ export class Simulation {
       const q = c.body.translation(), d = Math.hypot(q.x - x, q.y - y, q.z - z);
       if (d < R) this.damageProp(c, maxDmg * 1.3 * (1 - d / R), owner);
     }
+    for (const v of this.vehicles.list) {                      // vehicles take a beating from blasts (and chain-explode)
+      if (v.dead) continue;
+      const d = Math.hypot(v.x - x, v.z - z);
+      if (d < R + 1.5) this.vehicles.damage(v, maxDmg * 1.15 * (1 - d / (R + 1.5)), owner);
+    }
     for (const b of this.barrels) {
       if (b.dead || b.fuse >= 0) continue;
       const d = Math.hypot(b.x - x, b.y - y, b.z - z);
@@ -517,6 +525,7 @@ export class Simulation {
   }
 
   _kill(target, source, info) {
+    if (target.veh) this.vehicles.leave(target, true);
     target.alive = false; target.hp = 0;
     this.colMap.delete(target.col.handle);
     this.world.removeRigidBody(target.rb);
@@ -588,6 +597,7 @@ export class Simulation {
   stepPlayer(p, cmd, dt) {
     p.yaw = cmd.yaw; p.pitch = clamp(cmd.pitch, -1.5, 1.5);
     p.lagTicks = cmd.vt > 0 ? clamp(this.tick - cmd.vt, 0, MAX_LAG_TICKS) : 0;
+    if (p.veh) { this._stepSeated(p, cmd, dt); return; }
     const w = WEAPONS[p.cur];
     p.sprinting = !!cmd.sprint && cmd.forward > 0 && !cmd.ads;
     p.ads = !!cmd.ads && !p.sprinting && p.reloadT <= 0 && p.switchT <= 0;
@@ -599,8 +609,20 @@ export class Simulation {
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
     if (cmd.mortar) this.callMortarFromView(p);
+    if (cmd.use) this.vehicles.enter(p);                                  // E: get into the nearest vehicle (the server decides, browsers wait for it)
     p.nadeT = Math.max(0, p.nadeT - dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
+  }
+
+  /** a human sitting in a vehicle: the driver steers it (and cannot shoot), the passenger can shoot but not move */
+  _stepSeated(p, cmd, dt) {
+    const v = p.veh;
+    if (cmd.use) { this.vehicles.leave(p); return; }
+    p.sprinting = false; p.ads = !!cmd.ads && p.seat === 1 && p.reloadT <= 0 && p.switchT <= 0;
+    if (p.seat === 0) v.input = { thr: cmd.forward, steer: cmd.strafe, brake: !!cmd.jump, boost: !!cmd.sprint };
+    if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
+    p.nadeT = Math.max(0, p.nadeT - dt);
+    this.updateWeapon(p, dt, p.seat === 1 && !!cmd.fire && p.switchT <= 0, p.seat === 1 && !!cmd.reload);
   }
 
   /**
@@ -636,6 +658,7 @@ export class Simulation {
       if (f.y < -10) this.damage(f, 9999, null, { cause: 'fall' });
     }
 
+    if (!this.opts.predictor) this.vehicles.update(dt);
     this.world.step();
 
     if (!this.opts.predictor) { this._stepBarrels(dt); this._stepStrikes(dt); this.contracts.update(dt); }

@@ -31,13 +31,14 @@ const [A, B] = await Promise.all([
 ]);
 if (process.env.NO_LAGCOMP) { A.viewTick = () => 0; console.log('(lag compensation OFF for A: shots are judged on the CURRENT positions)'); }
 const room = [...MatchRoom.instances][0], sim = room.sim;
+const protect = setInterval(() => { for (const h of sim.humans) if (h.alive) h.hp = h.maxHp; }, 40);   // bots (and now bot-driven buggies) must not kill a tester before the test teleports him
 check('both players got a match, with different fighter ids', A.myId !== B.myId && A.fighters.filter((f) => !f.npc).length === 5, `ids ${A.myId}/${B.myId}, ${A.fighters.length} fighters`);
 check('bots fill the empty slots', A.fighters.filter((f) => !f.human && !f.npc).length === 3);
 check('the guard garrison is replicated and flagged npc', A.fighters.filter((f) => f.npc).length === 4);
 
 // ---- 1. movement: prediction is instant, the server agrees, the other player sees it
 // the spawn is random: walk in the direction that has the most open ground (a wall right in front of A would make "moved > 5 m" a test of the map, not of the netcode)
-const run = (dx, dz) => { const m = sim.fighters[A.myId]; let d = 0; const hit = (x, z) => sim.map.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + 1.5 && Math.abs(z - b.z) < b.d / 2 + 1.5) || sim.crates.some((c) => { const t = c.body.translation(); return Math.abs(x - t.x) < 2.2 && Math.abs(z - t.z) < 2.2; }) || sim.fighters.some((q) => q !== m && Math.hypot(x - q.x, z - q.z) < 1.6);
+const run = (dx, dz) => { const m = sim.fighters[A.myId]; let d = 0; const hit = (x, z) => sim.map.boxes.some((b) => Math.abs(x - b.x) < b.w / 2 + 1.5 && Math.abs(z - b.z) < b.d / 2 + 1.5) || sim.crates.some((c) => { const t = c.body.translation(); return Math.abs(x - t.x) < 2.2 && Math.abs(z - t.z) < 2.2; }) || sim.fighters.some((q) => q !== m && Math.hypot(x - q.x, z - q.z) < 1.6) || sim.vehicles.list.some((v) => Math.hypot(x - v.x, z - v.z) < v.T.r + 2.2) || sim.barrels?.some?.((q) => !q.dead && Math.hypot(x - q.x, z - q.z) < 2);
   while (d < 14 && !hit(m.x + dx * d, m.z + dz * d)) d += 1; return d; };
 const dirs = [{ strafe: 1, forward: 0, r: run(1, 0) }, { strafe: -1, forward: 0, r: run(-1, 0) }, { strafe: 0, forward: 1, r: run(0, -1) }, { strafe: 0, forward: -1, r: run(0, 1) }].sort((p, q) => q.r - p.r);
 const way = dirs[0];
@@ -70,7 +71,7 @@ for (let x = -80; x <= 60 && !L; x += 5) for (let z0 = 90; z0 > -60 && !L; z0 -=
   let ok = true; for (let d = 0; d <= 30 && ok; d++) for (let dx = -2; dx <= 14 && ok; dx += 2) if (hit(x + dx, z0 - d, 2)) ok = false;
   if (ok) L = { x, z0 };
 }
-const tp = (f, x, z) => { f.rb.setTranslation({ x, y: 0.9, z }, true); f.x = x; f.y = 0.9; f.z = z; };
+const tp = (f, x, z) => { if (!f.alive) return; if (f.veh) sim.vehicles.leave(f); f.rb.setTranslation({ x, y: 0.9, z }, true); f.x = x; f.y = 0.9; f.z = z; };
 for (const f of sim.fighters) if (!f.human) { f.brain = null; tp(f, 100, 100); }   // bots out of the way
 sim.zone.radius = 500;
 tp(sim.fighters[A.myId], L.x, L.z0); tp(sim.fighters[B.myId], L.x + 3, L.z0 - 15);
@@ -113,12 +114,36 @@ await sleep(5500); clearInterval(collect2);
 check('mortar call, shells and explosions are replicated to the other player', evs2.some((e) => e.t === 'mortar') && evs2.filter((e) => e.t === 'shell').length >= 5 && evs2.filter((e) => e.t === 'explosion' && e.w === 'mortar').length >= 5, `shell=${evs2.filter((e) => e.t === 'shell').length} boom=${evs2.filter((e) => e.t === 'explosion' && e.w === 'mortar').length}`);
 sim.contracts.list.length = 0;
 
+// ---- 2c. vehicles: A hops into a buggy (E), drives it, B watches it move, A's body follows the vehicle with no rubber-banding, then A gets out
+{
+  const sa = sim.fighters[A.myId], bug = sim.vehicles.list.find((v) => v.kind === 'buggy' && v.driver < 0 && !v.dead);
+  const dir = dirs[0], vx = dir.strafe || 0, vz = dir.forward ? -dir.forward : 0;
+  bug.x = sa.x + vx * 3.2; bug.z = sa.z + vz * 3.2; bug.speed = 0; bug.yaw = Math.atan2(-vx, -vz) || 0; sim.vehicles._sync(bug);
+  let phase = 'wait', useSent = 0;
+  const dA3 = drive(A, () => { if (phase === 'enter' && !useSent) { useSent = 1; return { use: true }; } if (phase === 'drive') return { forward: 1, yaw: bug.yaw }; if (phase === 'exit' && useSent === 1) { useSent = 2; return { use: true }; } return {}; });
+  await sleep(500);
+  phase = 'enter'; await sleep(900);
+  check('E online: the server seats A in the buggy and A\'s client agrees', sa.veh === bug && sa.seat === 0 && A.seated, `server=${!!sa.veh} client=${A.seated}`);
+  const bx0 = B.vehicles.byId.get(bug.id)?.x ?? 0, bz0 = B.vehicles.byId.get(bug.id)?.z ?? 0;
+  phase = 'drive'; await sleep(1700);
+  const bb = B.vehicles.byId.get(bug.id), moved = Math.hypot(bb.x - bx0, bb.z - bz0);
+  check('B sees the buggy being driven (it moved on his screen)', moved > 4 && Math.abs(bb.x - bug.x) < 6 && Math.abs(bb.z - bug.z) < 6, `moved=${moved.toFixed(1)} srv=${bug.x.toFixed(1)},${bug.z.toFixed(1)} B=${bb.x.toFixed(1)},${bb.z.toFixed(1)}`);
+  const ab = A.vehicles.byId.get(bug.id), gap = Math.hypot(A.me.x - ab.x, A.me.z - ab.z);
+  check('A\'s own body sits in the vehicle as A\'s client draws it (no rubber-band)', gap < 1.6, `gap=${gap.toFixed(2)} speed=${Math.abs(bug.speed).toFixed(1)}`);
+  phase = 'exit'; await sleep(900);
+  check('E again: A is on foot again, server and client agree', !sa.veh && !A.seated, `server=${!!sa.veh} client=${A.seated}`);
+  const px = A.me.x, pz = A.me.z; await sleep(500);
+  check('A\'s prediction is live again after leaving (no stuck state)', Math.hypot(A.me.x - sa.x, A.me.z - sa.z) < 1.2, `err=${Math.hypot(A.me.x - sa.x, A.me.z - sa.z).toFixed(2)} was ${px.toFixed(1)},${pz.toFixed(1)}`);
+  dA3.stop();
+}
+
 // ---- 3. leaving: B closes the tab -> a bot takes over, the match goes on
 dB2.stop(); dA2.stop();
 B.leave(); await sleep(400);
 { const fb = sim.fighters[B.myId]; check('when B leaves, a bot takes his fighter', fb.human === false && !!fb.brain, `alive=${fb.alive} hp=${Math.round(fb.hp)} human=${fb.human} brain=${!!fb.brain} t=${sim.time.toFixed(1)}`); }
 check('the match is still running for A', sim.state === 'playing');
 
+clearInterval(protect);
 A.leave(); await sleep(500);
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll netcode checks passed');
 process.exit(failed ? 1 : 0);

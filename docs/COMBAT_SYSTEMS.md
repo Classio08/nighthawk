@@ -52,8 +52,9 @@ Priority each tick: **zone** (outside the circle -> run in) > **cover** (hurt ba
 Ragdolls never touch gameplay, so they can never desync a multiplayer match.
 
 ## Tests
-- `npm test` - 25 tests: movement maths, weapons, map, zone, springs, ragdoll stability, line of sight, headshots, zone damage, grenades, hearing, 16-fighter battle, **determinism** (same seed + inputs = same match).
+- `npm test` - 75 tests (Utility AI, reloads, props, contracts, mortar, weather and vehicles on top of): movement maths, weapons, map, zone, springs, ragdoll stability, line of sight, headshots, zone damage, grenades, hearing, 16-fighter battle, **determinism** (same seed + inputs = same match).
 - `node scripts/e2e.mjs` - plays the real game in headless Chrome (22 checks). Needs `puppeteer-core`, a build and `vite preview`.
+- More browser checks in `scripts/`: `e2e-online.mjs` (two real browsers + real server), `e2e-props.mjs`, `e2e-reload-skins.mjs`, `e2e-stage6.mjs` (weather, contracts, mortar), `e2e-vehicles.mjs` (enter, drive, bike, wreck).
 
 ## Licence verdicts on the repos the other AI suggested (checked 18 Nov 2026)
 | Repo | Licence | What we do |
@@ -63,3 +64,6 @@ Ragdolls never touch gameplay, so they can never desync a multiplayer match.
 | threejs-rapier | no LICENSE file (package.json says MIT), 752 MB | Not used |
 | gear | no licence | Not used |
 | survev, Suroi | GPL | Study only - copying would force us to open-source the whole game |
+
+## Newer systems
+Contracts, mortar, weather, destructible props and vehicles are described (with their tuning numbers) in `MASTER_SYSTEMS.md`.

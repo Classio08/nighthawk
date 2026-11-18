@@ -28,7 +28,7 @@ class RemoteFighter {
   get eyeY() { return this.y + 0.72; }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -51,7 +51,7 @@ export class NetSim {
     this.ready = false; this.inbox = []; this.onLobby = null; this.onOver = null; this.onClose = null;
     this.seq = 0; this.pending = []; this.outbox = []; this.err = { x: 0, y: 0, z: 0 };
     this.snaps = []; this.clockOff = null; this.evq = [];
-    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.humans = []; this.nDestroyed = 0; this.contracts = { list: [] }; this.strikes = [];
+    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.humans = []; this.nDestroyed = 0; this.contracts = { list: [] }; this.strikes = []; this.vehicles = { list: [], byId: new Map() }; this.seated = false;
     this.time = 0; this.tick = 0; this.state = 'playing'; this.result = null; this.rtt = 0; this.stats = { snaps: 0, corrections: 0, maxErr: 0, lastErr: 0 };
     this._wait = new Promise((res, rej) => { this._resolve = res; this._reject = rej; });
     this._ping = null;
@@ -78,8 +78,8 @@ export class NetSim {
     this.welcome = w; this.myId = w.id;
     // the predictor: SAME seed and map => identical walls and crates, but only my fighter, no bots and no zone damage
     const me = w.roster[w.id];
-    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true, weather: w.weather });
-    this.weather = this.predictor.weather;
+    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true, weather: w.weather, ...(w.vehicles === false ? { vehicles: false } : {}) });
+    this.weather = this.predictor.weather; this.vehicles = this.predictor.vehicles;      // same vehicles as the server (same seed); their state comes from snapshots
     const pl = this.predictor.player; pl.rngKey = w.id; pl.yaw = w.self.yaw;
     pl.importSelf(w.self); this.predictor.world.propagateModifiedBodyPositionsToColliders();
     this.map = this.predictor.map; this.crates = this.predictor.crates; this.barrels = this.predictor.barrels;
@@ -103,11 +103,20 @@ export class NetSim {
     const c = { ...cmd, seq: ++this.seq, vt: this.viewTick() };
     this.pending.push(c); if (this.pending.length > 240) this.pending.shift();
     this.outbox.push(c);
-    if (this.me.alive) {
+    if (this.me.alive && this.seated) this._stepSeated(c);           // sitting in a vehicle: the server drives, I just look around and follow it
+    else if (this.me.alive) {
       this.predictor.step(dt, c);
       for (const e of this.predictor.drainEvents()) if (OWN_EVENTS.has(e.t)) this.evq.push({ ...e, by: this.myId });
     }
     this.time += dt;
+  }
+
+  /** in a vehicle my movement is the vehicle's: no prediction, my body follows the (smoothed) vehicle state from the snapshots */
+  _stepSeated(c) {
+    const pl = this.predictor.player, v = pl.veh; if (!v) return;
+    pl.yaw = c.yaw; pl.pitch = Math.max(-1.5, Math.min(1.5, c.pitch));
+    const p = this.predictor.vehicles._seatPos(v, pl.seat); pl.x = p.x; pl.y = 0.95; pl.z = p.z; pl.speedH = Math.abs(v.speed);
+    this.err.x = this.err.y = this.err.z = 0;
   }
 
   /** once per rendered frame: send inputs, blend remote players, fade the correction error */
@@ -141,10 +150,11 @@ export class NetSim {
     this.grenades = s.g.map((g) => ({ body: { translation: () => ({ x: g[0], y: g[1], z: g[2] }) } }));
     // broken crates / exploded barrels: apply to my copy of the world so my own movement collides with the same things the server has
     if (s.pd && s.pd.length !== this.nDestroyed) { this.predictor.syncDestroyed(s.pd); this.predictor.world.propagateModifiedBodyPositionsToColliders(); this.nDestroyed = s.pd.length; }
+    if (s.vh) this.predictor.vehicles.applyState(s.vh, true);      // vehicle poses (their colliders move too, so my predicted walking bumps into the same things)
     if (s.ct) this.contracts.list = Contracts.unpack(s.ct);      // airdrops / hardpoints / bounty for the HUD and the 3D markers
     // events: skip what I already showed myself
     for (const e of s.e) {
-      if (OWN_EVENTS.has(e.t) && e.by === this.myId) continue;
+      if (OWN_EVENTS.has(e.t) && e.by === this.myId && !this.seated) continue;      // (in a vehicle nothing is predicted, so the server's copy is the only one)
       if (e.t === 'end' && e.to === this.myId) { this.state = e.won ? 'won' : 'lost'; this.result = e; }
       if (e.t === 'over') this.state = this.state === 'playing' ? 'over' : this.state;
       this.evq.push(e);
@@ -158,6 +168,8 @@ export class NetSim {
     const shownX = pl.x + this.err.x, shownY = pl.y + this.err.y, shownZ = pl.z + this.err.z;
     while (this.pending.length && this.pending[0].seq <= ack) this.pending.shift();
     pl.importSelf(me); this.predictor.world.propagateModifiedBodyPositionsToColliders();
+    pl.veh = me.sv >= 0 ? this.predictor.vehicles.byId.get(me.sv) ?? null : null; pl.seat = me.ss ?? -1; this.seated = !!pl.veh;
+    if (this.seated) { this._stepSeated({ yaw: pl.yaw, pitch: pl.pitch }); return; }
     if (this.me.alive) { for (const c of this.pending) this.predictor.step(STEP, c); this.predictor.drainEvents(); }   // replay: effects were already shown the first time
     const ex = shownX - pl.x, ey = shownY - pl.y, ez = shownZ - pl.z, d = Math.hypot(ex, ey, ez);
     this.stats.lastErr = d; this.stats.maxErr = Math.max(this.stats.maxErr, d);

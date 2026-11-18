@@ -29,7 +29,7 @@ for (const skin of ['gold', 'damascus', 'magma', 'carbon', 'reactive']) {
 check('all five skin shaders compiled without a single console error', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 // reloads
-const page = await open('?autostart&bots=1&seed=4&skin=magma');
+const page = await open('?autostart&bots=1&seed=4&skin=magma&vehicles=0');
 await wait(1200);
 const res = await page.evaluate(async () => {
   const n = window.__nh, p = n.sim.player, st = p.weapons[p.cur];
@@ -45,7 +45,7 @@ const res = await page.evaluate(async () => {
   st.ammo = 0; n.cmd.reload = true; await w(300);
   out.empty = { reloadEmpty: p.reloadEmpty, tot: p.reloadTot, busy: p.reloadT > 0 };
   await w(p.reloadTot * 1000 + 500);
-  out.afterEmpty = { ammo: st.ammo, mags: active() - mid };
+  out.afterEmpty = { ammo: st.ammo, mags: n.G.mags.items.filter((i) => i.on && i.age < p.reloadTot + 1).length };   // young mags only: the ones from the tactical reload may already have timed out, which made this a timing test
   return out;
 });
 console.log(JSON.stringify(res));

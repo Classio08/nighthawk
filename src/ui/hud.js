@@ -11,7 +11,7 @@ export class Hud {
       alive: $('alive'), kills: $('kills'), zone: $('zone'), fps: $('fpsn'), ping: $('pingn'), feed: $('feed'), slots: $('slots'), msg: $('msg'),
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
-      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'),
+      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'),
     };
     this.mctx = this.el.mini.getContext('2d');
     this.hurt = 0; this.hitT = 0; this.msgT = 0; this.flashV = 0; this.pings = [];
@@ -90,7 +90,24 @@ export class Hud {
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { e.fps.textContent = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; e.ping.textContent = sim.rtt !== undefined ? ` · ${Math.round(sim.rtt)} ms` : ''; }
     this.drawContracts(sim, p);
+    this.drawVehicle(sim, p);
     this.drawMini(dt, sim, p);
+  }
+
+  /** speed + health while driving, or the "press E" prompt when a free vehicle is close */
+  drawVehicle(sim, p) {
+    const vs = sim.vehicles; let html = '';
+    if (p.alive && vs?.list.length) {
+      if (p.veh) {
+        const v = p.veh, kmh = Math.round(Math.abs(v.speed) * 3.6), hp = Math.max(0, Math.round((v.hp / v.maxHp) * 100));
+        html = `<b>${v.T.label}</b> &nbsp; ${kmh} km/h &nbsp; <span style="color:${hp > 50 ? '#5be37a' : hp > 25 ? '#ffcf4d' : '#ff4d4d'}">HULL ${hp}%</span><br><small>${p.seat === 0 ? 'W/S gas &middot; A/D steer &middot; Space brake &middot; Shift boost' : 'PASSENGER: shoot from the seat'} &middot; E exit</small>`;
+      } else {
+        let best = null, bd = 4.2;
+        for (const v of vs.list) { if (v.dead || (v.driver >= 0 && (v.T.seats < 2 || v.pass >= 0))) continue; const d = Math.hypot(v.x - p.x, v.z - p.z) - v.T.r; if (d < bd) { bd = d; best = v; } }
+        if (best) html = `E &nbsp;ENTER ${best.T.label}${best.driver >= 0 ? ' (PASSENGER)' : ''}`;
+      }
+    }
+    if (html !== this.vehHtml) { this.vehHtml = html; this.el.veh.innerHTML = html; this.el.veh.style.display = html ? 'block' : 'none'; }
   }
 
   /** the little list under the zone timer: what is on the map, how far, how far along */
@@ -116,6 +133,10 @@ export class Hud {
     g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
     g.lineWidth = 1.5; g.strokeStyle = '#fff'; g.beginPath(); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283); g.stroke();
     if (!z.done && z.nextR < z.radius - 0.5) { g.strokeStyle = '#4aa3ff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(S / 2 + z.nextX * k, S / 2 + z.nextZ * k, z.nextR * k, 0, 6.283); g.stroke(); g.setLineDash([]); }
+    for (const v of sim.vehicles?.list ?? []) {              // vehicles on the map
+      if (v.dead) continue; const x = S / 2 + v.x * k, y = S / 2 + v.z * k;
+      g.fillStyle = v.driver >= 0 ? '#ff8a4d' : '#5fd6ff'; g.fillRect(x - 2, y - 2, 4, 4);
+    }
     for (const c of sim.contracts?.list ?? []) {            // contracts on the map
       const x = S / 2 + c.x * k, y = S / 2 + c.z * k;
       if (c.type === 'hardpoint') { g.strokeStyle = '#5be37a'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, c.r * k + 1, 0, 6.283); g.stroke(); }
@@ -138,5 +159,5 @@ export class Hud {
     $('end').classList.add('show');
   }
   hideEnd() { $('end').classList.remove('show'); }
-  reset() { this.el.feed.innerHTML = ''; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; }
+  reset() { this.el.feed.innerHTML = ''; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
 }

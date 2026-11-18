@@ -11,6 +11,7 @@ import { PERSONALITIES } from './personality.js';
 const BASE_SPEED = 7;
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const wrapAngle = (a) => { a %= Math.PI * 2; if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2; return a; };
 const wrap = (a) => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
 
 export class BotBrain {
@@ -185,6 +186,16 @@ export class BotBrain {
     if (ct) S.contract = 0.3 + 0.5 * p.greed + (ct.type === 'airdrop' && ct.state === 'landed' ? 0.12 : 0) - (tgt ? 0.3 : 0);
     const bounty = sim.contracts.of('bounty');
     if (bounty && bounty.who !== f.id && !p.guard && p.aggr >= 0.7 && Math.hypot(bounty.x - f.x, bounty.z - f.z) < 85) { this.lastSeen = { x: bounty.x, z: bounty.z }; this.lastSeenT = 0.6; S.hunt = Math.max(S.hunt ?? 0, 0.3 + 0.45 * p.aggr); }
+    // vehicles: far from the next circle (or just a thief at heart) => walk to the closest free buggy / bike and drive it
+    this.stealVeh = null;
+    if (!p.guard && !f.veh && this.noVehT <= 0 && sim.vehicles.list.length) {
+      const sv = sim.vehicles.nearest(f, 55, true);
+      if (sv) {
+        const far = Math.hypot(f.x - z.nextX, f.z - z.nextZ) > Math.max(40, z.nextR + 25);
+        this.stealVeh = sv;
+        S.steal = clamp(0.18 + 0.5 * p.drive + (far ? 0.3 : 0) + (outNow > 0 || relocating ? 0.25 : 0) - (tgt ? 0.35 : 0), 0, 0.95);
+      }
+    }
     if (S[this.state] !== undefined) S[this.state] += 0.1;       // stickiness: do not flip-flop
     this.scores = S;
     let best = 'roam', bv = -1;
@@ -192,11 +203,42 @@ export class BotBrain {
     return best;
   }
 
+  /** the bot is the DRIVER of f.veh: steer towards the next safe circle (or run an enemy over), dodge walls, back out when stuck, get out at the goal */
+  _drive(dt) {
+    const { sim, f } = this, v = f.veh, z = sim.zone, vs = sim.vehicles;
+    f.sprinting = false; f.ads = false; f.yaw = v.yaw; f.pitch = 0;
+    sim.updateWeapon(f, dt, false, false);
+    this.driveT = (this.driveT ?? 0) + dt;
+    const leave = (cool) => { vs.leave(f); this.noVehT = cool; this.driveT = 0; };
+    if (f.seat !== 0) { if (this.driveT > 4) leave(15); return; }
+    const tgt = this.visible ? this.target : null;
+    let gx = z.nextX, gz = z.nextZ, chase = false;
+    if (tgt && tgt.alive && this.p.aggr > 0.6 && Math.hypot(tgt.x - v.x, tgt.z - v.z) < 70) { gx = tgt.x; gz = tgt.z; chase = true; }
+    const dGoal = Math.hypot(gx - v.x, gz - v.z);
+    if ((!chase && dGoal < Math.max(16, z.nextR * 0.45)) || v.hp < v.maxHp * 0.22 || this.driveT > 70 || (this.stuckCount ?? 0) >= 3) { leave(30); return; }
+    const probe = (yaw, d) => insideAnyBox(sim.map, v.x - Math.sin(yaw) * d, v.z - Math.cos(yaw) * d, v.T.r + 0.7);
+    const blocked = (yaw) => probe(yaw, 5) || probe(yaw, 10) || probe(yaw, 15);
+    const ang = Math.atan2(-(gx - v.x), -(gz - v.z)), diff = wrapAngle(ang - v.yaw);
+    let want = ang;
+    if (blocked(v.yaw + clamp(diff, -0.3, 0.3))) {                                  // wall ahead: take whichever side is open
+      const L = !blocked(v.yaw + 0.8), R = !blocked(v.yaw - 0.8);
+      want = L && (!R || diff >= 0) ? v.yaw + 0.8 : R ? v.yaw - 0.8 : v.yaw + 1.6;
+    }
+    const d2 = wrapAngle(want - v.yaw);
+    let steer = clamp(-d2 * 2.2, -1, 1), thr = Math.abs(d2) > 1.6 ? 0.5 : Math.abs(d2) > 0.8 ? 0.7 : 1;
+    if (Math.abs(v.speed) < 1.3 && !(this.reverseT > 0)) this.stuckT = (this.stuckT ?? 0) + dt; else if (Math.abs(v.speed) >= 1.3) this.stuckT = 0;
+    if (this.stuckT > 1) { this.reverseT = 1.2; this.revSteer = sim.rng() < 0.5 ? -1 : 1; this.stuckT = 0; this.stuckCount = (this.stuckCount ?? 0) + 1; }
+    if (this.reverseT > 0) { this.reverseT -= dt; thr = -1; steer = this.revSteer; }
+    v.input = { thr, steer, brake: false, boost: dGoal > 60 && !(this.reverseT > 0) };
+  }
+
   /* ----- main update (called once per fixed step) ----- */
 
   update(dt) {
     const { sim, f } = this;
     const zone = sim.zone;
+    this.noVehT = Math.max(0, (this.noVehT ?? 0) - dt);
+    if (f.veh) { this._drive(dt); return; }                       // sitting in a vehicle: a different kind of thinking
     this.hurtT += dt; this.lastSeenT += dt; this.heardT += dt;
     this.coverT = Math.max(0, this.coverT - dt); this.coverCool = Math.max(0, this.coverCool - dt);
     this.jumpCool = Math.max(0, this.jumpCool - dt); this.nadeCool = Math.max(0, this.nadeCool - dt);
@@ -272,6 +314,16 @@ export class BotBrain {
       case 'investigate': {
         gx = this.heard.x; gz = this.heard.z;
         if (Math.hypot(gx - f.x, gz - f.z) < 4) { this.heard = null; move = false; }
+        break;
+      }
+      case 'steal': {
+        const sv = this.stealVeh;
+        if (!sv || sv.driver >= 0 || sv.dead) { this.noVehT = 4; break; }
+        gx = sv.x; gz = sv.z; sprint = true;
+        if (Math.hypot(sv.x - f.x, sv.z - f.z) - sv.T.r < 2.2) {
+          if (sim.vehicles.enter(f, sv, 0)) { this.driveT = 0; this.stuckT = 0; this.reverseT = 0; this.stuckCount = 0; return; }
+          this.noVehT = 6;
+        }
         break;
       }
       case 'contract': {

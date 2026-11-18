@@ -36,7 +36,7 @@ Browser (three.js)  --keys, 60/s-->  Node server (Colyseus room)  --snapshots, 2
 ## Honest limits (not done yet)
 - **Not load-tested with real players or real internet.** CPU per 16-fighter match: about 0.5 ms per tick on average (p99 about 6 ms), measured in `scripts/bench-sim.mjs`. Network cost is not measured.
 - Snapshots are JSON-style arrays and always list all 16 fighters; no interest management or delta compression yet (fine for 16 players).
-- Grenades are replicated as positions only (they pop up 100-200 ms late for other players' throws); crates/props are static.
+- Grenades are replicated as positions only (they pop up 100-200 ms late for other players' throws). Vehicles are server-driven: the driver's own view follows the server (no prediction), so a driver on a very bad connection will feel steering delay.
 - No reconnection: closing the tab hands your fighter to a bot.
 - No anti-cheat beyond input sanitising and server authority (aimbots are possible).
 - Death = spectate is minimal (death camera, then the result screen).
@@ -58,3 +58,10 @@ See `DEPLOY.md` for the step-by-step. Latency reality: a Johannesburg server giv
 | Input buffer on the server | waits for 2 inputs, skips ahead if more than 6 are queued, repeats the last input for at most 3 ticks if one is late |
 | Max lag-comp rewind | 30 ticks (500 ms) |
 | Players per match | 16 (humans + bots) |
+
+## Vehicles over the network (Stage 7)
+- The server drives the vehicles. Snapshots carry them as `vh` (id, kind, x, z, yaw, speed, hp, driver, passenger, dead, steering).
+- Every client has the same vehicles (same seed) inside its predictor. Their poses come from the snapshots; their colliders move with them, so your predicted walking bumps into the same things the server sees.
+- While you are seated your client does **not** predict: it skips the predictor step, your body follows the smoothed vehicle, and your own shot/reload events come from the server (they are normally skipped because they were predicted).
+- `E` is a one-shot command flag (`use`, bit 128 in the packed command). The server decides who gets which seat.
+- `VEHICLES=0` on the server (or `createServer({ vehicles: false })`) turns them off; the `welcome` message tells clients so their predictor matches.
