@@ -9,6 +9,7 @@ NIGHTHAWK is moving toward realistic, Southern African-inspired environments and
 See:
 - `docs/PHOTO_TO_TEXTURE_WORKFLOW.md` — how to turn real surface photos into PBR textures.
 - `docs/REALISTIC_ASSET_SPEC.md` — model, texture, rig and browser-performance targets.
+- `docs/WEB_3D_ART_RESEARCH.md` — Three.js/glTF/KTX2/mesh compression research and recommendations.
 - `docs/CHARACTER_VISUAL_BIBLE.md` — operator identity and likeness references.
 - `docs/WORLD_AND_FACTION_BIBLE.md` — fictional world and environment art direction.
 
