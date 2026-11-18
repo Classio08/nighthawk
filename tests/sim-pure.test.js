@@ -25,6 +25,17 @@ test('map: deterministic, has buildings, perimeter, and spawns are outside build
   assert.deepEqual(m1.boxes, m2.boxes);
   assert.ok(m1.boxes.filter((b) => b.kind === 'block').length >= 8);
   assert.equal(m1.boxes.filter((b) => b.kind === 'edge').length, 4);
+  assert.deepEqual(m1.landmarks.map((p) => p.id), [
+    'basin-yard', 'dry-river', 'relay-ridge', 'forward-outpost', 'extraction-pad',
+  ]);
+  for (const poi of m1.landmarks) {
+    assert.ok(Math.abs(poi.x) < m1.half && Math.abs(poi.z) < m1.half, `${poi.id} must be inside the arena`);
+  }
+  for (const poi of ['basin-yard', 'relay-ridge', 'forward-outpost', 'extraction-pad']) {
+    assert.ok(m1.boxes.some((b) => b.poi === poi), `${poi} needs gameplay-solid POI geometry`);
+  }
+  assert.ok(m1.boxes.some((b) => b.kind === 'poi-mast'), 'Relay Ridge needs its communications mast');
+  assert.ok(m1.boxes.some((b) => b.kind === 'poi-fence'), 'Extraction Pad needs its perimeter barriers');
   const spawns = pickSpawns(m1, 16, makeRng(3));
   assert.equal(spawns.length, 16);
   for (const s of spawns) assert.ok(!insideAnyBox(m1, s.x, s.z, 1));
