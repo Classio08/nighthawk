@@ -592,6 +592,8 @@ export class Simulation {
     f.switchT = Math.max(0, f.switchT - dt);
     f.bloom = Math.max(0, f.bloom - 0.12 * dt);
     const w = WEAPONS[f.cur], st = f.weapons[f.cur];
+    const recoilDecay = Math.exp(-(w.recoilReturn ?? 7) * dt);
+    f.recoilPitch *= recoilDecay; f.recoilYaw *= recoilDecay;
     if (f.reloadT > 0) {
       f.reloadT -= dt;
       if (f.reloadT <= 0) {
@@ -651,8 +653,11 @@ export class Simulation {
     this.emit({ t: 'explosion', x, y, z, r: R, w, by: owner ? owner.id : -1 });
     for (const c of this.crates) {
       if (c.dead) continue;
-      const q = c.body.translation(), dx = q.x - x, dy = q.y - y, dz = q.z - z, d = Math.hypot(dx, dy, dz) || 1;
-      if (d < R && c.body.isDynamic()) { const k = 16 * (1 - d / R); c.body.applyImpulse({ x: dx / d * k, y: dy / d * k + k * 0.6, z: dz / d * k }, true); }
+      const q = c.body.translation(), dx = q.x - x, dy = q.y - y, dz = q.z - z, d = Math.hypot(dx, dy, dz);
+      if (d < R && c.body.isDynamic()) {
+        const impulse = blastImpulse(d, R, maxDmg * 0.35, dx, dy, dz, c.body.mass(), 0.6);
+        c.body.applyImpulse({ x: impulse.x, y: impulse.y, z: impulse.z }, true);
+      }
     }
     for (const f of this.fighters) {
       if (!f.alive || f === except) continue;
@@ -679,6 +684,7 @@ export class Simulation {
       const d = Math.hypot(b.x - x, b.y - y, b.z - z);
       if (d < R && d > 0.01) { b.hp = 0; b.fuse = 0.1 + (d / R) * 0.35; b.owner = owner; }
     }
+    this.makeNoise({ x, z }, Math.max(24, R * 10)); // NPCs react to the report of an explosion, not just its damage
   }
 
   /* ---------------- mortar killstreak ---------------- */
@@ -718,17 +724,30 @@ export class Simulation {
   }
 
   damage(target, amount, source, info = {}) {
-    if (!target.alive || amount <= 0 || target.air) return;                                        // nobody can hurt you in the plane or under a parachute
-    if (ARMORED.has(info.cause) || info.cause === 'melee') { const T = activeAbility(target); if (T?.takeMul) amount *= T.takeMul; }       // Overclock / Bulwark
+    if (!target.alive || amount <= 0 || target.air) return;
+    if (ARMORED.has(info.cause) || info.cause === 'melee') { const T = activeAbility(target); if (T?.takeMul) amount *= T.takeMul; }
     let soaked = 0;
-    if (target.armor > 0 && !info.head && !info.pierce && ARMORED.has(info.cause)) {           // armor soaks body hits and blasts until it is used up
+    if (target.armor > 0 && !info.head && !info.pierce && ARMORED.has(info.cause)) {
       soaked = Math.min(target.armor, amount * ARMOR_ABSORB); target.armor -= soaked; amount -= soaked;
       if (target.armor < 0.5) { target.armor = 0; target.armorLv = 0; }
     }
-    if (info.cause !== 'zone' && target.healT > 0) { target.healT = 0; this.emit({ t: 'heal', phase: 'cancel', by: target.id }); }      // getting hurt interrupts a medkit
+    if (info.cause !== 'zone' && target.healT > 0) { target.healT = 0; this.emit({ t: 'heal', phase: 'cancel', by: target.id }); }
+
+    // A hit nudges a kinematic character through normal movement on subsequent ticks.
+    const zone = info.zone ?? (info.head ? 'head' : 'torso');
+    if (info.cause === 'bullet' || info.cause === 'explosion' || info.cause === 'melee') {
+      const pushDamage = info.cause === 'explosion' ? amount * 1.55 : amount;
+      const push = hitPushImpulse(pushDamage, { x: info.dx ?? 0, z: info.dz ?? 0 }, zone);
+      target.hitPushX = clamp(target.hitPushX + push.x, -2.2, 2.2);
+      target.hitPushZ = clamp(target.hitPushZ + push.z, -2.2, 2.2);
+      target.hitPushT = Math.max(target.hitPushT, 0.14);
+      if (zone === 'leg' && info.cause === 'bullet') target.limpT = Math.max(target.limpT, 0.42);
+    }
+
     target.hp -= amount; target.noHurtT = 0;
     const killed = target.hp <= 0;
-    this.emit({ t: 'hit', by: source ? source.id : -1, target: target.id, dmg: amount, head: !!info.head, killed, cause: info.cause, arm: soaked > 0 ? Math.round(soaked) : 0,
+    this.emit({ t: 'hit', by: source ? source.id : -1, target: target.id, dmg: amount,
+      head: !!info.head, zone, killed, cause: info.cause, arm: soaked > 0 ? Math.round(soaked) : 0,
       x: info.x ?? target.x, y: info.y ?? target.y, z: info.z ?? target.z, dx: info.dx ?? 0, dy: info.dy ?? 0, dz: info.dz ?? 0,
       sx: source ? source.x : target.x, sz: source ? source.z : target.z });
     if (target.brain) target.brain.onHurt(source);
@@ -786,19 +805,43 @@ export class Simulation {
 
   /** move a fighter by (dx,dz) metres this step with collision; y handled by gravity/jump */
   moveFighter(f, dx, dz, dt, jump = false) {
-    if (f.dashT > 0) { dx = f.dashVx * dt; dz = f.dashVz * dt; jump = false; }                // ability dash: the dash decides where you go
-    else if (f.stunT > 0) { dx *= STUN_MOVE; dz *= STUN_MOVE; jump = false; }                  // EMP: stunned, crawling
-    if (f.grounded && jump) f.vy = JUMP;
+    if (f.dashT > 0) { dx = f.dashVx * dt; dz = f.dashVz * dt; jump = false; }
+    else if (f.stunT > 0) { dx *= STUN_MOVE; dz *= STUN_MOVE; jump = false; }
+
+    // Buffered input + coyote time. Both timers are part of private prediction state.
+    f.jumpBufferT = jump ? JUMP_BUFFER : Math.max(0, f.jumpBufferT - dt);
+    f.coyoteT = f.grounded ? COYOTE_TIME : Math.max(0, f.coyoteT - dt);
+    const wasGrounded = f.grounded;
+    if (f.jumpBufferT > 0 && f.coyoteT > 0 && f.stunT <= 0 && f.dashT <= 0) {
+      f.vy = JUMP; f.grounded = false; f.jumpBufferT = 0; f.coyoteT = 0;
+    }
+
+    // Short, mass-aware hit impulses and a brief leg-hit limp are movement forces, not teleportation.
+    if (f.hitPushT > 0) {
+      dx += f.hitPushX * dt; dz += f.hitPushZ * dt;
+      const drag = Math.exp(-10 * dt);
+      f.hitPushX *= drag; f.hitPushZ *= drag; f.hitPushT = Math.max(0, f.hitPushT - dt);
+    } else { f.hitPushX = 0; f.hitPushZ = 0; }
+    if (f.limpT > 0) { dx *= 0.84; dz *= 0.84; f.limpT = Math.max(0, f.limpT - dt); }
+
     f.vy += GRAV * dt;
     if (f.grounded && f.vy < 0) f.vy = -1;
-    const wasGrounded = f.grounded, vyIn = f.vy;
+    const vyIn = f.vy;
     this.cc.computeColliderMovement(f.col, { x: dx, y: f.vy * dt, z: dz });
     const m = this.cc.computedMovement();
     f.grounded = this.cc.computedGrounded();
-    if (!wasGrounded && f.grounded && vyIn < -FALL_SAFE && !this.opts.predictor && f.alive) {        // a hard landing hurts (server / solo sim only; armor does not help)
-      f.vy = -1; this.damage(f, (-vyIn - FALL_SAFE) * FALL_DMG, null, { cause: 'fall', x: f.x, y: f.y - 0.5, z: f.z });
-      if (!f.alive) return;                                      // the fall killed you: the body is gone, there is nothing left to move
+
+    if (!wasGrounded && f.grounded && !this.opts.predictor && f.alive) {
+      const impact = Math.abs(vyIn);
+      if (impact > 8) this.emit({ t: 'landing', by: f.id, x: f.x, y: f.y, z: f.z, impact, hard: impact >= FALL_SAFE });
+      if (impact > FALL_SAFE) {
+        f.vy = -1;
+        this.damage(f, (impact - FALL_SAFE) * FALL_DMG, null, { cause: 'fall', x: f.x, y: f.y - 0.5, z: f.z });
+        if (!f.alive) return;
+      }
+      f.coyoteT = COYOTE_TIME;
     }
+
     const t = f.rb.translation();
     const nx = t.x + m.x, ny = t.y + m.y, nz = t.z + m.z;
     f.rb.setNextKinematicTranslation({ x: nx, y: ny, z: nz });
