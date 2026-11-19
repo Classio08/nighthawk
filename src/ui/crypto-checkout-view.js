@@ -2,7 +2,7 @@
 // It is deliberately separate from play-money credits: crypto checkout is a direct token transfer for cosmetics only.
 import { ensureGuestSession, getAccount } from '../net/account-session.js';
 import {
-  checkoutCosmetic, fetchCryptoCheckoutConfig, pendingCryptoPayments, retryCryptoConfirmation,
+  checkoutCosmetic, fetchCryptoCheckoutConfig, formatTokenUnits, pendingCryptoPayments, retryCryptoConfirmation,
 } from '../net/crypto-checkout.js';
 
 const el = (tag, text, cls) => {
@@ -36,7 +36,7 @@ export function mountCryptoCheckout(container, serverUrl, {
 
   const action = (label, handler, disabled = false) => {
     const button = el('button', label, 'nh-economy-action');
-    button.type = 'button'; button.disabled = disabled || busy;
+    button.type = 'button'; button.dataset.locked = disabled ? 'true' : 'false'; button.disabled = disabled || busy;
     button.addEventListener('click', async () => {
       if (busy) return;
       busy = true; redrawDisabled();
@@ -92,7 +92,8 @@ export function mountCryptoCheckout(container, serverUrl, {
       const card = el('article', undefined, 'nh-economy-card');
       const owned = account.cosmetics.includes(item.id);
       card.appendChild(el('strong', item.name));
-      card.appendChild(el('p', `${item.tokenUnits} base units · ${item.symbol} · COSMETIC ONLY`));
+      const amount = formatTokenUnits(item.tokenUnits, item.decimals);
+      card.appendChild(el('p', `${amount} ${item.symbol} · COSMETIC ONLY`));
       card.appendChild(el('small', 'Your wallet will show the recipient, token and exact amount before you confirm.'));
       card.appendChild(action(owned ? 'OWNED' : 'PAY WITH WALLET', async () => {
         status.textContent = 'OPENING YOUR WALLET…';
