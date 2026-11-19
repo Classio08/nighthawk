@@ -78,7 +78,7 @@ export class Input {
   }
 
   /** Touch look is converted to the same accumulated pixel deltas used by the mouse. */
-  addTouchLook(dx, dy, scale = 0.62) {
+  addTouchLook(dx, dy, scale = 1.3) {
     if (Number.isFinite(dx)) this.dx += dx * scale;
     if (Number.isFinite(dy)) this.dy += dy * scale;
   }
@@ -95,6 +95,7 @@ export class Input {
   releaseTouch() {
     this.touchMove.forward = 0; this.touchMove.strafe = 0; this.touchMove.sprint = false;
     this.touchActions.clear(); this.touchPressed.clear();
+    this.dx = 0; this.dy = 0;
   }
 
   // look deltas in radians for this frame (mouse + arrow-key backup). `sens` < 1 while aiming down sights.
