@@ -69,7 +69,7 @@ export class BloodPools {
       item.age += Math.min(dt, 0.1);
 
       const torso = item.ragdoll?.parts?.torso;
-      if (item.follow && torso) {
+      if (item.follow && torso && !item.ragdoll.freed) {
         const p = torso.translation();
         item.x = p.x;
         item.z = p.z;
