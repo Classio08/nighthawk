@@ -51,6 +51,8 @@ export function sanitizeConfig(raw) {
 export function liveBlockers(cfg, env = {}, today = '1970-01-01') {
   const b = [], L = cfg.licence;
   if (cfg.mode !== 'live') b.push('compliance.json mode is not "live"');
+  if (cfg.features.earn) b.push('real-value earn is not implemented; keep the earn feature off');
+  if (cfg.features.wager) b.push('real-value wagering is not implemented; keep the wager feature off');
   if (env.NIGHTHAWK_ECONOMY_LIVE !== '1') b.push('server was not started with NIGHTHAWK_ECONOMY_LIVE=1');
   const secret = typeof env.ECONOMY_SECRET === 'string' ? env.ECONOMY_SECRET : '';
   if (!/^(?:[0-9a-f]{2}){32,}$/i.test(secret)) b.push('ECONOMY_SECRET must be a persistent hex secret of at least 32 bytes');
