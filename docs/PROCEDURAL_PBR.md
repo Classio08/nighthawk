@@ -19,7 +19,7 @@ Normal and roughness maps are linear data textures (THREE.NoColorSpace); base-co
 
 - High graphics quality uses MeshStandardMaterial with normal and roughness maps for ground, riverbed and merged static building/container geometry.
 - Low and medium graphics quality retain the existing MeshLambertMaterial path and do not generate the extra PBR maps.
-- The simulation and server packages are untouched. All changes are under src/render/.
+- The simulation and server packages are untouched. Runtime code changes are confined to src/render/; the remaining changes document provenance and the asset-selection workflow.
 - The material maps are generated once during world construction, not every frame.
 - No SSAO, bloom, extra render pass or shadow caster was added; those effects can be expensive on integrated graphics and mobile.
 
