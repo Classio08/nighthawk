@@ -1,13 +1,13 @@
 // Shared physical response curves for the authoritative Rapier simulation.
 // This is a rules module, not a second physics engine. World integration stays in src/sim/world.js.
 export const MATERIALS = Object.freeze({
-  sand: Object.freeze({ density: 1600, friction: 1.2, restitution: 0.02, bullet: 'stop', penetration: 0, ricochet: 0, thickness: 0, impact: 'dust', cover: 0.08, sound: 0.65 }),
-  flesh: Object.freeze({ density: 1050, friction: 0.6, restitution: 0.1, bullet: 'stop', penetration: 0, ricochet: 0, thickness: 0, impact: 'blood', cover: 0, sound: 0.8 }),
-  wood: Object.freeze({ density: 600, friction: 0.7, restitution: 0.3, bullet: 'penetrate', penetration: 0.62, ricochet: 0, thickness: 0.42, impact: 'splinter', cover: 0.2, sound: 0.72 }),
-  glass: Object.freeze({ density: 2500, friction: 0.2, restitution: 0.1, bullet: 'penetrate', penetration: 0.82, ricochet: 0, thickness: 0.08, impact: 'shatter', cover: 0.04, sound: 0.9 }),
+  sand: Object.freeze({ density: 1600, friction: 1.2, restitution: 0.02, bullet: 'stop', penetration: 0, ricochet: 0, thickness: 0, impact: 'dust', cover: 0.08, sound: 0.48 }),
+  flesh: Object.freeze({ density: 1050, friction: 0.6, restitution: 0.1, bullet: 'stop', penetration: 0, ricochet: 0, thickness: 0, impact: 'blood', cover: 0, sound: 0.7 }),
+  wood: Object.freeze({ density: 600, friction: 0.7, restitution: 0.3, bullet: 'penetrate', penetration: 0.62, ricochet: 0, thickness: 0.42, impact: 'splinter', cover: 0.2, sound: 0.358 }),
+  glass: Object.freeze({ density: 2500, friction: 0.2, restitution: 0.1, bullet: 'penetrate', penetration: 0.82, ricochet: 0, thickness: 0.08, impact: 'shatter', cover: 0.04, sound: 0.84 }),
   metal: Object.freeze({ density: 7800, friction: 0.4, restitution: 0.5, bullet: 'ricochet', penetration: 0, ricochet: 0.2, thickness: 0, impact: 'spark', cover: 0.6, sound: 1 }),
-  concrete: Object.freeze({ density: 2400, friction: 0.9, restitution: 0.08, bullet: 'stop', penetration: 0, ricochet: 0.03, thickness: 0, impact: 'dust', cover: 0.8, sound: 0.92 }),
-  rock: Object.freeze({ density: 2700, friction: 0.95, restitution: 0.06, bullet: 'stop', penetration: 0, ricochet: 0.02, thickness: 0, impact: 'dust', cover: 0.82, sound: 0.88 }),
+  concrete: Object.freeze({ density: 2400, friction: 0.9, restitution: 0.08, bullet: 'stop', penetration: 0, ricochet: 0.03, thickness: 0, impact: 'dust', cover: 0.8, sound: 0.24 }),
+  rock: Object.freeze({ density: 2700, friction: 0.95, restitution: 0.06, bullet: 'stop', penetration: 0, ricochet: 0.02, thickness: 0, impact: 'dust', cover: 0.82, sound: 0.18 }),
   water: Object.freeze({ density: 1000, friction: 1.8, restitution: 0, bullet: 'slow', penetration: 0.4, ricochet: 0, thickness: 0, impact: 'splash', cover: 0, sound: 0.5 }),
   armor: Object.freeze({ density: 7800, friction: 0.4, restitution: 0.3, bullet: 'stop', penetration: 0, ricochet: 0.12, thickness: 0, impact: 'spark', cover: 0.9, sound: 1 }),
 });
@@ -103,4 +103,10 @@ export function shrapnelDirection(rng) {
   const ring = Math.sqrt(Math.max(0, 1 - y * y));
   const angle = 2 * Math.PI * v;
   return { x: ring * Math.cos(angle), y, z: ring * Math.sin(angle) };
+}
+
+/** Fraction of a sound wave that passes through one surface (1 = clear, 0 = fully blocked). */
+export function soundTransmission(material) {
+  const value = MATERIALS[material]?.sound;
+  return Number.isFinite(value) ? Math.max(0.05, Math.min(1, value)) : 0.24;
 }
