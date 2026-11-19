@@ -40,7 +40,7 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 
 ## Not yet implemented (do not claim otherwise)
 
-1. Full ballistic projectile travel with flight-time damage and curved trajectories. The current weapon simulation is still hitscan; the new material and recoil rules apply to the shared hitscan resolution. A future projectile system needs bounded server-side projectile objects, lag-compensation decisions, collision/material response and a compact snapshot/event representation before going online.
+1. Full physical Rapier rigid-body bullets are not used. The dependent ballistic branch now implements fixed-step swept projectiles with flight-time damage, gravity, small drag, material penetration/ricochet, lag-compensated fighter samples, a bounded pool and tracer-segment events. Deadeye's multi-target piercing and the overflow safety path remain hitscan; see docs/BALLISTICS.md.
 2. Physical shrapnel pieces with flight-time, bouncing and replicated fragment meshes. Current fragmentation is an instant deterministic server-side ray trace with a capped number of rays; it does not create persistent fragment bodies or client-side debris.
 3. Fully articulated character rigid-body physics while alive. Fighters still use the existing kinematic capsule for fair multiplayer movement; the death ragdoll is a client-side visual/physical presentation.
 4. Persistent bleeding, bandage inventory, armour plates with separate hit zones, wall blood decals with accurate surface alignment, door hinges, destructible glass shards, water volume forces, sand projectile drag, and moving sandbag cover. The materials table defines room for these responses, but not all are connected to world geometry yet.
@@ -58,3 +58,16 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 - Do not introduce unseeded randomness or wall-clock time in `src/sim`.
 - The project owner explicitly asked not to run tests yet. Do not run test, smoke, build, E2E, or browser play checks until the owner asks.
 - Keep this branch separate until reviewed against Claude's concurrent work. Never merge without owner permission.
+
+
+## Ballistic continuation — 19 November 2026
+
+Dependent branch: `feature/ballistic-projectile-foundation`, based on this branch.
+
+- All six weapon profiles have a gameplay-tuned projectile velocity and drag setting. The values are deliberately recorded as game estimates rather than asserted real firearm data.
+- A shared fixed-step integrator applies gravity and drag, while Rapier remains responsible for swept world-collider queries.
+- Projectile impacts are server-authoritative; damage, hit zones, armor, material response, prop damage and vehicle damage stay in `Simulation`.
+- Flight-time fighter collision samples use the rewind tick visible to the shooter plus projectile age.
+- Tracer path segments are delivered through the existing compact event buffer. No per-frame projectile world snapshots are sent.
+- Projectile objects are bounded to 512. On capacity exhaustion, the old ray path remains the safe fallback.
+- This is not yet full dynamic Rapier bullet bodies, and this branch has not been tested or playtested.
