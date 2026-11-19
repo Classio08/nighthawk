@@ -23,6 +23,8 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 - NPCs hear explosions through the existing weather-adjusted hearing path.
 - Material-specific hit effects use the existing pooled particles and decals: sparks, splinters, shatter/dust effects, blood spray and existing death ragdolls.
 - Remote gunshot audio is delayed by source-listener distance / 343 m/s. Hit registration remains instant hitscan; the audio delay is cosmetic and does not alter server timing.
+- NPC hearing now ray-checks up to three solid surfaces and attenuates the sound by the material transmission coefficient (concrete/rock damp more than glass/wood). Weather hearing range still applies. This changes only whether a bot receives a sound clue; it does not reveal exact player coordinates.
+- On death, a low-cost instanced blood pool follows the cosmetic Rapier ragdoll's torso while it settles, then remains on the ground and fades. It obeys the existing gore setting and is not replicated or used for damage.
 
 ## Important existing systems retained
 
@@ -40,8 +42,8 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 1. Full ballistic projectile travel with flight-time damage and curved trajectories. The current weapon simulation is still hitscan; the new material and recoil rules apply to the shared hitscan resolution. A future projectile system needs bounded server-side projectile objects, lag-compensation decisions, collision/material response and a compact snapshot/event representation before going online.
 2. Physical shrapnel pieces with flight-time, bouncing and replicated fragment meshes. Current fragmentation is an instant deterministic server-side ray trace with a capped number of rays; it does not create persistent fragment bodies or client-side debris.
 3. Fully articulated character rigid-body physics while alive. Fighters still use the existing kinematic capsule for fair multiplayer movement; the death ragdoll is a client-side visual/physical presentation.
-4. Persistent bleeding, bandage inventory, armour plates with separate hit zones, blood pools that grow under bodies, wall blood decals with surface alignment, door hinges, destructible glass shards, water volume forces, sand projectile drag, and moving sandbag cover. The materials table defines room for these responses, but not all are connected to world geometry yet.
-5. Footstep / explosion / gunshot wall occlusion and interior reverb. Distant shot timing is in place; propagation through geometry still needs an audio design pass.
+4. Persistent bleeding, bandage inventory, armour plates with separate hit zones, wall blood decals with accurate surface alignment, door hinges, destructible glass shards, water volume forces, sand projectile drag, and moving sandbag cover. The materials table defines room for these responses, but not all are connected to world geometry yet.
+5. Full 3D audio propagation, frequency-dependent low/high-pass occlusion, interior reverb zones and player-heard bullet crack / distant report layers. NPC sound evidence now uses material-aware blocking, and distant shot timing is in place, but audible audio still needs its own occlusion/mix pass.
 6. Mobile haptic patterns, controller vibration, and input buffering for every interaction (reload / grenade / revive). Only jump buffering is implemented here.
 7. Visual tuning by ear / feel and target-device performance measurements.
 
@@ -49,6 +51,7 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 
 - Preserve `src/sim/physics-correlation.js` as a graphics-free pure module.
 - Fragment rays are bounded per blast (grenade 14, barrel 10, mortar 12) and use a distinct seed derived from match seed, tick, owner and blast serial. Keep this cap until the server tick budget is measured.
+- Blood pools follow only the cosmetic ragdoll for the first 2.8 seconds, then stop following; freed ragdoll bodies are explicitly marked so the effect cannot query a removed Rapier body.
 - Preserve the new private state fields in `Fighter.exportSelf/importSelf` and `NetSim.DELEGATED`.
 - If changing network state, extend private self-state only when necessary; avoid sending per-frame physics data for every remote fighter.
 - Do not introduce unseeded randomness or wall-clock time in `src/sim`.
