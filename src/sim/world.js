@@ -23,7 +23,7 @@ import { BotBrain } from './bot.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
-import { materialForMapKind, materialForPropKind, surfaceImpact, classifyHitZone, hitZoneMultiplier, blastImpulse, hitPushImpulse, shrapnelDirection } from './physics-correlation.js';
+import { materialForMapKind, materialForPropKind, surfaceImpact, classifyHitZone, hitZoneMultiplier, blastImpulse, hitPushImpulse, shrapnelDirection, soundTransmission } from './physics-correlation.js';
 import { createMission } from './missions.js';
 import { MANTLE, findLedge, mantlePos } from './mantle.js';
 
@@ -395,10 +395,43 @@ export class Simulation {
     return this.losClear(a.x, a.eyeY, a.z, b.x, b.y + 0.35, b.z) && !smokeBlocks(this.smokes, a.x, a.eyeY, a.z, b.x, b.y + 0.35, b.z);      // smoke clouds block sight (not bullets)
   }
 
+  /** Acoustic path gain through up to three solid surfaces. NPC hearing remains evidence-only. */
+  soundPathGain(ax, ay, az, bx, by, bz) {
+    const dx = bx - ax, dy = by - ay, dz = bz - az;
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance < 0.01) return 1;
+    const dir = { x: dx / distance, y: dy / distance, z: dz / distance };
+    const passed = new Set();
+    let start = { x: ax, y: ay, z: az };
+    let remaining = distance, gain = 1;
+
+    // A few strongest blockers are enough for game AI; this is not a full acoustic solver.
+    for (let surface = 0; surface < 3 && remaining > 0.05; surface++) {
+      const hit = this.world.castRay(
+        new RAPIER.Ray(start, dir), remaining, true,
+        undefined, undefined, undefined, undefined,
+        (collider) => this.solid.has(collider.handle) && !passed.has(collider.handle),
+      );
+      if (!hit) break;
+      passed.add(hit.collider.handle);
+      gain *= soundTransmission(this.surfaceByCol.get(hit.collider.handle) ?? 'concrete');
+      if (gain < 0.04) return gain;
+      const advance = Math.max(0.05, hit.timeOfImpact + 0.05);
+      start = { x: start.x + dir.x * advance, y: start.y + dir.y * advance, z: start.z + dir.z * advance };
+      remaining -= advance;
+    }
+    return gain;
+  }
+
   makeNoise(src, radius) {
+    const sx = Number(src?.x) || 0, sy = Number.isFinite(src?.y) ? src.y : 0.9, sz = Number(src?.z) || 0;
     for (const f of this.fighters) {
       if (!f.alive || f === src || !f.brain) continue;
-      if (Math.hypot(f.x - src.x, f.z - src.z) < radius * this.weather.hearing) f.brain.hear(src.x, src.z);   // rain muffles sound
+      const distance = Math.hypot(f.x - sx, f.eyeY - sy, f.z - sz);
+      const weatherRange = radius * this.weather.hearing;
+      if (distance <= weatherRange && distance <= weatherRange * this.soundPathGain(sx, sy, sz, f.x, f.eyeY, f.z)) {
+        f.brain.hear(sx, sz); // rain/fog and material blockers attenuate hearing; no exact player tracking is created
+      }
     }
   }
 
