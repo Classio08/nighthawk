@@ -104,3 +104,64 @@ export function mottlePlane(geo, segments, seed = 5, lo = 0.88, hi = 1.08) {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); return geo;
 }
+
+
+/** Build compact, seamless PBR data maps from the same deterministic tileable noise used by the authored base-colour textures.
+ *  Normal and roughness maps are linear data (never sRGB). No downloads or external assets are required. */
+export function makeSurfacePbrMaps(kind = 'sand', size = 256) {
+  const profiles = {
+    sand:     { seed: 41, base: 5, octaves: 5, fine: 0.16, rough: 0.88, roughVar: 0.1, normal: 1.25 },
+    gravel:   { seed: 51, base: 8, octaves: 5, fine: 0.42, rough: 0.96, roughVar: 0.07, normal: 1.8 },
+    concrete: { seed: 61, base: 4, octaves: 5, fine: 0.24, rough: 0.9, roughVar: 0.08, normal: 0.85 },
+    metal:    { seed: 71, base: 8, octaves: 4, fine: 0.12, rough: 0.48, roughVar: 0.22, normal: 0.5 },
+  };
+  const cfg = profiles[kind] ?? profiles.sand;
+  const broad = fbm(size, cfg.seed, cfg.base, cfg.octaves);
+  const fine = fbm(size, cfg.seed + 1, 48, 2);
+  const height = new Float32Array(size * size);
+  const rough = new Float32Array(size * size);
+  for (let i = 0; i < height.length; i++) {
+    height[i] = broad[i] * (1 - cfg.fine) + fine[i] * cfg.fine;
+    rough[i] = Math.max(0.08, Math.min(1, cfg.rough + (fine[i] - 0.5) * cfg.roughVar * 2));
+  }
+
+  const normalCanvas = document.createElement('canvas');
+  normalCanvas.width = normalCanvas.height = size;
+  const normalCtx = normalCanvas.getContext('2d');
+  const normalImage = normalCtx.createImageData(size, size);
+  const roughCanvas = document.createElement('canvas');
+  roughCanvas.width = roughCanvas.height = size;
+  const roughCtx = roughCanvas.getContext('2d');
+  const roughImage = roughCtx.createImageData(size, size);
+  const at = (x, y) => height[((y + size) % size) * size + ((x + size) % size)];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const i = y * size + x, px = i * 4;
+    // Wrapped Sobel derivative avoids a normal-map seam at all four tile edges.
+    const dx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1) -
+      at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1)) * cfg.normal;
+    const dy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1) -
+      at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1)) * cfg.normal;
+    let nx = -dx, ny = -dy, nz = 1;
+    const inv = 1 / Math.hypot(nx, ny, nz); nx *= inv; ny *= inv; nz *= inv;
+    normalImage.data[px] = Math.round((nx * 0.5 + 0.5) * 255);
+    normalImage.data[px + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+    normalImage.data[px + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+    normalImage.data[px + 3] = 255;
+    const rv = Math.round(rough[i] * 255);
+    roughImage.data[px] = roughImage.data[px + 1] = roughImage.data[px + 2] = rv;
+    roughImage.data[px + 3] = 255;
+  }
+  normalCtx.putImageData(normalImage, 0, 0);
+  roughCtx.putImageData(roughImage, 0, 0);
+  const dataTexture = (canvas) => {
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.NoColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.generateMipmaps = true;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 4;
+    return texture;
+  };
+  return { normalMap: dataTexture(normalCanvas), roughnessMap: dataTexture(roughCanvas) };
+}
