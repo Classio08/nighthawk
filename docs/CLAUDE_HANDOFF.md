@@ -82,3 +82,16 @@ Do not attempt all systems in one sprint. Preserve the existing Three.js/Rapier/
 A follow-on branch `feature/dust-lantern-alert-director` (draft PR #22) builds on the first playable DUST LANTERN branch. It adds `MissionAlertDirector` which derives a compact operation-wide threat level from evidence already held by living guard NPC brains: direct visual contact, recent sound investigation, and recent last-known-position reports. The pressure rises faster than it cools, and the HUD reports routine / uneasy / searching / alert / crisis. This system must never reveal hidden player coordinates or grant guards omniscient tracking. Tests cover escalation, observer counts, decay, and exclusion of dead/non-guard NPCs.
 
 Do not merge this follow-on before PR #20 is reviewed; it is based on the PR #20 branch to keep the dependency explicit. The alert director is an initial aggregate signal, not yet a full witness/body discovery, radio network or branching mission director.
+
+## Non-custodial ERC-20 cosmetic checkout client — 19 November 2026
+
+Dependent branch: `feature/crypto-cosmetic-checkout-client`, based on Claude's `feature/crypto-wallet-payments` branch. Keep the dependency explicit; do not cherry-pick into or rewrite the backend branch.
+
+- `src/net/crypto-checkout.js` supplies an EIP-1193 injected-wallet client. It requests account access, checks/switches to the server-quoted chain, re-checks the active account, encodes ERC-20 `transfer(address,uint256)` and asks the wallet to send it directly to the configured merchant treasury. It never requests `approve`, `permit`, a private key or a seed phrase.
+- The client submits only the transaction hash. `CryptoPaymentService` independently verifies chain id, sender, token contract, successful receipt, exact `Transfer` event recipient/amount and required confirmations before the account service grants a cosmetic entitlement.
+- `src/ui/crypto-checkout-view.js` is a mountable component for the existing Economy tab. It is intentionally not mounted into the dashboard yet, to avoid conflicting with concurrent dashboard work. It reads display names from the normal store catalog and token amounts only from the crypto quote.
+- A confirmed purchase currently grants an off-chain NIGHTHAWK cosmetic entitlement. This branch does **not** mint ERC-1155 NFTs, deploy contracts, issue tokens, custody assets, operate an exchange or enable wagers/staking/cash-out.
+- The crypto config remains server-controlled and closed unless a valid environment and licence gate permit it. Do not fill in licence identifiers/scope, chain, token, treasury, prices or jurisdiction settings based on assumptions.
+- Pending transaction hashes/intent ids live in session storage. The long-lived guest token continues to live in the existing account-session store.
+- Test specs are present in `tests/crypto-checkout.test.js`, but the owner has asked to finish building before running tests/builds. Do not claim validation or a real-wallet transaction has been tested.
+- Integration order: review/merge the backend branch only when the owner approves; then review this dependent branch and mount `mountCryptoCheckout(container, serverUrl)` in the Economy view. No merge has been performed.
