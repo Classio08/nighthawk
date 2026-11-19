@@ -405,11 +405,14 @@ export class Simulation {
   /* ---------------- shooting ---------------- */
 
   _aimDir(f, spread, rng = this.rng) {
-    const cp = Math.cos(f.pitch);
-    const d = { x: -Math.sin(f.yaw) * cp, y: Math.sin(f.pitch), z: -Math.cos(f.yaw) * cp };
+    // Server and predictor share the same recoil state, so the kick affects both presentation and hit direction.
+    const yaw = f.yaw + f.recoilYaw;
+    const pitch = clamp(f.pitch + f.recoilPitch, -1.5, 1.5);
+    const cp = Math.cos(pitch);
+    const d = { x: -Math.sin(yaw) * cp, y: Math.sin(pitch), z: -Math.cos(yaw) * cp };
     if (!spread) return d;
-    const rx = Math.cos(f.yaw), rz = -Math.sin(f.yaw);                       // right vector
-    const ux = -Math.sin(f.pitch) * -Math.sin(f.yaw), uy = Math.cos(f.pitch), uz = -Math.sin(f.pitch) * -Math.cos(f.yaw);
+    const rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const ux = Math.sin(yaw) * Math.sin(pitch), uy = Math.cos(pitch), uz = Math.cos(yaw) * Math.sin(pitch);
     const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * spread;
     const ox = Math.cos(a) * r, oy = Math.sin(a) * r;
     const x = d.x + rx * ox + ux * oy, y = d.y + uy * oy, z = d.z + rz * ox + uz * oy;
@@ -438,50 +441,144 @@ export class Simulation {
     const w = WEAPONS[f.cur], st = f.weapons[f.cur];
     const A = activeAbility(f), deadeye = !!(A && A.shotMul);
     st.ammo--; f.fireT = A?.fireMul ? w.rof / A.fireMul : w.rof;
-    if (deadeye) f.abT = 0;                                       // Deadeye is ONE shot
+    if (deadeye) f.abT = 0;
+
     const moving = f.speedH > 1.2;
-    const base = (f.ads ? w.spreadAds : w.spreadHip * (moving ? 1.35 : 1)) * (f.crouch ? 0.78 : 1);      // crouching steadies the aim
+    const base = (f.ads ? w.spreadAds : w.spreadHip * (moving ? 1.35 : 1)) * (f.crouch ? 0.78 : 1);
     const spread = base + f.bloom;
     f.bloom = Math.min(w.bloomMax, f.bloom + w.bloom);
-    const origin = { x: f.x, y: f.eyeY, z: f.z };
+
+    // A stable per-shot recoil kick: no shared RNG stream is consumed by hit effects or rendering.
     f.shotN++;
-    const viewTick = this.tick - f.lagTicks;           // lag compensation: judge people where the shooter SAW them
+    const recoilRng = makeRng((this.seed * 31 + f.rngKey * 1009 + f.shotN * 211 + 0x51A7) | 0);
+    const recoilScale = f.ads ? 0.72 : 1;
+    f.recoilPitch = clamp(f.recoilPitch + (w.recoilUp ?? 0.01) * recoilScale, 0, 0.22);
+    f.recoilYaw = clamp(f.recoilYaw + (recoilRng() - 0.5) * (w.recoilSide ?? 0.004) * 2 * recoilScale, -0.1, 0.1);
+
+    const origin = { x: f.x, y: f.eyeY, z: f.z };
+    const viewTick = this.tick - f.lagTicks;
     for (let p = 0; p < w.pellets; p++) {
-      // humans: the spread of every pellet is a pure function of (seed, who, which shot), so the shooter's browser rolls the SAME dice as the server
-      const dir = this._aimDir(f, spread, f.human ? makeRng((this.seed * 31 + f.rngKey * 1009 + f.shotN * 7 + p * 101) | 0) : this.rng);
-      // 1) how far does the bullet fly before a wall / crate / floor stops it? (Rapier; fighters are NOT in this query)
+      const shotSeed = (this.seed * 31 + f.rngKey * 1009 + f.shotN * 7 + p * 101) | 0;
+      const dir = this._aimDir(f, spread, f.human ? makeRng(shotSeed) : this.rng);
+      const physicalRng = makeRng((shotSeed ^ 0x4f1bbcdc) | 0);
+
+      // First collision with the world. Thin wood / glass can transmit one reduced-energy ray.
       const ray = new RAPIER.Ray(origin, dir);
-      const hit = this.world.castRayAndGetNormal(ray, w.range, true, undefined, undefined, f.col, undefined, (c) => this.solid.has(c.handle));
-      const wallT = hit ? hit.timeOfImpact : w.range;
-      // 2) is a fighter in the way? (exact ray-vs-capsule maths on their rewound position)
-      let target = null, tHit = wallT, pos = null; const through = [];
-      for (const o of this.fighters) {
-        if (o === f || !o.alive) continue;
-        const q = this.posAt(o, viewTick);
-        if (!q.alive) continue;
-        const t = rayCapsule(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, q.x, q.y - 0.5, q.z, q.y + (q.crouch ? 0.15 : 0.5), 0.4);   // a crouching target is a smaller target
-        if (deadeye && t >= 0 && t < wallT) through.push({ o, q, t });                      // Deadeye: every body on the line, not just the first
-        if (t >= 0 && t < tHit) { tHit = t; target = o; pos = q; }
+      const hit = this.world.castRayAndGetNormal(ray, w.range, true, undefined, undefined, f.col, undefined, (col) => this.solid.has(col.handle));
+      const firstWallT = hit ? hit.timeOfImpact : w.range;
+      const firstMaterial = hit ? (this.surfaceByCol.get(hit.collider.handle) ?? 'concrete') : null;
+      const impact = hit ? surfaceImpact(firstMaterial, physicalRng()) : null;
+      let wallT = firstWallT, penetrated = false;
+      if (hit && impact?.penetrates && impact.thickness > 0.001) {
+        const advance = impact.thickness + 0.04;
+        const remaining = w.range - firstWallT - advance;
+        if (remaining > 0.05) {
+          const startRay = {
+            x: origin.x + dir.x * (firstWallT + advance),
+            y: origin.y + dir.y * (firstWallT + advance),
+            z: origin.z + dir.z * (firstWallT + advance),
+          };
+          const second = this.world.castRayAndGetNormal(
+            new RAPIER.Ray(startRay, dir), remaining, true, undefined, undefined, undefined, undefined,
+            (col) => this.solid.has(col.handle) && col.handle !== f.col.handle && col.handle !== hit.collider.handle,
+          );
+          wallT = second ? firstWallT + advance + second.timeOfImpact : w.range;
+          penetrated = true;
+        }
       }
-      const e = { t: 'shot', by: f.id, w: w.id, first: p === 0, ox: origin.x, oy: origin.y, oz: origin.z,
-        ex: origin.x + dir.x * tHit, ey: origin.y + dir.y * tHit, ez: origin.z + dir.z * tHit, dx: dir.x, dy: dir.y, dz: dir.z, hit: null };
+
+      // Fighter collision is tested against the same lag-compensated capsule that the shooter saw.
+      let target = null, tHit = wallT, pos = null;
+      const through = [];
+      for (const other of this.fighters) {
+        if (other === f || !other.alive) continue;
+        const q = this.posAt(other, viewTick);
+        if (!q.alive) continue;
+        const t = rayCapsule(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, q.x, q.y - 0.5, q.z, q.y + (q.crouch ? 0.15 : 0.5), 0.4);
+        if (deadeye && t >= 0 && t < wallT) through.push({ o: other, q, t });
+        if (t >= 0 && t < tHit) { tHit = t; target = other; pos = q; }
+      }
+
+      const end = { x: origin.x + dir.x * tHit, y: origin.y + dir.y * tHit, z: origin.z + dir.z * tHit };
+      const firstProp = hit ? this.propByCol.get(hit.collider.handle) : null;
+      const firstVehicle = hit ? this.vehicles.byCol.get(hit.collider.handle) : null;
+      const e = {
+        t: 'shot', by: f.id, w: w.id, first: p === 0,
+        ox: origin.x, oy: origin.y, oz: origin.z,
+        ex: end.x, ey: end.y, ez: end.z,
+        dx: dir.x, dy: dir.y, dz: dir.z, hit: null,
+      };
+
       if (target) {
-        e.hit = 'fighter'; e.target = target.id;
-        const head = e.ey - (pos.y - 0.9) > (pos.crouch ? 1.12 : 1.42);
-        const dmg = damageAt(w, tHit, head) * (deadeye ? A.shotMul : 1);
-        this.damage(target, dmg, f, { head, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: e.ex, y: e.ey, z: e.ez, cause: 'bullet', pierce: deadeye });
-        if (deadeye) for (const h of through.sort((a, b) => a.t - b.t)) {
-          if (h.o === target) continue;
-          const hd = origin.y + dir.y * h.t - (h.q.y - 0.9) > (h.q.crouch ? 1.12 : 1.42);
-          this.damage(h.o, damageAt(w, h.t, hd) * A.shotMul * A.pierceMul, f, { head: hd, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: origin.x + dir.x * h.t, y: origin.y + dir.y * h.t, z: origin.z + dir.z * h.t, cause: 'bullet', pierce: true });
+        const throughSurface = !!(penetrated && tHit > firstWallT + (impact?.thickness ?? 0));
+        if (throughSurface && firstProp) this.damageProp(firstProp, damageAt(w, firstWallT, false) * 0.75, f);
+        const zone = classifyHitZone(end.y, pos.y - 0.9, pos.crouch);
+        const head = zone === 'head';
+        const surfaceMul = throughSurface ? impact.damageMultiplier : 1;
+        const dmg = damageAt(w, tHit, head) * hitZoneMultiplier(zone) * surfaceMul * (deadeye ? A.shotMul : 1);
+        e.hit = 'fighter'; e.target = target.id; e.zone = zone;
+        if (throughSurface) {
+          e.penetrated = true; e.material = firstMaterial; e.impact = impact.effect;
+          e.surfaceX = origin.x + dir.x * firstWallT;
+          e.surfaceY = origin.y + dir.y * firstWallT;
+          e.surfaceZ = origin.z + dir.z * firstWallT;
+        }
+        this.damage(target, dmg, f, { head, zone, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z, x: end.x, y: end.y, z: end.z, cause: 'bullet', pierce: deadeye });
+        if (deadeye) for (const other of through.sort((a, b) => a.t - b.t)) {
+          if (other.o === target) continue;
+          const pointY = origin.y + dir.y * other.t;
+          const extraZone = classifyHitZone(pointY, other.q.y - 0.9, other.q.crouch);
+          const extraHead = extraZone === 'head';
+          this.damage(other.o, damageAt(w, other.t, extraHead) * hitZoneMultiplier(extraZone) * A.shotMul * A.pierceMul,
+            f, { head: extraHead, zone: extraZone, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z,
+              x: origin.x + dir.x * other.t, y: pointY, z: origin.z + dir.z * other.t, cause: 'bullet', pierce: true });
         }
       } else if (hit) {
         e.hit = 'world'; e.nx = hit.normal.x; e.ny = hit.normal.y; e.nz = hit.normal.z;
-        const prop = this.propByCol.get(hit.collider.handle), veh = this.vehicles.byCol.get(hit.collider.handle);
-        const rb = hit.collider.parent();
-        if (rb && rb.isDynamic()) rb.applyImpulseAtPoint({ x: dir.x * 5, y: dir.y * 5, z: dir.z * 5 }, { x: e.ex, y: e.ey, z: e.ez }, true);
-        if (veh) { e.veh = veh.id; this.vehicles.damage(veh, damageAt(w, tHit, false) * (w.pellets > 1 ? 1.2 : 1), f); }     // last: a wreck removes its body
-        if (prop) { e.prop = prop.id; this.damageProp(prop, damageAt(w, tHit, false) * (w.pellets > 1 ? 1.4 : 1), f); }     // last: this may remove the body
+        e.material = firstMaterial; e.impact = impact?.effect ?? 'dust';
+        e.surfaceX = end.x; e.surfaceY = end.y; e.surfaceZ = end.z;
+        e.ricochet = impact?.kind === 'ricochet';
+
+        const body = hit.collider.parent();
+        if (body && body.isDynamic()) {
+          const impulse = Math.max(0.5, Math.min(14, damageAt(w, firstWallT, false) * 0.18));
+          body.applyImpulseAtPoint({ x: dir.x * impulse, y: dir.y * impulse, z: dir.z * impulse }, { x: end.x, y: end.y, z: end.z }, true);
+        }
+        if (firstVehicle) { e.veh = firstVehicle.id; this.vehicles.damage(firstVehicle, damageAt(w, firstWallT, false) * (w.pellets > 1 ? 1.2 : 1), f); }
+        if (firstProp) { e.prop = firstProp.id; this.damageProp(firstProp, damageAt(w, firstWallT, false) * (w.pellets > 1 ? 1.4 : 1), f); }
+
+        // A metal ricochet gets one short reflected ray. It can still hit a fighter, but with much less energy.
+        if (impact?.kind === 'ricochet') {
+          const n = hit.normal, dot = dir.x * n.x + dir.y * n.y + dir.z * n.z;
+          const reflected = { x: dir.x - 2 * dot * n.x, y: dir.y - 2 * dot * n.y, z: dir.z - 2 * dot * n.z };
+          const len = Math.hypot(reflected.x, reflected.y, reflected.z) || 1;
+          reflected.x /= len; reflected.y /= len; reflected.z /= len;
+          const ricOrigin = { x: end.x + reflected.x * 0.06, y: end.y + reflected.y * 0.06, z: end.z + reflected.z * 0.06 };
+          const ricRange = Math.min(24, w.range * 0.25);
+          const ricWall = this.world.castRayAndGetNormal(
+            new RAPIER.Ray(ricOrigin, reflected), ricRange, true, undefined, undefined, undefined, undefined,
+            (col) => this.solid.has(col.handle) && col.handle !== f.col.handle && col.handle !== hit.collider.handle,
+          );
+          let ricT = ricWall ? ricWall.timeOfImpact : ricRange, ricTarget = null, ricPos = null;
+          for (const other of this.fighters) {
+            if (other === f || !other.alive) continue;
+            const q = this.posAt(other, viewTick);
+            if (!q.alive) continue;
+            const t = rayCapsule(ricOrigin.x, ricOrigin.y, ricOrigin.z, reflected.x, reflected.y, reflected.z,
+              q.x, q.y - 0.5, q.z, q.y + (q.crouch ? 0.15 : 0.5), 0.4);
+            if (t >= 0 && t < ricT) { ricT = t; ricTarget = other; ricPos = q; }
+          }
+          const ricEnd = { x: ricOrigin.x + reflected.x * ricT, y: ricOrigin.y + reflected.y * ricT, z: ricOrigin.z + reflected.z * ricT };
+          e.ricochetEndX = ricEnd.x; e.ricochetEndY = ricEnd.y; e.ricochetEndZ = ricEnd.z;
+          if (ricTarget) {
+            const zone = classifyHitZone(ricEnd.y, ricPos.y - 0.9, ricPos.crouch);
+            const head = zone === 'head';
+            this.damage(ricTarget, damageAt(w, ricT, head) * hitZoneMultiplier(zone) * impact.damageMultiplier,
+              f, { head, zone, w: w.id, dx: reflected.x, dy: reflected.y, dz: reflected.z,
+                x: ricEnd.x, y: ricEnd.y, z: ricEnd.z, cause: 'bullet' });
+            e.ricochetTarget = ricTarget.id;
+          }
+        }
       }
       this.emit(e);
     }
