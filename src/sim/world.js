@@ -620,7 +620,7 @@ export class Simulation {
       p.z = origin.z + dir.z * segmentDistance;
       p.traveled += segmentDistance;
       event.ex = p.x; event.ey = p.y; event.ez = p.z;
-      if (p.ageTicks === 1 || p.ageTicks % 3 === 0 || segmentDistance < step.distance - 1e-5 || p.age >= PROJECTILE_MAX_AGE || p.traveled >= w.range) this.emit(event);
+      if (p.ageTicks % 3 === 0 || segmentDistance < step.distance - 1e-5 || p.age >= PROJECTILE_MAX_AGE || p.traveled >= w.range) this.emit(event);
       if (segmentDistance < step.distance - 1e-5 || p.age >= PROJECTILE_MAX_AGE || p.traveled >= w.range) {
         this.projectiles.splice(i, 1);
       }
