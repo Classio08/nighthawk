@@ -88,7 +88,7 @@ export class TouchControls {
       <button type="button" class="nh-touch-btn nh-touch-pause" data-pause aria-label="Pause game">Ⅱ</button>
       <div class="nh-touch-drawer" hidden>
         <div class="nh-touch-drawer-title">TACTICAL ACTIONS</div>
-        <div class="nh-touch-extra-grid">${EXTRA_ACTIONS.map(([id, label]) => button(id, label)).join('')}</div>
+        <div class="nh-touch-extra-grid">${EXTRA_ACTIONS.map(([id, label]) => button(id, label)).join('')}<button type="button" class="nh-touch-btn" data-cycle="prev">PREV GUN</button><button type="button" class="nh-touch-btn" data-cycle="next">NEXT GUN</button></div>
         <div class="nh-touch-config">
           <button type="button" class="nh-touch-config-btn" data-preset>LAYOUT: 2-THUMB</button>
           <label>CONTROL OPACITY <input data-opacity type="range" min="42" max="100" value="78" /></label>
@@ -130,7 +130,7 @@ export class TouchControls {
   }
 
   _pointerDown(event) {
-    const target = event.target?.closest?.('[data-action], [data-more], [data-pause], [data-preset], .nh-touch-move-zone, .nh-touch-look');
+    const target = event.target?.closest?.('[data-action], [data-cycle], [data-more], [data-pause], [data-preset], .nh-touch-move-zone, .nh-touch-look');
     if (!target) return;
     event.preventDefault();
 
@@ -144,6 +144,8 @@ export class TouchControls {
       this._capture(event);
       return;
     }
+    const cycle = target.closest?.('[data-cycle]');
+    if (cycle) { this.input.wheel += cycle.dataset.cycle === 'prev' ? -1 : 1; return; }
     if (target.closest?.('[data-more]')) {
       this.drawer.hidden = !this.drawer.hidden;
       target.closest('[data-more]').classList.toggle('active', !this.drawer.hidden);
@@ -202,8 +204,10 @@ export class TouchControls {
     if (held) {
       this.actionPointers.delete(pointerId);
       const stillHeld = [...this.actionPointers.values()].some((entry) => entry.action === held.action);
-      if (!stillHeld) this.input.setTouchAction(held.action, false);
-      held.element.classList.remove('active');
+      if (!stillHeld) {
+        this.input.setTouchAction(held.action, false);
+        this.root?.querySelectorAll('[data-action]').forEach((element) => { if (element.dataset.action === held.action) element.classList.remove('active'); });
+      }
     }
   }
 
@@ -230,6 +234,7 @@ export class TouchControls {
     this.active = this.enabled && !!active;
     if (!this.active) this._releaseAll();
     if (this.root) this.root.hidden = !this.active;
+    document.body.classList.toggle('nh-touch-active', this.active);
   }
 
   destroy() {
