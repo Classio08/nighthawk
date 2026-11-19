@@ -43,11 +43,22 @@ These are candidates only. No binary texture files have been added to the runtim
 - Quaternius: https://quaternius.com — newer packs may use the Quaternius Asset License, not CC0. Verify the exact pack and restrictions before use.
 - Mixamo: https://www.mixamo.com — review current Adobe terms and redistribution restrictions before including animations or character files.
 
-## Offered but not added
-| Item | Where it came from | Why it is not in the repo |
+## Owner-made audio (logged 19 Nov 2026)
+
+The owner states that he made all of the audio below and that everything in the project is his. Treat as project-owned. The owner keeps the source WAVs (the 84-line voice pack zip, 7.4 MB).
+
+| Asset | Where it is | In the game? |
 |---|---|---|
-| `nighthawk-wired-audio-ghost_beep.wav`, `-kill.wav`, `-shoot_shotgun.wav`, `-shoot_rifle.wav` | Attached to a chat together with an AI-written "wired audio" pack (19 Nov 2026) | Provenance and licence unknown; the game's ZzFX presets (`ping`, `kill`, `shotgun`, `ar`) already cover the same sounds. If the owner recorded or generated them and can say how, log them here as project-authored and they can go in. |
-| New sounds added in Stage 19 (`slide`, `vault`, `land`, `ping`) | ZzFX recipes in `src/fx/audio.js` | In the game. Project-authored numbers, first guesses, not tuned by ear. |
+| Voice pack v2: 84 radio lines, 8 speakers (Kestrel, Sable, Dust, Echo, Control, Lantern/Amara, Jackal, Viper), 22.05 kHz mono. The pack manifest describes them as synthesised voice placeholders with a different pitch per character. | Converted to 32 kbps mono mp3 by `scripts/build-voice.mjs` into `public/audio/voice/` (741 KB in total); text, speaker and duration in `src/fx/voice-data.js` | Yes: operations only, through `src/fx/bark-director.js` + `src/fx/voice.js`, with subtitles and their own volume in Settings |
+| `ghost_beep.wav`, `kill.wav`, `shoot_rifle.wav`, `shoot_shotgun.wav` (22.05 kHz mono, 0.05 to 0.25 s) | `assets/audio-sfx/` (not shipped) | Not yet: the ZzFX presets `ping`, `kill`, `ar`, `shotgun` cover the same events and nobody has auditioned the WAVs against them. Wire them in `src/fx/audio.js` if they win a listening test. |
+
+One thing to confirm before a public release: if any of the voice lines were produced with a third-party text-to-speech or AI-voice service, check that service's terms allow commercial use. The files themselves are logged as the owner's.
+
+## Sounds that are code
+
+| Item | Where | Note |
+|---|---|---|
+| `slide`, `vault`, `land`, `ping` and the other ZzFX recipes | `src/fx/audio.js` | Project-authored numbers; first guesses, not tuned by ear |
 
 ## Never import without review
 

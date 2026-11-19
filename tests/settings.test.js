@@ -76,3 +76,14 @@ test('headbob: on by default, only a real boolean changes it, setter notifies', 
   const before = settings.headbob; settings.setHeadbob(!before); assert.equal(settings.headbob, !before); settings.setHeadbob(before);
   assert.ok(seen >= 2); if (typeof off === 'function') off();
 });
+
+test('voice volume and subtitles: clamped number / real boolean only, sensible defaults', () => {
+  assert.equal(settings.subtitles, true, 'captions are on by default');
+  assert.ok(settings.voice > 0 && settings.voice <= 1);
+  assert.equal(sanitize({ voice: 5 }, base()).voice, 1);
+  assert.equal(sanitize({ voice: -1 }, base()).voice, 0);
+  assert.equal(sanitize({ voice: 'loud' }, { ...base(), voice: 0.4 }).voice, 0.4);
+  assert.equal(sanitize({ voice: null }, { ...base(), voice: 0.4 }).voice, 0.4);
+  assert.equal(sanitize({ subtitles: false }, { ...base(), subtitles: true }).subtitles, false);
+  assert.equal(sanitize({ subtitles: 'off' }, { ...base(), subtitles: true }).subtitles, true);
+});

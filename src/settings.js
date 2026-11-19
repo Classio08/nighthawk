@@ -1,5 +1,5 @@
 // Player settings that live in the browser (localStorage). Portal builds (Poki / CrazyGames, PEGI-12) start with gore OFF.
-//   URL overrides for testing: ?gore=0/1  ?bob=0/1  ?diff=easy|normal|hard|brutal  ?sens=1.4  ?fov=90  ?vol=0.3  ?quality=low|medium|high
+//   URL overrides for testing: ?gore=0/1  ?bob=0/1  ?voice=0..1  ?subs=0/1  ?diff=easy|normal|hard|brutal  ?sens=1.4  ?fov=90  ?vol=0.3  ?quality=low|medium|high
 // Everything is validated on the way in (a corrupted or hand-edited save can never produce NaN or a broken key map) and
 // written back on every change. Pure data + a tiny change-listener list: the menu (ui/settings-menu.js), input, camera and audio read from here.
 import { DIFFICULTY_IDS } from './sim/difficulty.js';
@@ -23,14 +23,14 @@ const RESERVED = (code) => code === 'Escape' || code === 'Tab' || /^Digit[1-6]$/
 const validCode = (c) => typeof c === 'string' && /^[A-Za-z0-9]{1,16}$/.test(c) && !RESERVED(c);
 
 export const QUALITY = { low: { label: 'LOW', scale: 0.6 }, medium: { label: 'MEDIUM', scale: 0.85 }, high: { label: 'HIGH', scale: 1 } };
-const LIMITS = { sens: [0.2, 3], fov: [60, 110], volume: [0, 1] };
+const LIMITS = { sens: [0.2, 3], fov: [60, 110], volume: [0, 1], voice: [0, 1] };
 const clampNum = (v, [lo, hi], d) => {
   if (typeof v !== 'number' && !(typeof v === 'string' && v.trim() !== '')) return d;       // null / true / {} / '' are not numbers (Number(null) would be 0)
   v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d;
 };
 
 const KEY = 'nh_settings_v1';
-const state = { gore: !PORTAL, headbob: true, difficulty: 'normal', sens: 1, fov: 78, volume: 0.5, quality: 'high', keys: { ...DEFAULT_KEYS } };
+const state = { gore: !PORTAL, headbob: true, subtitles: true, voice: 0.8, difficulty: 'normal', sens: 1, fov: 78, volume: 0.5, quality: 'high', keys: { ...DEFAULT_KEYS } };
 const listeners = new Set();
 
 /** merge untrusted data (a saved blob or URL values) into the state, keeping only valid fields */
@@ -39,6 +39,8 @@ export function sanitize(raw, base = state) {
   if (!raw || typeof raw !== 'object') return out;
   if (typeof raw.gore === 'boolean') out.gore = raw.gore;
   if (typeof raw.headbob === 'boolean') out.headbob = raw.headbob;           // first-person head bob / landing dip / slide tilt (off for motion-sensitive players)
+  if (typeof raw.subtitles === 'boolean') out.subtitles = raw.subtitles;      // captions for the radio voices
+  if (raw.voice !== undefined) out.voice = clampNum(raw.voice, LIMITS.voice, out.voice);   // radio voice volume, separate from the effects volume
   if (DIFFICULTY_IDS.includes(raw.difficulty)) out.difficulty = raw.difficulty;
   if (raw.sens !== undefined) out.sens = clampNum(raw.sens, LIMITS.sens, out.sens);
   if (raw.fov !== undefined) out.fov = clampNum(raw.fov, LIMITS.fov, out.fov);
@@ -69,6 +71,8 @@ function load() {
   const u = {};
   if (params.has('gore')) u.gore = params.get('gore') !== '0';
   if (params.has('bob')) u.headbob = params.get('bob') !== '0';
+  if (params.has('subs')) u.subtitles = params.get('subs') !== '0';
+  if (params.has('voice')) u.voice = params.get('voice');
   if (params.has('diff')) u.difficulty = params.get('diff');
   if (params.has('sens')) u.sens = params.get('sens');
   if (params.has('fov')) u.fov = params.get('fov');
@@ -82,6 +86,8 @@ load();
 export const settings = {
   get gore() { return state.gore; }, setGore(v) { state.gore = !!v; save(); },
   get headbob() { return state.headbob; }, setHeadbob(v) { state.headbob = !!v; save(); },
+  get subtitles() { return state.subtitles; }, setSubtitles(v) { state.subtitles = !!v; save(); },
+  get voice() { return state.voice; }, setVoice(v) { state.voice = clampNum(v, LIMITS.voice, state.voice); save(); },
   get difficulty() { return state.difficulty; }, setDifficulty(v) { if (DIFFICULTY_IDS.includes(v)) { state.difficulty = v; save(); } },
   get sens() { return state.sens; }, setSens(v) { state.sens = clampNum(v, LIMITS.sens, state.sens); save(); },
   get fov() { return state.fov; }, setFov(v) { state.fov = clampNum(v, LIMITS.fov, state.fov); save(); },

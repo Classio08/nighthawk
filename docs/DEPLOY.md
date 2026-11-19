@@ -1,5 +1,7 @@
 # Run it online (step by step)
 
+> **No money for a server yet?** Use [`docs/FREE_FRIEND_TEST.md`](FREE_FRIEND_TEST.md): `npm run host` serves the game and the server from your own computer behind a free Cloudflare quick tunnel.
+
 Two things exist: the **game page** (static files, `npm run build` makes them in `dist/`) and the **game server** (Node, `npm run server`). Players load the page, the page opens a WebSocket to the server.
 
 ## A. On your own PC first (5 minutes)

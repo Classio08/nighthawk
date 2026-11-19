@@ -16,7 +16,7 @@ check('start screen has a SETTINGS button', true);
 await page.click('#startsettings'); await wait(200);
 check('SETTINGS opens the overlay', await page.$eval('#settings', (e) => e.classList.contains('show')));
 const rows = await page.$$eval('#settingsbody .srow', (r) => r.length), keyBtns = await page.$$eval('#settingsbody .keybtn', (r) => r.length);
-check('6 setting rows and 17 key buttons', rows === 6 && keyBtns === 17, `rows=${rows} keys=${keyBtns}`);
+check('9 setting rows (sens, fov, volume, radio voices, graphics, difficulty, gore, head bob, subtitles) and 17 key buttons', rows === 9 && keyBtns === 17, `rows=${rows} keys=${keyBtns}`);
 // slider + select + checkbox
 await page.$eval('#settingsbody input[aria-label="FIELD OF VIEW"]', (e) => { e.value = 95; e.dispatchEvent(new Event('input', { bubbles: true })); });
 await page.$eval('#settingsbody select[aria-label="BOT DIFFICULTY"]', (e) => { e.value = 'hard'; e.dispatchEvent(new Event('change', { bubbles: true })); });

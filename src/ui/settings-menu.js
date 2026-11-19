@@ -34,6 +34,7 @@ export function initSettingsMenu(root, input, onClose) {
   slider('MOUSE SENSITIVITY', () => settings.sens, (v) => settings.setSens(v), 0.2, 3, 0.05, (v) => v.toFixed(2) + 'x');
   slider('FIELD OF VIEW', () => settings.fov, (v) => settings.setFov(v), 60, 110, 1, (v) => Math.round(v) + '°');
   slider('VOLUME', () => settings.volume, (v) => settings.setVolume(v), 0, 1, 0.05, (v) => Math.round(v * 100) + '%');
+  slider('RADIO VOICES', () => settings.voice, (v) => settings.setVoice(v), 0, 1, 0.05, (v) => Math.round(v * 100) + '%');
   choice('GRAPHICS', () => settings.quality, (v) => settings.setQuality(v), Object.entries(QUALITY).map(([id, q]) => [id, q.label]));
   choice('BOT DIFFICULTY', () => settings.difficulty, (v) => settings.setDifficulty(v), Object.values(DIFFICULTY).map((d) => [d.id, d.label]));
   { const cb = el('input', { type: 'checkbox' }); cb.setAttribute('aria-label', 'Blood and gore');
@@ -45,6 +46,11 @@ export function initSettingsMenu(root, input, onClose) {
     cb.addEventListener('change', () => settings.setHeadbob(cb.checked));
     rows.push(() => { cb.checked = settings.headbob; });
     body.appendChild(el('label', { className: 'srow' }, [el('span', { text: 'HEAD BOB & CAMERA MOTION' }), cb, el('b')])); }
+
+  { const cb = el('input', { type: 'checkbox' }); cb.setAttribute('aria-label', 'Subtitles for radio voices');
+    cb.addEventListener('change', () => settings.setSubtitles(cb.checked));
+    rows.push(() => { cb.checked = settings.subtitles; });
+    body.appendChild(el('label', { className: 'srow' }, [el('span', { text: 'SUBTITLES' }), cb, el('b')])); }
 
   body.appendChild(el('h3', { text: 'CONTROLS  (click a key, then press the new one)' }));
   const grid = el('div', { className: 'keys' }); body.appendChild(grid);

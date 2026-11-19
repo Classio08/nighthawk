@@ -14,7 +14,8 @@
     "server:test": "node scripts/retry.mjs 3 node server/test/match.mjs",
     "e2e": "node scripts/e2e.mjs",
     "server:dev": "node --watch server/src/index.js",
-    "check": "npm test && npm run smoke && npm run server:test && npm run build"
+    "check": "npm test && npm run smoke && npm run server:test && npm run build",
+    "host": "node scripts/host.mjs"
   },
   "keywords": [],
   "author": "",

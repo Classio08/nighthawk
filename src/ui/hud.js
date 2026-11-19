@@ -61,6 +61,13 @@ export class Hud {
     while (this.el.pk.children.length > 4) this.el.pk.firstChild.remove();
   }
   message(text, color = '#ff4d4d', secs = 1.4) { this.el.msg.textContent = text; this.el.msg.style.color = color; this.msgT = secs; }
+  /** a radio caption: speaker tag in the speaker's colour + the line (fades out by itself) */
+  subtitle(label, text, color = '#ffffff', secs = 3.5) {
+    const el = $('subtitle'); if (!el) return;
+    el.innerHTML = ''; const b = document.createElement('b'); b.textContent = label; b.style.color = color; const s = document.createElement('span'); s.textContent = text;
+    el.append(b, s); el.style.opacity = '1'; clearTimeout(this._subT); this._subT = setTimeout(() => { el.style.opacity = '0'; }, secs * 1000);
+  }
+  clearSubtitle() { const el = $('subtitle'); if (el) { el.style.opacity = '0'; clearTimeout(this._subT); } }
   hitmarker(kill, head) {
     this.el.hitm.className = kill ? 'kill' : ''; this.hitT = kill ? 0.45 : 0.18;
     this.el.hitm.style.transform = head && !kill ? 'scale(1.35)' : 'scale(1)';
@@ -299,5 +306,5 @@ export class Hud {
     $('end').classList.add('show');
   }
   hideEnd() { $('end').classList.remove('show'); }
-  reset() { this.el.feed.innerHTML = ''; if (this.el.mission) this.el.mission.style.display = 'none'; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
+  reset() { this.clearSubtitle(); this.el.feed.innerHTML = ''; if (this.el.mission) this.el.mission.style.display = 'none'; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
 }

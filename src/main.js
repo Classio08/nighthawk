@@ -36,6 +36,9 @@ import { FrameMetrics } from './perf/frame-metrics.js';
 import { createMissionView } from './render/mission-view.js';
 import { snapshotLines, composeCard } from './ui/snapshot.js';
 import { ViewMotion } from './render/headbob.js';
+import { BarkDirector, operationVoiceIds } from './fx/bark-director.js';
+import { VoicePlayer } from './fx/voice.js';
+import { detectSameOriginServer } from './net/server-url.js';
 
 const STEP = 1 / 60;
 const $ = (id) => document.getElementById(id);
@@ -76,6 +79,7 @@ settings.onChange(() => { audio.setVolume(settings.volume); applyQuality(); resi
 let G = null;
 const cmd = { yaw: 0, pitch: 0, forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false, mortar: false, use: false };
 let hud = null;
+const voice = new VoicePlayer();
 let paused = false, started = false, thirdPerson = false;
 const tmp = new THREE.Vector3();
 
@@ -109,9 +113,10 @@ async function newMatch(online = null, operation = false) {          // `operati
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.melee = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
   G = { sim, net: online, scene, world, pview, sview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
-    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0, vm: new ViewMotion(), vmo: { y: 0, roll: 0, pitch: 0, fov: 0 } };
+    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0, vm: new ViewMotion(), vmo: { y: 0, roll: 0, pitch: 0, fov: 0 }, barks: sim.mission ? new BarkDirector() : null };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
-  hud.hideEnd(); $('snapwrap').style.display = 'none';
+  hud.hideEnd(); $('snapwrap').style.display = 'none'; voice.stop();
+  if (G.barks) { voice.preload(operationVoiceIds()); setTimeout(() => { if (G?.barks && G.sim === sim) speak(G.barks.start(sim.time)); }, 1400); }
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
   viewmodel.root.visible = !thirdPerson;
   tracker.reset();
@@ -141,10 +146,18 @@ function blood(x, y, z, dx, dy, dz, n, power) {
 }
 function angleTo(p, x, z) { return Math.atan2(-(x - p.x), -(z - p.z)); }
 
+/** play a radio line chosen by the BarkDirector: voice (own volume) + subtitle (own switch) */
+function speak(r) {
+  if (!r) return;
+  if (settings.subtitles) hud.subtitle(r.label, r.text, r.color, r.dur + 1);
+  voice.play(r.id, settings.voice);
+}
+
 function handleEvents() {
   const { sim, particles, decals, tracers, views } = G, p = sim.player;
   for (const e of sim.drainEvents()) {
     tracker.onEvent(e, p.id);
+    if (G.barks) speak(G.barks.event(e, { t: sim.time, id: p.id, hp: p.hp, maxHp: p.maxHp, x: p.x, z: p.z }));
     switch (e.t) {
       case 'fire': {
         const f = sim.fighters[e.by], w = WEAPONS[e.w];
@@ -472,6 +485,7 @@ function frame(now) {
     }
     if (G.net) G.net.update(dt);
     handleEvents();
+    if (G.barks && sim.mission?.alert) speak(G.barks.alert(sim.mission.alert.level, sim.time));
   }
   const alpha = paused ? 1 : G.acc / STEP;
 
@@ -582,7 +596,8 @@ $('playbtn').addEventListener('click', beginPlay);
 let joining = null;
 async function beginOnline() {
   audio.unlock();
-  if (!ONLINE_URL) { $('onlinemsg').textContent = 'No game server set (use ?online=ws://host:2567)'; return; }
+  const serverUrl = ONLINE_URL || await detectSameOriginServer();        // hosted by the game server itself (npm run host)? then the server is this page's origin
+  if (!serverUrl) { $('onlinemsg').textContent = 'No game server set (use ?online=ws://host:2567)'; return; }
   const name = ($('namebox').value || 'Operator').trim().slice(0, 16);
   OPERATOR = OPERATOR_IDS.has($('operatorbox').value) ? $('operatorbox').value : 'roms';
   try { localStorage.setItem('nh_operator', OPERATOR); } catch { /* private mode */ } try { localStorage.setItem('nh_name', name); } catch { /* private mode */ }
@@ -590,7 +605,7 @@ async function beginOnline() {
   const ticket = joining = {};                         // so CANCEL can abandon this attempt
   try {
     const { NetSim } = await import('./net/netsim.js');          // the multiplayer code is only downloaded when you go online
-    const net = await NetSim.join(ONLINE_URL, { name, operator: OPERATOR, skin: SKIN, lag: FAKE_LAG,
+    const net = await NetSim.join(serverUrl, { name, operator: OPERATOR, skin: SKIN, lag: FAKE_LAG,
       onLobby: (m) => { $('lobbytxt').textContent = `${m.n} player${m.n === 1 ? '' : 's'} in the lobby · starting in ${m.left} s`; } });
     if (joining !== ticket) { net.dispose(); return; }
     started = true; await newMatch(net);
