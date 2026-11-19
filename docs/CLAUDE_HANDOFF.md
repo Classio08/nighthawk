@@ -115,3 +115,19 @@ Dependent follow-on: `feature/ballistic-projectile-foundation`, based on `featur
 - Tracer segments are transient events through the existing snapshot event buffer; avoid adding 60 Hz replicated projectile state.
 - Net prediction reconciles in-flight rounds by input sequence. Preserve accepted projectiles; prune only unacknowledged predictions before replay.
 - The current branch has not been tested, built or playtested at the owner's request.
+
+
+## Owner's Windows development and asset intake update — 19 November 2026
+
+The owner has now cloned the repository on Windows using PowerShell 5.1:
+
+- Workspace: `C:\Dev\nighthawk`
+- Node.js `v26.4.0`, npm `11.17.0`, Git `2.54.0.windows.1`
+- `npm install` succeeded (109 packages added; npm reported zero vulnerabilities).
+- npm emitted an optional script approval warning for `msgpackr-extract@3.0.7`; do not treat this as an install failure or approve it without reviewing why it is needed.
+- Owner created `raw-zips/`, added `raw-zips/` and `sorted-assets/` to the local `.gitignore`, and created `scripts/unpack-and-catalog.mjs`.
+- The script reported 41 ZIP archives unpacked, producing `sorted-assets/CATALOG.json` and `sorted-assets/CATALOG.md`.
+
+The catalogue contents and ZIP source/licence metadata have not yet been provided for review. Do not import the extracted directory wholesale or claim those assets are licensed. Inspect the catalogue, select individual assets, verify each source and licence for commercial redistribution, then optimize and add only reviewed assets with provenance records. Keep `raw-zips/` and `sorted-assets/` ignored; commit only selected approved assets.
+
+This PowerShell clone was created from the default branch. It is separate from these feature branches unless the owner explicitly checks them out locally. Do not overwrite the owner's uncommitted `.gitignore` changes; the feature branch now includes the same archive/extraction ignores while retaining the repository's existing runtime/data ignores.
