@@ -36,6 +36,7 @@ contract NighthawkCosmetics {
 
     constructor(string memory baseUri_, address royaltyReceiver_, uint96 royaltyBps_) {
         if (royaltyBps_ > 1000) revert RoyaltyTooHigh();
+        if (royaltyBps_ > 0 && royaltyReceiver_ == address(0)) revert ZeroAddress();
         owner = msg.sender; _baseUri = baseUri_; royaltyReceiver = royaltyReceiver_; royaltyBps = royaltyBps_;
         emit OwnershipTransferred(address(0), msg.sender);
     }
@@ -46,7 +47,7 @@ contract NighthawkCosmetics {
     function mint(address to, uint256 id, uint256 amount) external onlyOwner {
         if (to == address(0)) revert ZeroAddress(); uint256 cap = supplyCap[id]; if (cap == 0) revert CapNotSet();
         if (totalSupply[id] + amount > cap) revert CapExceeded();
-        totalSupply[id] += amount; _bal[id][to] += amount; emit TransferSingle(msg.sender, address(0), to, id, amount); _checkReceiver(msg.sender, address(0), to, id, amount);
+        totalSupply[id] += amount; _bal[id][to] += amount; emit TransferSingle(msg.sender, address(0), to, id, amount); _checkReceiver(msg.sender, address(0), to, id, amount, "");
     }
     function transferOwnership(address next) external onlyOwner { pendingOwner = next; emit OwnershipTransferStarted(owner, next); }
     function acceptOwnership() external { if (msg.sender != pendingOwner) revert NotOwner(); emit OwnershipTransferred(owner, msg.sender); owner = msg.sender; pendingOwner = address(0); }
@@ -60,10 +61,10 @@ contract NighthawkCosmetics {
     }
     function setApprovalForAll(address operator, bool ok) external { _approved[msg.sender][operator] = ok; emit ApprovalForAll(msg.sender, operator, ok); }
     function isApprovedForAll(address account, address operator) public view returns (bool) { return _approved[account][operator]; }
-    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata) external {
+    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external {
         if (from != msg.sender && !isApprovedForAll(from, msg.sender)) revert NotAuthorised(); if (to == address(0)) revert ZeroAddress();
         uint256 b = _bal[id][from]; if (b < amount) revert InsufficientBalance(); unchecked { _bal[id][from] = b - amount; } _bal[id][to] += amount;
-        emit TransferSingle(msg.sender, from, to, id, amount); _checkReceiver(msg.sender, from, to, id, amount);
+        emit TransferSingle(msg.sender, from, to, id, amount); _checkReceiver(msg.sender, from, to, id, amount, data);
     }
     function safeBatchTransferFrom(address from, address to, uint256[] calldata ids, uint256[] calldata amounts, bytes calldata data) external {
         if (from != msg.sender && !isApprovedForAll(from, msg.sender)) revert NotAuthorised(); if (to == address(0)) revert ZeroAddress(); if (ids.length != amounts.length) revert LengthMismatch();
@@ -71,8 +72,8 @@ contract NighthawkCosmetics {
         emit TransferBatch(msg.sender, from, to, ids, amounts);
         if (to.code.length > 0) { try IERC1155Receiver(to).onERC1155BatchReceived(msg.sender, from, ids, amounts, data) returns (bytes4 r) { if (r != IERC1155Receiver.onERC1155BatchReceived.selector) revert BadReceiver(); } catch { revert BadReceiver(); } }
     }
-    function _checkReceiver(address operator, address from, address to, uint256 id, uint256 amount) private {
-        if (to.code.length > 0) { try IERC1155Receiver(to).onERC1155Received(operator, from, id, amount, "") returns (bytes4 r) { if (r != IERC1155Receiver.onERC1155Received.selector) revert BadReceiver(); } catch { revert BadReceiver(); } }
+    function _checkReceiver(address operator, address from, address to, uint256 id, uint256 amount, bytes memory data) private {
+        if (to.code.length > 0) { try IERC1155Receiver(to).onERC1155Received(operator, from, id, amount, data) returns (bytes4 r) { if (r != IERC1155Receiver.onERC1155Received.selector) revert BadReceiver(); } catch { revert BadReceiver(); } }
     }
 
     // ---- ERC-2981 + ERC-165 ----
