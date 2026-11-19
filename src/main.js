@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { Simulation, initPhysics, OPERATORS } from './sim/world.js';
 import { WEAPONS, SLOT_ORDER, RELOAD_STAGES, SKINS, skinOk } from './sim/weapons.js';
 import { Input } from './input/input.js';
+import { TouchControls } from './input/touch-controls.js';
 import { WorldView } from './render/scene.js';
 import { FighterView } from './render/fighter.js';
 import { Viewmodel } from './render/viewmodel.js';
@@ -64,6 +65,10 @@ camera.rotation.order = 'YXZ';
 const viewmodel = new Viewmodel(camera);
 const camfx = new CameraFx();
 const input = new Input(canvas);
+const touchControls = new TouchControls(input, { onPause: () => {
+  if (!started || !G || G.over) return;
+  paused = true; showOv('pause', true); touchControls.setActive(false);
+} });
 audio.setVolume(settings.volume);
 const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
 addEventListener('resize', resize); resize();
@@ -311,6 +316,7 @@ function handleEvents() {
       case 'end': {
         if (e.to !== undefined && e.to !== p.id) break;        // somebody else's result
         G.over = true;
+        touchControls.setActive(false);
         if (!sim.mission && !G.recorded) {             // BR profile rewards are not used for mission results yet
           G.recorded = true;
           const res = recordMatch(profile, tracker.summary(e, Math.max(sim.fighters.length, e.placement ?? 0)));
@@ -531,7 +537,8 @@ async function beginPlay() {
   audio.unlock();
   if (!started) { started = true; await newMatch(); }
   showOv('start', false); showOv('pause', false); showOv('end', false); paused = false;
-  if (!AUTOSTART) input.lock();
+  touchControls.setActive(touchControls.enabled);
+  if (!AUTOSTART && !touchControls.enabled) input.lock();
 }
 
 async function beginOperation() {
@@ -539,13 +546,14 @@ async function beginOperation() {
   started = true;
   await newMatch(null, true);
   showOv('start', false); showOv('pause', false); showOv('end', false); paused = false;
-  if (!AUTOSTART) input.lock();
+  touchControls.setActive(touchControls.enabled);
+  if (!AUTOSTART && !touchControls.enabled) input.lock();
 }
 $('operationbtn').addEventListener('click', beginOperation);
 
 input.onLockChange = (locked) => {
   if (!started || !G || G.over || AUTOSTART) return;
-  if (!locked) { paused = true; showOv('pause', true); } else { paused = false; showOv('pause', false); }
+  if (!locked) { paused = true; showOv('pause', true); touchControls.setActive(false); } else { paused = false; showOv('pause', false); }
 };
 $('playbtn').addEventListener('click', beginPlay);
 
@@ -566,9 +574,10 @@ async function beginOnline() {
     if (joining !== ticket) { net.dispose(); return; }
     started = true; await newMatch(net);
     net.onReconnecting = (on) => { if (G?.net === net && !G.over) hud.message(on ? 'CONNECTION LOST - RECONNECTING...' : 'RECONNECTED', on ? '#ffb347' : '#7dff9a', on ? 12 : 1.5); };
-    net.onClose = () => { if (G?.net === net && !G.over) { G.over = true; hud.message('DISCONNECTED FROM SERVER', '#ff4d4d', 4); setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); showOv('start', true); }, 2500); } };
+    net.onClose = () => { if (G?.net === net && !G.over) { G.over = true; touchControls.setActive(false); hud.message('DISCONNECTED FROM SERVER', '#ff4d4d', 4); setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); showOv('start', true); }, 2500); } };
     showOv('lobby', false); showOv('pause', false); paused = false;
-    if (!AUTOSTART) input.lock();
+    touchControls.setActive(touchControls.enabled);
+    if (!AUTOSTART && !touchControls.enabled) input.lock();
   } catch (err) {
     if (joining !== ticket) return;
     showOv('lobby', false); showOv('start', true);
@@ -617,12 +626,12 @@ const settingsMenu = initSettingsMenu($('settings'), input, () => settingsMenu.c
 $('startsettings').addEventListener('click', () => settingsMenu.open());
 $('pausesettings').addEventListener('click', () => settingsMenu.open());
 addEventListener('keydown', (e) => { if (e.code === 'Escape' && settingsMenu.isOpen && !e.nhCaptured) settingsMenu.close(); });
-$('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
+$('resumebtn').addEventListener('click', () => { audio.unlock(); paused = false; showOv('pause', false); if (touchControls.enabled) touchControls.setActive(true); else input.lock(); });
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);
   if (G?.net) { const url = ONLINE_URL; G.net.dispose(); G.net = null; if (url) { await beginOnline(); return; } }
   const operation = !!G?.sim?.mission;
-  await newMatch(null, operation); paused = false; if (!AUTOSTART) input.lock();
+  await newMatch(null, operation); paused = false; touchControls.setActive(touchControls.enabled); if (!AUTOSTART && !touchControls.enabled) input.lock();
 });
 
 (async function boot() {
