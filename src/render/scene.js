@@ -3,18 +3,21 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bakeGeometries, placed } from './bake.js';
+import { makeGroundTexture, makeConcreteTexture, makeMetalTexture, mottlePlane, worldUV } from './proc-textures.js';
 
 const lambert = (c) => new THREE.MeshLambertMaterial({ color: c });
 
-/** Static meshes that share a material become ONE mesh (one draw call each). Only for things that never move or change: the map's boxes. */
-function mergeStatic(scene, meshes) {
+/** Static meshes that share a material become ONE mesh (one draw call each). Only for things that never move or change: the map's boxes.
+ *  A mesh with userData.tex ('concrete' | 'metal') gets that procedural texture with world-space UVs (same scale on every wall). */
+function mergeStatic(scene, meshes, textures) {
   const byMat = new Map();
   for (const m of meshes) {
     m.updateMatrix();
-    const g = m.geometry.clone().applyMatrix4(m.matrix);
-    const key = m.material.color.getHex();
-    let e = byMat.get(key); if (!e) byMat.set(key, e = { mat: m.material, geos: [] });
-    e.geos.push(g); m.geometry.dispose();
+    const g = m.geometry.clone().applyMatrix4(m.matrix), tex = m.userData.tex ?? null;
+    if (tex) worldUV(g, textures[tex].metres);
+    const key = m.material.color.getHex() + '|' + tex;
+    let e = byMat.get(key); if (!e) byMat.set(key, e = { mat: new THREE.MeshLambertMaterial({ color: m.material.color, map: tex ? textures[tex].map : null }), geos: [] });
+    e.geos.push(g); m.geometry.dispose(); m.material.dispose();
   }
   for (const { mat, geos } of byMat.values()) { const merged = mergeGeometries(geos, false); geos.forEach((g) => g.dispose()); const mesh = new THREE.Mesh(merged, mat); mesh.frustumCulled = false; scene.add(mesh); }
   return byMat.size;
@@ -33,18 +36,6 @@ const KIND_COLORS = {
   'poi-fence': [0x6d7478],
 };
 
-export function makeSand() {                       // little noise texture so you can SEE yourself moving
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const v = 150 + ((x * 7 + y * 13 + ((x * y) % 5) * 11) % 28);
-    g.fillStyle = `rgb(${v + 38},${v + 22},${v - 28})`; g.fillRect(x * 8, y * 8, 8, 8);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(90, 90); t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
 export class WorldView {
   constructor(scene, sim) {
     this.scene = scene; this.sim = sim;
@@ -61,18 +52,20 @@ export class WorldView {
     this.sky = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
     this.sky.renderOrder = -10; scene.add(this.sky);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshLambertMaterial({ map: makeSand() }));
+    const groundTex = makeGroundTexture();
+    const ground = new THREE.Mesh(mottlePlane(new THREE.PlaneGeometry(600, 600, 48, 48), 48), new THREE.MeshLambertMaterial({ map: groundTex, vertexColors: true }));   // procedural sand + large soft patches
     ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
+    const textures = { concrete: { map: makeConcreteTexture(), metres: 4 }, metal: { map: makeMetalTexture(), metres: 2.4 } };
     let k = 0; const statics = [];
     for (const b of sim.map.boxes) {
       if (b.kind === 'poi-mast') continue; // the detailed cylinder below replaces this collision-only box visually
       const cols = KIND_COLORS[b.kind] ?? KIND_COLORS.block;
       const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), lambert(cols[k++ % cols.length]));
-      m.position.set(b.x, b.y, b.z); statics.push(m);
+      m.position.set(b.x, b.y, b.z); m.userData.tex = b.kind === 'container' || b.kind === 'poi-container' ? 'metal' : 'concrete'; statics.push(m);
       if (b.kind === 'block' || b.kind === 'poi-building') {
         const roof = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.5, 0.35, b.d + 0.5), lambert(0x3d4249));
-        roof.position.set(b.x, b.h + 0.17, b.z); statics.push(roof);
+        roof.position.set(b.x, b.h + 0.17, b.z); roof.userData.tex = 'concrete'; statics.push(roof);
         const door = new THREE.Mesh(new THREE.BoxGeometry(Math.min(2.2, b.w * 0.3), 2.4, 0.12), lambert(0x22262b));
         door.position.set(b.x, 1.2, b.z + b.d / 2 + 0.03); statics.push(door);
         for (const s of [-1, 1]) { // dark windows on two sides
@@ -84,12 +77,13 @@ export class WorldView {
         stripe.position.set(b.x, b.y + 0.4, b.z); statics.push(stripe);
       }
     }
-    this.staticDrawCalls = mergeStatic(scene, statics);     // (the map never changes: roughly 150 meshes become about a dozen draw calls)
+    this.staticDrawCalls = mergeStatic(scene, statics, textures);     // (the map never changes: roughly 150 meshes become about a dozen draw calls)
 
     // Kavari Basin landmark dressing. These meshes are visual-only; collision remains in sim.map.boxes.
     this.poiMeshes = [];
     const addPoiMesh = (mesh) => { scene.add(mesh); this.poiMeshes.push(mesh); return mesh; };
-    const padMat = lambert(0x77715f), paintMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b5 });
+    const riverTex = groundTex.clone(); riverTex.repeat.set(13 / 8, 34 / 8); riverTex.needsUpdate = true;    // the same procedural sand, darker and greyer = gravel (one tile is 8 m)
+    const padMat = new THREE.MeshLambertMaterial({ color: 0xa09c92, map: riverTex }), paintMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b5 });
     // Dry River: a shallow, winding gravel wash through the centre of the arena.
     const riverSegments = [
       [-20, -48, -0.18], [-13, -20, 0.12], [0, 8, 0.22], [13, 37, -0.12], [18, 66, -0.28],
