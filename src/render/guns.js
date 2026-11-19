@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { skinMaterial } from './skins.js';
 import { bakeBoxes } from './bake.js';
+import { buildWeaponAttachmentMesh } from './weapon-attachments.js';
 
 const DARK = 0x2d3139, MID = 0x4a505a, LIGHT = 0x6d7683, WOOD = 0x7a5534, TAN = 0x9d8a62;
 
@@ -60,6 +61,8 @@ export function makeGun(id, tint, skin = null) {
     if (sm) g.add(new THREE.Mesh(bakeBoxes(rest, false), sm));          // skinned: baked into gun space so the shader pattern runs smoothly over the whole gun
     else { let b = bodyCache.get(def); if (!b) bodyCache.set(def, b = bakeBoxes(rest)); g.add(new THREE.Mesh(b, GUN_MAT)); }
   }
+  const attachments = buildWeaponAttachmentMesh(id);
+  if (attachments) g.add(attachments);                                  // one baked cosmetic detail mesh; no simulation stats change
   g.userData.mag = magMesh; g.userData.skin = skin;
   if (tint) { // small colour stripe so each operator's gun looks a bit theirs
     const s = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: tint }));
