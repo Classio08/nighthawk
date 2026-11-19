@@ -72,10 +72,13 @@ test('releasing touch clears movement and held actions without clearing keyboard
   input.keys.add('KeyW');
   input.setTouchMove(1, 0, true);
   input.setTouchAction('fire', true);
+  input.addTouchLook(24, -18);
   input.releaseTouch();
   const move = input.readMove();
   assert.equal(move.forward, 1, 'keyboard movement remains available');
   assert.equal(move.sprint, false);
   assert.equal(input.fire, false);
   assert.equal(input.touchMove.strafe, 0);
+  assert.equal(input.dx, 0, 'pending touch look is discarded on release');
+  assert.equal(input.dy, 0, 'pending touch look is discarded on release');
 });
