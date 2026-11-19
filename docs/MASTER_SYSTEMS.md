@@ -16,8 +16,10 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 7 | Vehicles: arcade buggy (2 seats) and bike (1 seat), roadkill, bots that steal and drive | built | `src/sim/vehicles.js`, `src/render/vehicles-view.js` | `tests/vehicles.test.js`, `scripts/e2e-vehicles.mjs`, section 2c of `server/test/match.mjs` |
 | 8 | Loot: guns, ammo, armor, medkits and grenades on the ground, death drops, airdrop crates, bots that loot and heal | built | `src/sim/loot.js`, `src/render/loot-view.js` | `tests/loot.test.js`, `scripts/e2e-loot.mjs`, `scripts/e2e-online-loot.mjs`, section 4 of `server/test/match.mjs` |
 | 9 | Operator abilities (Q) for all 8 operators, crouch (C), fall damage | built | `src/sim/abilities.js`, `src/sim/world.js` | `tests/abilities.test.js`, `tests/movement.test.js`, `scripts/e2e-abilities.mjs`, section 5 of `server/test/match.mjs` |
+| 10 | Bot navigation (grid + A*), difficulty levels | built | `src/sim/nav.js`, `src/sim/difficulty.js`, `src/sim/bot.js` | `tests/nav.test.js`, `tests/bot-difficulty.test.js` |
+| 11 | Settings menu (sensitivity, FOV, volume, graphics, difficulty, gore, key rebinding), saved in the browser | built | `src/settings.js`, `src/ui/settings-menu.js`, `src/input/input.js` | `tests/settings.test.js`, `scripts/e2e-settings.mjs` |
 
-Run everything: `npm test` (128 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (144 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
@@ -27,7 +29,7 @@ In a vehicle: `W/S` gas and reverse, `A/D` steer, `Space` handbrake, `Shift` boo
 
 ## URL switches (handy for testing)
 
-`?seed=7` same map and match every time, `?bots=4` number of bots, `?weather=clear|rain|fog|night|storm`, `?gore=0|1`, `?vehicles=0` (no buggies or bikes), `?loot=0` (everybody has every gun from the start, nothing on the ground), `?cstart=5` seconds until the first contract, `?lag=120` fake network lag, `?online=ws://host:2567` use another server.
+`?seed=7` same map and match every time, `?bots=4` number of bots, `?weather=clear|rain|fog|night|storm`, `?gore=0|1`, `?vehicles=0` (no buggies or bikes), `?loot=0` (everybody has every gun from the start, nothing on the ground), `?cstart=5` seconds until the first contract, `?diff=easy|normal|hard|brutal` bot difficulty, `?sens=1.4` `?fov=95` `?vol=0.3` `?quality=low|medium|high` (all of these are also in the SETTINGS screen and saved in the browser), `?lag=120` fake network lag, `?online=ws://host:2567` use another server.
 On the server: `VEHICLES=0` turns vehicles off for every match, `LOOT=0` turns loot off (classic loadout).
 
 ## Stage 3: Utility AI
@@ -127,6 +129,22 @@ A loot match (the default in solo and on the server) starts every fighter with a
 **Crouch (`C`, hold).** Half speed, no sprint, no jump, eyes about 1.1 m above the ground (camera glides), spread x0.78, and a smaller hitbox: the capsule top drops and the head height drops (lag compensation remembers the crouch flag per tick, so shots are judged on how the target looked to the shooter). Bots crouch while holding a cover position. Wire: command flag 1024, snapshot flag `FF.crouch`, self-state `cr`. Third-person bodies squat.
 
 **Fall damage.** Landing faster than 12 m/s (a drop of about 3.3 m) costs 7 HP per extra m/s (10 m about 60 HP, 25 m about 150 HP). A normal jump (8.2 m/s) is always free; armor does not help; only the server / solo sim applies it.
+
+## Stage 10: bot navigation and difficulty
+
+**Navigation (`src/sim/nav.js`).** A 1 m grid over the map: every box taller than the auto-step height (0.5 m) blocks its cells plus a 0.55 m margin, low things (curbs, kerbs) do not. `findPath()` is A* with 8 directions and no corner cutting, then "string pulling" removes waypoints that a straight line can skip. Rules that keep it cheap and stable:
+- A bot only asks for a route when the straight line to where it wants to go is blocked (`segmentClear`, which forgives the first and last 1.5 m so a soldier hugging a wall can still leave or arrive).
+- The route is kept until the goal moved more than 5 m, the bot was pushed off it, or 8 s passed. Re-planning every second made equal-length routes flip-flop and the bot dithered.
+- At most 4 searches per tick across all bots (`sim.navBudget`); a search stops after 30 000 cells. If no route is found the bot steers straight as before, and Yuka avoidance and the stuck-detector still back it up.
+- While a route is being followed Yuka's circle avoidance is switched off (it fought the route around big buildings).
+- Deterministic: no RNG, no clock, so the server and the solo game plan identical routes. A predicting browser has no bots and builds no grid (`opts.predictor`); `opts.nav = false` turns it off for tests.
+Effect: a sniper that needed 30 s to reach a nest now needs about 20 s; bots no longer grind against long walls.
+
+**Difficulty (`src/sim/difficulty.js`).** `easy | normal | hard | brutal`: adds to skill and scales reaction time, aim error and how often bots use abilities, grenades and mortar strikes. Bots never cheat (no wall-hacks, no extra health or damage). `normal` equals the numbers the bots were tuned with. `BotBrain.setDifficulty(id)` re-derives everything from the bot's own base skill, so levels can be switched without drift (adaptive difficulty later). Solo: SETTINGS or `?diff=hard`. Server: `DIFFICULTY=hard npm run server`.
+
+## Stage 11: settings menu
+
+`SETTINGS` on the start and pause screens (`src/ui/settings-menu.js`): mouse sensitivity (0.2x-3x), field of view (60-110, ADS zoom scales with it), volume, graphics (render scale 60 / 85 / 100% of the device pixel ratio), bot difficulty, gore, and **key rebinding** for 15 actions (weapon slots 1-6, mouse and Esc stay fixed). Click a key button, press the new key; a key that another action uses swaps the two so nothing is ever unbound; Esc, Tab, 1-6 and F-keys are refused; `Esc` cancels. `settings.js` validates everything it loads (a corrupted or hand-edited save cannot produce NaN, an unknown key or a double binding; a double binding falls back to the default layout) and saves to `localStorage` key `nh_settings_v1` (the old `nh_gore` value is still read once). Portal builds still start with gore off. Game code asks `input.act('jump')` / `input.actPressed('use')` instead of hard-coded key codes.
 
 ## What to look at next (open items)
 

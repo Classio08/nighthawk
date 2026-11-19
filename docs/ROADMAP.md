@@ -20,6 +20,8 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 | Loot and inventory | Built first pass | Guns, ammo, armor LV1-3, medkits, death drops, airdrop crates, hot-zone loot at named places; server-authoritative pickups |
 | Map | Greybox | Kavari Basin: Basin Yard, Dry River, Relay Ridge, Forward Outpost, Extraction Pad with minimap labels; still blocks, no real art |
 | Operators | Abilities built | Eight operators selectable; all eight active abilities (Q) work, server-validated, bots use them; art and passives still to do |
+| Bots | Navigation + difficulty built | A* routes round buildings, four difficulty levels (easy/normal/hard/brutal); smoke grenades and a training range still to do |
+| Settings | Built | Sensitivity, FOV, volume, graphics, difficulty, key rebinding, saved in the browser; accessibility options and a progression profile still to do |
 | Movement | Crouch + fall damage built | C crouch, fall damage; slide, mantle/vault and melee still to do |
 | Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
 | Monetisation | Not implemented | Platform adapters and policy review required |

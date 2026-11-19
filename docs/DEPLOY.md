@@ -10,7 +10,7 @@ Two things exist: the **game page** (static files, `npm run build` makes them in
 3. Type a callsign, press **PLAY ONLINE**. You are in a lobby; after 15 seconds the match starts and empty slots are filled with bots.
 4. Open the same page in a **second browser window** (a private window works) before the 15 seconds end. Now two humans are in the same match. Walk towards each other and shoot.
 5. Want to feel bad internet? Add `?lag=150` to the address of ONE window (150 ms round-trip). Movement still feels instant (prediction) and your shots still hit (lag compensation).
-6. Short lobby for testing: `LOBBY_SECS=3 npm run server` (on Windows PowerShell: `$env:LOBBY_SECS=3; npm run server`).
+6. Short lobby for testing: `LOBBY_SECS=3 npm run server` (on Windows PowerShell: `$env:LOBBY_SECS=3; npm run server`). Bot difficulty for the whole server: `DIFFICULTY=hard npm run server` (`easy`, `normal`, `hard`, `brutal`).
 
 If the page says "Could not join a match", the server is not running or the address is wrong. You can point a page at any server with `?online=ws://host:2567`.
 

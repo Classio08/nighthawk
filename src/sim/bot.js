@@ -9,6 +9,7 @@ import { WEAPON_RANK } from './loot.js';
 import { findCover, findPerch, insideAnyBox, MAP_HALF } from './map.js';
 import { searchWaypoint } from './guard-doctrine.js';
 import { PERSONALITIES } from './personality.js';
+import { diffOf } from './difficulty.js';
 import { botUseAbility, activeAbility, isCloaked, ABILITIES } from './abilities.js';
 
 const BASE_SPEED = 7;
@@ -42,8 +43,8 @@ export class BotBrain {
   constructor(sim, f, skill = 0.6, personality = 'brawler') {
     this.pid = PERSONALITIES[personality] ? personality : 'brawler';
     this.p = PERSONALITIES[this.pid];
-    skill = clamp(skill + this.p.skillBonus, 0.2, 0.97);
-    this.sim = sim; this.f = f; this.skill = skill;
+    this.baseSkill = clamp(skill + this.p.skillBonus, 0.2, 0.97);
+    this.sim = sim; this.f = f;
     this.state = 'roam'; this.decideT = 0; this.scores = {};
     this.supT = 0; this.supOn = false; this.flankPt = null; this.barrelAim = null;
     this.radio = null; this.perch = null; this.perchPhase = -1; this.campT = 0; this.post = null; this.leash = 18;
@@ -52,10 +53,8 @@ export class BotBrain {
     this.main = this.p.weapons.includes(f.op.weapon) ? f.op.weapon : this.p.weapons[f.id % this.p.weapons.length];
     if (f.weapons[this.main].have && f.cur !== this.main) f.cur = this.main;
     this.mainT = 0; this.lootScanT = 0; this.lootPickPrev = null; this.lootBan = new Map(); this.lootId = -1; this.lootT = 0;
-    this.reaction = lerp(1.0, 0.4, skill);
-    this.turnSpeed = lerp(3.0, 7.5, skill);
-    this.aimErr = lerp(0.11, 0.035, skill);
     this.fov = 1.9;
+    this.setDifficulty(sim.opts.difficulty);                       // sets skill, reaction, turnSpeed, aimErr (see difficulty.js)
 
     this.target = null; this.visible = false; this.engageT = 0;
     this.lastSeen = null; this.lastSeenT = 99;
@@ -68,6 +67,7 @@ export class BotBrain {
     this.strafeDir = sim.rng.sign(); this.strafeT = 0;
     this.coverPt = null; this.coverT = 0; this.coverCool = 0;
     this.roamGoal = null; this.roamT = 0;
+    this.path = null; this.pathGoal = null; this.pathT = 0; this.stuckCount = 0; this.navOk = false;       // A* route (nav.js) around buildings
     this.unstick = null; this.stuckT = 0; this.stuckCheck = 0.5; this.px = f.x; this.pz = f.z;
     this.jumpCool = 0; this.moving = false; this.sprint = false;
     this.nadeCool = 6 + sim.rng() * 8;
@@ -81,6 +81,15 @@ export class BotBrain {
     this.avoid = new YUKA.ObstacleAvoidanceBehavior(sim.obstacles);
     this.vehicle.steering.add(this.seek);
     this.vehicle.steering.add(this.avoid);
+  }
+
+  /** (re)apply a difficulty level (difficulty.js): derives skill, reaction time, turn speed and aim error from the bot's own skill */
+  setDifficulty(id) {
+    const d = this.diff = diffOf(id), skill = this.skill = clamp(this.baseSkill + d.skill, 0.1, 0.99);
+    this.reaction = lerp(1.0, 0.4, skill) * d.react;
+    this.turnSpeed = lerp(3.0, 7.5, skill);
+    this.aimErr = lerp(0.11, 0.035, skill) * d.aim;
+    this.trickRate = d.tricks;
   }
 
   /* ----- senses ----- */
@@ -161,6 +170,25 @@ export class BotBrain {
   }
 
   /* ----- helpers ----- */
+
+  /** where to steer to reach (gx,gz): the goal itself when the straight line is clear, else the next waypoint of an A* route (re-planned when the goal moves or every ~1.3 s) */
+  _nav(gx, gz, dt) {
+    const { sim, f } = this, nav = sim.nav;
+    this.navOk = true;
+    if (nav.segmentClear(f.x, f.z, gx, gz)) { this.path = null; return { x: gx, z: gz }; }
+    this.pathT -= dt;
+    // keep the route we have (re-planning every second makes equal-length routes flip-flop and the bot dither); plan again only when the goal moved, the route is gone, we were pushed off it, or it is old
+    const goalMoved = !this.pathGoal || Math.hypot(this.pathGoal.x - gx, this.pathGoal.z - gz) > 5;
+    const off = this.path && this.path.length && !nav.segmentClear(f.x, f.z, this.path[0].x, this.path[0].z);
+    if ((!this.path || !this.path.length || goalMoved || off || this.pathT <= 0) && sim.navBudget > 0) {
+      sim.navBudget--; this.pathT = 8 + (f.id % 5) * 0.5; this.pathGoal = { x: gx, z: gz };
+      this.path = nav.findPath(f.x, f.z, gx, gz);
+    }
+    const path = this.path;
+    if (!path || !path.length) { this.navOk = false; return { x: gx, z: gz }; }                  // no route found (or no budget yet): steer straight, avoidance + unstick still work
+    while (path.length > 1 && (Math.hypot(path[0].x - f.x, path[0].z - f.z) < 1.8 || nav.segmentClear(f.x, f.z, path[1].x, path[1].z))) path.shift();
+    return path[0];
+  }
 
   _pickRoam() {
     const { sim } = this, z = sim.zone;
@@ -353,7 +381,7 @@ export class BotBrain {
 
     this.state = this._decide({ outNow, relocating, tgt, dist, hpF });
     this.abT = (this.abT ?? 0) - dt;
-    if (this.abT <= 0) { this.abT = 0.25; botUseAbility(sim, f, { tgt, dist, hpF, hurtRecently: this.hurtT < 2.5 }); }       // press Q when it is worth it
+    if (this.abT <= 0) { this.abT = 0.25 / this.trickRate; botUseAbility(sim, f, { tgt, dist, hpF, hurtRecently: this.hurtT < 2.5 }); }       // press Q when it is worth it
     if (this.state !== 'heal') f.healT = 0;                       // anything more important than healing stops the medkit
     if (!tgt && sim.opts.loot && f.cur !== this.main && f.switchT <= 0 && f.reloadT <= 0 && f.weapons[this.main].have) sim.switchWeapon(f, this.main);   // out of a fight: equip the best gun
 
@@ -503,7 +531,7 @@ export class BotBrain {
       const moved = Math.hypot(f.x - this.px, f.z - this.pz); this.px = f.x; this.pz = f.z;
       if (this.moving && moved < 0.25) this.stuckT += 0.5; else this.stuckT = 0;
       if (this.stuckT >= 1) {
-        this.stuckT = 0; const a = sim.rng() * Math.PI * 2;
+        this.stuckT = 0; this.stuckCount++; const a = sim.rng() * Math.PI * 2;
         this.unstick = { x: f.x + Math.cos(a) * 10, z: f.z + Math.sin(a) * 10, t: 1.3 }; this.roamGoal = null;
       }
     }
@@ -541,9 +569,9 @@ export class BotBrain {
         }
       }
       // a banked mortar strike: call it on somebody far away
-      if (f.mortar > 0 && dist > 28 && dist < 105 && this.skill > 0.45 && sim.rng() < 0.012) sim.callMortar(f, tgt.x, tgt.z);
+      if (f.mortar > 0 && dist > 28 && dist < 105 && this.skill > 0.45 && sim.rng() < 0.012 * this.trickRate) sim.callMortar(f, tgt.x, tgt.z);
       // grenades: lob one at somebody in the open at medium range
-      if (f.nades > 0 && f.nadeT <= 0 && this.nadeCool <= 0 && dist > 12 && dist < 30 && this.skill > 0.4 && sim.rng() < 0.004) {
+      if (f.nades > 0 && f.nadeT <= 0 && this.nadeCool <= 0 && dist > 12 && dist < 30 && this.skill > 0.4 && sim.rng() < 0.004 * this.trickRate) {
         if (this._throwAt(tgt.x, tgt.y, tgt.z)) this.nadeCool = 10 + sim.rng() * 10;
       }
       if (f.weapons[f.cur].ammo < w2.mag * 0.2 && f.reloadT <= 0 && dist > 25) wantReload = true;
@@ -573,7 +601,7 @@ export class BotBrain {
       const st = f.weapons[f.cur];
       if (st.ammo < WEAPONS[f.cur].mag * 0.45 && f.reloadT <= 0) wantReload = true;
       // hunt: sometimes toss a grenade at where we last saw them
-      if (this.state === 'hunt' && this.lastSeen && f.nades > 0 && f.nadeT <= 0 && this.nadeCool <= 0 && this.skill > 0.55 && this.lastSeenT < 3 && sim.rng() < 0.003) {
+      if (this.state === 'hunt' && this.lastSeen && f.nades > 0 && f.nadeT <= 0 && this.nadeCool <= 0 && this.skill > 0.55 && this.lastSeenT < 3 && sim.rng() < 0.003 * this.trickRate) {
         if (this._throwAt(this.lastSeen.x, 0.5, this.lastSeen.z)) this.nadeCool = 12 + sim.rng() * 10;
       }
     }
@@ -591,7 +619,9 @@ export class BotBrain {
     // ---- walk ----
     this.moving = move;
     if (move) {
-      this.goal.set(gx, 0, gz);
+      const wp = !this.unstick && sim.nav ? this._nav(gx, gz, dt) : { x: gx, z: gz };       // straight line when it is clear, otherwise the next A* waypoint
+      this.avoid.active = !this.unstick && !(sim.nav && this.navOk);                          // the A* route already goes round buildings; Yuka's circle avoidance would only push the bot off it
+      this.goal.set(wp.x, 0, wp.z);
       const v = this.vehicle;
       v.maxSpeed = sp; v.position.set(f.x, 0, f.z);
       v.update(dt);

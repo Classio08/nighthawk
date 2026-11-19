@@ -51,6 +51,9 @@ const SOUNDS = {
 class Audio {
   constructor() { this.ok = false; this.z = null; this.cache = new Map(); this.lx = 0; this.lz = 0; this.lyaw = 0; this.active = 0; this.volume = 0.5; }
 
+  /** master volume 0..1 (settings menu); takes effect on the very next sound */
+  setVolume(v) { this.volume = Math.min(1, Math.max(0, Number(v) || 0)); if (this.z) this.z.ZZFX.volume = this.volume * 0.6; }
+
   /** Call from a click/key handler (browsers only allow sound after a user gesture). Safe to call many times. */
   async unlock() {
     if (this.ok || typeof window === 'undefined' || typeof AudioContext === 'undefined') return;

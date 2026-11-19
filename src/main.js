@@ -23,11 +23,12 @@ import { Atmosphere } from './render/atmosphere.js';
 import { VehiclesView } from './render/vehicles-view.js';
 import { LootView } from './render/loot-view.js';
 import { ContractsView } from './render/contracts-view.js';
-import { settings } from './settings.js';
+import { settings, QUALITY } from './settings.js';
+import { initSettingsMenu } from './ui/settings-menu.js';
 import { thirdPersonCameraPosition } from './render/camera.js';
 import { ABILITIES } from './sim/abilities.js';
 
-const STEP = 1 / 60, BASE_FOV = 78;
+const STEP = 1 / 60;
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -45,14 +46,17 @@ try { SKIN = skinOk(params.get('skin') ?? localStorage.getItem('nh_skin')); } ca
 
 const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
-const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 600);
+const applyQuality = () => renderer.setPixelRatio(Math.max(0.4, Math.min(2, devicePixelRatio || 1) * QUALITY[settings.quality].scale));
+applyQuality();
+const camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.05, 600);
 camera.rotation.order = 'YXZ';
 const viewmodel = new Viewmodel(camera);
 const camfx = new CameraFx();
 const input = new Input(canvas);
+audio.setVolume(settings.volume);
 const resize = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
 addEventListener('resize', resize); resize();
+settings.onChange(() => { audio.setVolume(settings.volume); applyQuality(); resize(); });
 
 /** everything that belongs to ONE match (recreated by PLAY AGAIN) */
 let G = null;
@@ -71,7 +75,7 @@ function disposeScene(scene) {
 async function newMatch(online = null) {
   if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: OPERATOR, skin: SKIN, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
+  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
@@ -88,7 +92,7 @@ async function newMatch(online = null) {
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
   G = { sim, net: online, scene, world, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
-    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: BASE_FOV, roll: 0 };
+    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
@@ -293,22 +297,22 @@ function handleInput(dt) {
   }
   Object.assign(cmd, input.readMove());
   cmd.fire = input.fire; cmd.ads = input.ads;
-  if (input.wasPressed('KeyV')) {
+  if (input.actPressed('camera')) {
     thirdPerson = !thirdPerson;
     viewmodel.root.visible = !thirdPerson && !(p.veh && p.seat === 0);
     G.playerView.setVisible(thirdPerson && p.alive && !p.veh);
     hud.message(thirdPerson ? 'THIRD-PERSON VIEW' : 'FIRST-PERSON VIEW', '#ffffff', 1.1);
   }
-  if (input.wasPressed('KeyR')) cmd.reload = true;
-  if (input.wasPressed('KeyG')) cmd.grenade = true;
-  if (input.wasPressed('KeyE')) cmd.use = true;
-  if (input.wasPressed('KeyH') && sim.loot?.items.length) {
+  if (input.actPressed('reload')) cmd.reload = true;
+  if (input.actPressed('grenade')) cmd.grenade = true;
+  if (input.actPressed('use')) cmd.use = true;
+  if (input.actPressed('heal') && sim.loot?.items.length) {
     if (p.healT > 0) { /* already healing */ } else if (p.meds <= 0) hud.message('NO MEDKITS - LOOT SOME', '#ff4d4d', 1.2);
     else if (p.hp >= p.maxHp) hud.message('ALREADY AT FULL HEALTH', '#ffffff', 1);
     else if (p.veh) hud.message('GET OUT OF THE VEHICLE FIRST', '#ffffff', 1.2);
     else cmd.heal = true;
   }
-  if (input.wasPressed('KeyQ')) {                                          // operator ability: the server validates, we only explain why nothing happened
+  if (input.actPressed('ability')) {                                          // operator ability: the server validates, we only explain why nothing happened
     const A = ABILITIES[p.op?.id];
     if (!A) { /* no ability for this operator */ } else if (p.veh) hud.message('GET OUT OF THE VEHICLE FIRST', '#ffffff', 1.2);
     else if (p.stunT > 0) hud.message('YOU ARE STUNNED', '#7df9ff', 0.9);
@@ -316,8 +320,8 @@ function handleInput(dt) {
     else if (A.burst && p.hp >= p.maxHp) hud.message('ALREADY AT FULL HEALTH', '#ffffff', 1);
     else cmd.ability = true;
   }
-  if (input.wasPressed('KeyT')) { if (p.mortar > 0) cmd.mortar = true; else hud.message(p.streak % 3 ? `MORTAR NEEDS 3 KILLS IN A ROW (${p.streak % 3}/3)` : 'NO MORTAR STRIKE - 3 KILLS IN A ROW OR A CONTRACT', '#ffffff', 1.4); }
-  if (input.wasPressed('KeyF') && G.atmo.light) hud.message(G.atmo.toggleFlashlight() ? 'FLASHLIGHT ON' : 'FLASHLIGHT OFF', '#ffffff', 0.8);
+  if (input.actPressed('mortar')) { if (p.mortar > 0) cmd.mortar = true; else hud.message(p.streak % 3 ? `MORTAR NEEDS 3 KILLS IN A ROW (${p.streak % 3}/3)` : 'NO MORTAR STRIKE - 3 KILLS IN A ROW OR A CONTRACT', '#ffffff', 1.4); }
+  if (input.actPressed('flashlight') && G.atmo.light) hud.message(G.atmo.toggleFlashlight() ? 'FLASHLIGHT ON' : 'FLASHLIGHT OFF', '#ffffff', 0.8);
   const slot = input.readSlot();
   if (slot) { if (p.weapons[SLOT_ORDER[slot - 1]]?.have === false) hud.message('YOU HAVEN\'T FOUND THAT GUN YET', '#ffffff', 1); else cmd.slot = slot; }
   const wheel = input.takeWheel();
@@ -352,7 +356,7 @@ function updateCamera(dt, alpha) {
       G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
       camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
     }
-    const targetFov = driving ? BASE_FOV + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(BASE_FOV + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0), w.adsFov, G.adsK);
+    const targetFov = driving ? settings.fov + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(settings.fov + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0), w.adsFov * settings.fov / 78, G.adsK);
     G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
   } else {
     // death cam: slowly orbit the ragdoll
@@ -361,7 +365,7 @@ function updateCamera(dt, alpha) {
     G.deathCamT += dt; const a = G.deathCamT * 0.35 + 0.8;
     camera.position.set(tp.x + Math.sin(a) * 4.2, tp.y + 2.6, tp.z + Math.cos(a) * 4.2);
     camera.lookAt(tp.x, tp.y + 0.3, tp.z);
-    G.fov = lerp(G.fov, BASE_FOV, 1 - Math.exp(-6 * dt));
+    G.fov = lerp(G.fov, settings.fov, 1 - Math.exp(-6 * dt));
   }
   if (Math.abs(camera.fov - G.fov) > 0.01) { camera.fov = G.fov; camera.updateProjectionMatrix(); }
 }
@@ -523,7 +527,11 @@ $('operatorbox').addEventListener('change', () => {
   const mark = () => box.querySelectorAll('.skin').forEach((b) => b.classList.toggle('on', (b.dataset.skin || null) === SKIN));
   mark();
 }
-{ const gt = $('goretoggle'); gt.checked = settings.gore; gt.addEventListener('change', () => settings.setGore(gt.checked)); }
+{ const gt = $('goretoggle'); gt.checked = settings.gore; gt.addEventListener('change', () => settings.setGore(gt.checked)); settings.onChange(() => { gt.checked = settings.gore; }); }
+const settingsMenu = initSettingsMenu($('settings'), input, () => settingsMenu.close());
+$('startsettings').addEventListener('click', () => settingsMenu.open());
+$('pausesettings').addEventListener('click', () => settingsMenu.open());
+addEventListener('keydown', (e) => { if (e.code === 'Escape' && settingsMenu.isOpen && !e.nhCaptured) settingsMenu.close(); });
 $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);

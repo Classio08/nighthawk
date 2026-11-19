@@ -13,6 +13,7 @@ import { Contracts } from './contracts.js';
 import { LootSystem, MED_HEAL, HEAL_T, ARMOR_ABSORB } from './loot.js';
 import { VehicleSystem } from './vehicles.js';
 import { activeAbility, tickAbility, useAbility, STUN_MOVE } from './abilities.js';
+import { NavGrid } from './nav.js';
 import { pickWeather } from './weather.js';
 import { Zone } from './zone.js';
 import { moveVector } from '../input/move.js';
@@ -94,6 +95,8 @@ export class Simulation {
     this.seed = opts.seed ?? ((Math.random() * 1e9) | 0);
     this.rng = makeRng(this.seed);
     this.map = buildMap(opts.mapSeed ?? 7);
+    this.nav = opts.predictor || opts.nav === false ? null : new NavGrid(this.map);     // bots path around buildings with A* (nav.js); a predicting browser has no bots
+    this.navBudget = 0;
     this.time = 0; this.tick = 0; this.events = [];
     this.hist = new Array(HIST).fill(null); this.humans = []; this.player = null;
     this.fighters = []; this.crates = []; this.barrels = []; this.grenades = [];
@@ -722,6 +725,7 @@ export class Simulation {
       else this.stepPlayer(h, { ...idleCmd(), yaw: h.yaw, pitch: h.pitch }, dt);    // no input this tick: stand still but keep falling / reloading
     }
 
+    this.navBudget = 4;                                    // at most 4 path searches per tick across all bots (keeps the tick time flat)
     for (const f of this.fighters) {
       if (!f.alive || this.opts.predictor) continue;       // a predicting browser only simulates ITS player's movement/weapon; hp and zone come from the server
       if (f.brain) f.brain.update(dt);

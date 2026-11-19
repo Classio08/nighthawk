@@ -69,6 +69,19 @@
   #msg{position:absolute;left:50%;top:66%;transform:translateX(-50%);font-size:18px;letter-spacing:3px;color:var(--red);opacity:0;text-align:center}
   .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(5,8,12,.78);color:#fff;text-align:center;pointer-events:auto;z-index:5}
   .ov.show{display:flex}
+  #settings{z-index:7;overflow-y:auto;justify-content:flex-start;padding:28px 12px 40px}
+  #settingsbody{width:min(560px,94vw);display:flex;flex-direction:column;gap:10px;text-align:left}
+  #settingsbody h3{margin:14px 0 2px;font-size:12px;letter-spacing:3px;opacity:.7;font-weight:400}
+  .srow{display:grid;grid-template-columns:190px 1fr 62px;align-items:center;gap:10px;font-size:12px;letter-spacing:2px}
+  .srow b{font-weight:400;text-align:right;color:var(--accent)}
+  .srow input[type=range]{width:100%;accent-color:var(--accent)}
+  .srow select{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.25);font:inherit;padding:6px;border-radius:4px}
+  .keys{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
+  .krow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;opacity:.95}
+  .keybtn{min-width:92px;cursor:pointer;background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.3);font:inherit;font-size:12px;padding:5px 8px;border-radius:4px;letter-spacing:1px}
+  .keybtn:hover,.keybtn.wait{border-color:var(--accent);color:var(--accent)}
+  .knote{min-height:1.4em;color:var(--accent);font-size:12px}
+  .btn.small{font-size:12px;padding:7px 16px;letter-spacing:3px;align-self:flex-start}
   .ov h1{margin:0;font-size:46px;letter-spacing:8px;color:var(--accent)}
   .ov h2{margin:0;font-size:34px;letter-spacing:6px}
   .ov p{margin:0;opacity:.85;font-size:14px;line-height:1.7}
@@ -116,10 +129,11 @@
 <div id="start" class="ov show">
   <h1>NIGHTHAWK</h1>
   <p>16 fighters · one shrinking zone · last one standing</p>
-  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim<br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E enter / exit buggy &amp; bike</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
+  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim &nbsp;<small style="opacity:.6">(rebind in SETTINGS)</small><br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E enter / exit buggy &amp; bike</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
   <p style="font-size:12px;opacity:.7">You land with a pistol: <b>loot guns, armor and medkits</b> (walk over them) &middot; grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
+  <button class="btn" id="startsettings">SETTINGS</button>
   <input id="namebox" maxlength="16" placeholder="your callsign" spellcheck="false" autocomplete="off" />
   <label for="operatorbox" style="font-size:11px;letter-spacing:2px;opacity:.7">SELECT YOUR OPERATOR</label>
   <select id="operatorbox" aria-label="Select operator"><option value="roms">ROMS · HEAVY GUNNER</option><option value="shadow">SHADOW · INFILTRATOR</option><option value="douglas">DOUGLAS · COMBAT MEDIC</option><option value="cliffhanger">CLIFFHANGER · DEMOLITIONS</option><option value="navy-blue">NAVY BLUE · MARKSMAN</option><option value="rampol">RAMPOL · BREACHER</option><option value="maetja">MAETJA · HACKER</option><option value="cleiseis">CLEISEIS · ASSASSIN</option></select>
@@ -129,7 +143,8 @@
   <p id="onlinemsg" style="min-height:1.4em;color:var(--red)"></p>
 </div>
 <div id="lobby" class="ov"><h2>FINDING A MATCH</h2><p id="lobbytxt">connecting...</p><p style="opacity:.6;font-size:12px">empty slots are filled with bots, so you always get a full match</p><button class="btn" id="lobbycancel">CANCEL</button></div>
-<div id="pause" class="ov"><h2>PAUSED</h2><p>Click RESUME or press Esc again to keep playing.</p><button class="btn" id="resumebtn">RESUME</button></div>
+<div id="pause" class="ov"><h2>PAUSED</h2><p>Click RESUME or press Esc again to keep playing.</p><button class="btn" id="resumebtn">RESUME</button><button class="btn" id="pausesettings">SETTINGS</button></div>
+<div id="settings" class="ov" role="dialog" aria-label="Settings"><h2>SETTINGS</h2><div id="settingsbody"></div><button class="btn" id="settingsback">BACK</button></div>
 <div id="end" class="ov">
   <h1 id="endtitle">ELIMINATED</h1>
   <p id="endsub"></p>
