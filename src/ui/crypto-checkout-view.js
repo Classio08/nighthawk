@@ -29,6 +29,8 @@ export function mountCryptoCheckout(container, serverUrl, {
   let walletProviders = [];
   let selectedWalletId = '';
   let disposed = false;
+  let walletSubscribed = false;
+  let unsubscribeWallets = () => {};
   container.replaceChildren();
 
   const heading = el('h2', 'CRYPTO COSMETIC CHECKOUT');
@@ -79,6 +81,9 @@ export function mountCryptoCheckout(container, serverUrl, {
     walletChoice.value = selectedWalletId;
     walletChoice.hidden = walletProviders.length < 2;
     redrawDisabled();
+    if (walletProviders.length && config?.enabled && account && status.textContent.includes('NO COMPATIBLE BROWSER WALLET')) {
+      status.textContent = `MERCHANT CHECKOUT · ${config.tokenSymbol} ON CHAIN ${config.chainId} · GUEST ${account.displayName}`;
+    }
   }
 
   async function refreshWalletChoices() {
@@ -86,13 +91,15 @@ export function mountCryptoCheckout(container, serverUrl, {
       renderWalletChoices([{ id: 'provided-wallet', name: 'Connected wallet', provider, legacy: false }]);
       return;
     }
+    if (!walletSubscribed) {
+      unsubscribeWallets = subscribeWalletProviders((choices) => {
+        if (!disposed) renderWalletChoices(choices);
+      });
+      walletSubscribed = true;
+    }
     const choices = await discoverWalletProviders({ windowObject: globalThis.window, globalObject: globalThis });
     if (!disposed) renderWalletChoices(choices);
   }
-
-  const unsubscribeWallets = subscribeWalletProviders((choices) => {
-    if (!disposed && !provider) renderWalletChoices(choices);
-  });
 
   async function refreshPending() {
     pending.replaceChildren();
