@@ -43,6 +43,12 @@ These are candidates only. No binary texture files have been added to the runtim
 - Quaternius: https://quaternius.com — newer packs may use the Quaternius Asset License, not CC0. Verify the exact pack and restrictions before use.
 - Mixamo: https://www.mixamo.com — review current Adobe terms and redistribution restrictions before including animations or character files.
 
+## Offered but not added
+| Item | Where it came from | Why it is not in the repo |
+|---|---|---|
+| `nighthawk-wired-audio-ghost_beep.wav`, `-kill.wav`, `-shoot_shotgun.wav`, `-shoot_rifle.wav` | Attached to a chat together with an AI-written "wired audio" pack (19 Nov 2026) | Provenance and licence unknown; the game's ZzFX presets (`ping`, `kill`, `shotgun`, `ar`) already cover the same sounds. If the owner recorded or generated them and can say how, log them here as project-authored and they can go in. |
+| New sounds added in Stage 19 (`slide`, `vault`, `land`, `ping`) | ZzFX recipes in `src/fx/audio.js` | In the game. Project-authored numbers, first guesses, not tuned by ear. |
+
 ## Never import without review
 
 Random search-engine images, Instagram photos, movie screenshots, ripped commercial-game assets, trademarks/logos, or GitHub files without a clear licence. Do not redistribute proprietary GTA/Vice City game data. A game engine port is not permission to use the original game's art/audio/maps.

@@ -24,12 +24,12 @@ Rule: every milestone ends with something you can open in a browser and play. St
 | Bots | Navigation + difficulty built | A* routes round buildings, four difficulty levels (easy/normal/hard/brutal); smoke grenades and a training range still to do |
 | Server safety | Hardened | Rate limits, kicks, payload and room caps, reconnect window, health + metrics; still to do: soak test and a load test with real players, per-IP limits in the proxy, rejoin after a page refresh |
 | Settings | Built | Sensitivity, FOV, volume, graphics, difficulty, key rebinding, saved in the browser; accessibility options still to do |
-| Movement | Crouch + fall damage built | C crouch, fall damage; slide, mantle/vault and melee still to do |
+| Movement | Crouch, fall damage, slide, mantle and melee built | C crouch; sprint then C slides (cooldown, bleeds into a crouch walk); jump at a 0.15-0.7 m ledge mantles you up; fall damage; B melee. Predicted on the client, sent in snapshots; first-person view motion (bob, landing dip, slide tilt) with an accessibility switch. Feel and sounds not tuned by ear; prone, wall-run not planned |
 | Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
 | Monetisation | Not implemented | Platform adapters and policy review required |
 | Production deployment | Pending | Deploy and test with players on separate networks; localhost load test done (`npm run load`, `docs/DEPLOY.md` C3), VPS and real-network tests outstanding |
-| Missions | First offline operation built | Operation DUST LANTERN: seeded rescue/recovery/extraction with clues, escort, alert ladder and debrief (offline only; online mission state needs a versioned snapshot and server validation first) |
-| Automated quality | Built | 223 unit tests (incl. a source-level purity guard for `src/sim`), smoke checks, server netcode test (retried up to 3x, it is timing-sensitive), 18 browser scripts (incl. a draw-call budget check), production build in `npm run check`; CI workflow merged |
+| Missions | Two offline operations built, one mission registry | DUST LANTERN (rescue/recovery/extraction) and GHOST FREQUENCY (three held relay tasks in any order, garrison response, 8-minute trace, extraction). `MISSIONS` registry + a common HUD/minimap/debrief surface, so a new operation is a class, a view and a button. Offline only; online mission state needs a versioned snapshot and server validation first |
+| Automated quality | Built | 247 unit tests (incl. a source-level purity guard for `src/sim`), smoke checks, server netcode test (retried up to 3x, it is timing-sensitive), 20 browser scripts (incl. a draw-call budget check), production build in `npm run check`; CI workflow merged |
 | Persistent accounts/progression | Not implemented | Guest profile is local only; no cross-device account, mission ledger or server-backed economy |
 | AI long-term memory | Not implemented | Current AI is tactical/utility based plus a mission alert director; no persistent faction intelligence model |
 | Audio/haptics | First pass | ZzFX and gameplay cues exist; full spatial audio and controller/mobile haptics remain open |
@@ -46,6 +46,7 @@ Rule: every milestone ends with something you can open in a browser and play. St
 - **Stage 17:** melee strike (`B`; a kill from behind, bots use it at point blank, solo and online).
 - **Stage 18:** draw-call cut (measured 284-618 -> 160-234 per view with 16 fighters and loot; same look), suppression effect for near-miss bullets (client-only), `src/sim` purity guard test, `scripts/e2e-perf.mjs` budget check.
 - **Operation DUST LANTERN** (ChatGPT, merged and browser-tested): offline rescue mission with an alert director.
+- **Stage 19** (Claude): slide, ledge mantle and first-person view motion; mission registry and Operation GHOST FREQUENCY; end-of-match snapshot card. Details in `docs/MASTER_SYSTEMS.md` (Stage 19), `docs/MISSION_GHOST_FREQUENCY.md`, `docs/RESEARCH_NOTES.md`.
 - **Frame-time telemetry:** `window.__nhPerf()` gives rolling p50/p95/p99.
 - **Mission objective extension:** two-stage relay uplink; secure the relay alone, then hold it alone for upload. Existing garrison guards redeploy without spawning extra fighters.
 - **CI:** GitHub Actions runs `npm ci` and `npm run check`.
@@ -59,7 +60,7 @@ See `docs/MASTER_SYSTEMS.md` for the detailed engineering map and tests.
 | P0 | Production multiplayer validation | Deploy test server; friend joins from another network; test 2/8/16 clients, reconnect, jitter and packet loss | Measurements and incident notes, not just "it works" |
 | P1 | **Tactical mission foundation** | Data-driven objective graph and one complete 5–8 minute rescue/recovery/extraction mission | Server-authoritative objectives, seeded tests, playable browser build |
 | P2 | Living faction response | Patrol schedules, suspicion, witness reports, search, reinforcements, withdrawal and scoped memory | NPC knowledge is evidence-based and fair; deterministic scenario suite |
-| P3 | Combat/movement feel | Input buffering, acceleration, slide/vault prototype, weapon animation state machine, spatial sound and haptics | Before/after responsiveness and performance measurements |
+| P3 | Combat/movement feel | Slide and mantle are built (Stage 19). Still open: input buffering, acceleration curves, weapon animation state machine, spatial sound and haptics, tuning slide/vault/landing by ear on real devices | Before/after responsiveness and performance measurements |
 | P4 | Visual vertical slice | One realistic operator, weapon, modular building kit and Southern African PBR environment | LODs, collision review, asset licences and minimum-device benchmark |
 | P5 | Identity/progression | Guest-first profile, optional sign-in, server XP/inventory/mission ledger, account linking and recovery | Security/privacy review and migration tests |
 | P6 | Operations/social | Extraction/co-op matchmaking, parties, mission rotation, reporting/moderation and replay tools | Abuse controls and real-player playtest |

@@ -1,6 +1,6 @@
 # NIGHTHAWK — First- and Third-Person Camera Design
 
-Status: target design only. The current player implementation is first-person; third-person is not yet implemented.
+Status: **first- and third-person are both built** (V toggles; collision-safe boom camera; vehicle chase camera; covered by `scripts/e2e-camera.mjs`). The rest of this file is the original target design: items not yet done are online fairness tests, shoulder swap and a TPP-specific animation set. Camera motion in first person (head bob, landing dip, slide tilt) lives in `src/render/headbob.js` and can be switched off in settings.
 Owner decision (2026-11-18): support both perspectives.
 
 ## 1. Non-negotiable architecture rule

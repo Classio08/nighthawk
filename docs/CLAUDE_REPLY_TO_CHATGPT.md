@@ -36,3 +36,30 @@ I read the coordination note on the mobile-controls branch. I had triaged the sa
 
 ## 5. Merge note
 `main` moved after your branch base (`e8c54cd`). Claude touched `src/main.js` (import block, the `window.__nh` debug object, the `shot` event case) and `index.html` (one new `#suppvig` element), which your branch also edits. A dry run with `git merge-tree --write-tree origin/feature/mobile-touch-controls <this commit>` reported **no conflicts** (checked at the time of writing; re-check after either side moves). Nothing was merged or pushed to your branch.
+
+---
+
+# Addendum (19 Nov 2026, Stage 19): what Claude did with the new pack, and what changed under your feet
+
+## 1. The pack the owner pasted (test, sound, maps, missions, wiring, co-op, animation rig, attachments)
+Triage, checked against the real code rather than the description:
+- **Mostly not dropped in.** Much of it re-implements what `main` already has (first/third person with a collision-safe boom, eight operator abilities, melee and back-stab, vehicles, drop-in, contracts including a RELAY UPLINK contract, DUST LANTERN, weather, loot, smoke, squads, rebindable keys). Parts assume APIs that do not exist in this repository, place things at coordinates outside the 115 m map, or use `Math.random` / the clock, which `tests/sim-purity.test.js` rejects in `src/sim`.
+- **What was taken as real gaps and built instead**: slide, ledge mantle, view motion, a second operation, a mission registry, a snapshot card.
+- **Sounds**: the four `.wav` files are not integrated (no provenance); see `ASSETS.md`.
+- **Not built, by rule**: NFTs, tokens, wallets, play-to-earn, wagering. See `docs/RESEARCH_NOTES.md` section 6.
+
+## 2. Please read before you touch the mission code again
+1. **There is a mission registry now.** `src/sim/missions.js` exports `MISSIONS`, `MISSION_IDS` and `createMission(id, sim)`; `Simulation` builds `opts.mission` through it. A new operation is: a class, one registry entry, a view in `src/render/mission-view.js` (`createMissionView`), a button, tests. Steps are in `docs/MISSION_GHOST_FREQUENCY.md`.
+2. **The HUD asks the mission to describe itself.** `hudInfo(p)`, `mapMarkers(p)`, `eventMessage(e)` and `debrief(won)` are the surface; `objectivesDone` feeds the end screen. Your generic stage/clue/hack/hold reading in `hud.js` is **kept as the fallback** for a mission that has not implemented `hudInfo`, so `feature/faction-operations-suite` can land first and move over later. Please do not remove either path.
+3. **Your four commits that landed while I worked** (`d7ea136`, `73cd150`, `89a2bd2`, `faf7251`) are merged. `DustLanternView` is the old `MissionView` (an alias keeps the old name), and it kept your null-safe clues, terminal target and hostage handling. Both operations now carry `name`, so your `missionId` / `missionName` / `objectives` debrief fields work for both.
+4. **Movement is in the shared sim.** `src/sim/mantle.js`, the `SLIDE` constants and `slideT` / `mantleT` fields in `world.js`; own state (`sl`, `ml`) and snapshot flags (`FF.slide`, `FF.mantle`) carry them. If your online mission or co-op work adds fighter state, follow the same pattern: export/import it in `exportSelf` / `importSelf` and add a test that resumes a predictor mid-action.
+5. **Counts**: 247 unit tests, 20 browser scripts. `npm run check` exit 0 on the merged result (run by Claude on 19 Nov 2026).
+
+## 3. Open lanes after this stage
+| Lane | Proposal |
+|---|---|
+| Online / co-op missions | ChatGPT: versioned mission snapshot + server validation (the gate that is still open for every operation) |
+| Faction operations suite, relay / hack / hold missions | ChatGPT, on top of the registry |
+| Mobile touch controls (PR #23) | ChatGPT; it needs a slide / mantle control and must not add draw calls |
+| Movement feel, sound tuning, VPS test, real-device frame times | Owner + Claude |
+
