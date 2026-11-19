@@ -5,6 +5,7 @@ import { evaluate, evaluateForPlayer, sanitizeConfig, liveBlockers } from '../sr
 
 const shipped = JSON.parse(readFileSync(new URL('../data/compliance.json', import.meta.url), 'utf8'));
 const TODAY = '2026-11-19';
+const LIVE_ENV = { NIGHTHAWK_ECONOMY_LIVE: '1', ECONOMY_SECRET: 'ab'.repeat(32), ECONOMY_RPC_URL: 'https://rpc.example.com', ECONOMY_NFT_CONTRACT: '0x' + '11'.repeat(20), ECONOMY_CHAIN_ID: '8453' };
 const liveCfg = (over = {}) => ({
   mode: 'live', features: { wallet: true, nft: true, earn: false, wager: true },
   licence: { reference: 'NA-GEC-0001', issuer: 'Gaming Board (example)', approvedBy: 'Owner', approvedOn: '2026-11-01', expiresOn: '2027-11-01', scope: ['wallet', 'nft', 'wager'] },
@@ -19,7 +20,7 @@ test('the SHIPPED compliance.json is closed: mode off, every feature off, no lic
 });
 
 test('garbage, missing and hostile config falls back to closed', () => {
-  for (const bad of [null, undefined, 42, 'live', [], { mode: 'LIVE' }, { mode: 'yes' }, { mode: { toString: () => 'live' } }]) assert.equal(evaluate(bad, { NIGHTHAWK_ECONOMY_LIVE: '1' }, TODAY).mode, 'off');
+  for (const bad of [null, undefined, 42, 'live', [], { mode: 'LIVE' }, { mode: 'yes' }, { mode: { toString: () => 'live' } }]) assert.equal(evaluate(bad, LIVE_ENV, TODAY).mode, 'off');
   const c = sanitizeConfig({ players: { minAge: 5, requireKyc: 'no' }, limits: { rakeBps: 99999, maxPlayers: 1 } });
   assert.equal(c.players.minAge, 18, 'the minimum age can never be lowered below 18'); assert.equal(c.players.requireKyc, true); assert.equal(c.limits.rakeBps, 0); assert.equal(c.limits.maxPlayers, 8);
 });
@@ -31,11 +32,14 @@ test('sandbox: play money only, test chains only, features follow the flags, nev
 });
 
 test('live is blocked until EVERY condition holds, and a blocked live request fails CLOSED (not into sandbox)', () => {
-  const env = { NIGHTHAWK_ECONOMY_LIVE: '1', ECONOMY_SECRET: 'ab'.repeat(32) };
+  const env = LIVE_ENV;
   assert.equal(evaluate(liveCfg(), env, TODAY).mode, 'live');
   const cases = [
     ['no server env flag', liveCfg(), {}, TODAY],
-    ['no persistent signing secret', liveCfg(), { NIGHTHAWK_ECONOMY_LIVE: '1' }, TODAY],
+    ['no persistent signing secret', liveCfg(), { ...LIVE_ENV, ECONOMY_SECRET: '' }, TODAY],
+    ['missing NFT RPC', liveCfg(), { ...LIVE_ENV, ECONOMY_RPC_URL: '' }, TODAY],
+    ['HTTP NFT RPC', liveCfg(), { ...LIVE_ENV, ECONOMY_RPC_URL: 'http://rpc.example.com' }, TODAY],
+    ['NFT RPC chain not allow-listed', liveCfg(), { ...LIVE_ENV, ECONOMY_CHAIN_ID: '1' }, TODAY],
     ['invalid calendar date', liveCfg({ licence: { ...liveCfg().licence, expiresOn: '2027-02-30' } }), env, TODAY],
     ['approval date in the future', liveCfg({ licence: { ...liveCfg().licence, approvedOn: '2027-01-01' } }), env, TODAY],
     ['expiry before approval', liveCfg({ licence: { ...liveCfg().licence, approvedOn: '2027-10-01', expiresOn: '2027-09-01' } }), env, TODAY],
@@ -59,7 +63,7 @@ test('live only turns on the features the licence scope names', () => {
 });
 
 test('the licence expiring closes live on the very next evaluation', () => {
-  const env = { NIGHTHAWK_ECONOMY_LIVE: '1' };
+  const env = LIVE_ENV;
   assert.equal(evaluate(liveCfg(), env, '2027-11-01').mode, 'live');
   assert.equal(evaluate(liveCfg(), env, '2027-11-02').mode, 'off');
 });
