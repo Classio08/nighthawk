@@ -8,7 +8,7 @@ import { STEP, SNAP_EVERY, packSnapshot, packRoster, unpackCmd } from '../../src
 import { ClientGuard, TickStats } from './limits.js';
 
 const STEP_MS = 1000 / 60;
-export const DEFAULTS = { lobbySecs: 15, total: 16, maxClients: 16, overLingerSecs: 12, vehicles: true, loot: true, difficulty: 'normal', reconnectSecs: 12, maxRooms: 40 };
+export const DEFAULTS = { lobbySecs: 15, total: 16, maxClients: 16, overLingerSecs: 12, vehicles: true, loot: true, difficulty: 'normal', reconnectSecs: 12, maxRooms: 40, compress: true };
 const MAX_QUEUE = 40;           // never hold more than this many unprocessed inputs per player (stops flooding)
 const REPEAT_MAX = 3;           // if a player's input is late, repeat the last one for at most 3 ticks, then stand still
 

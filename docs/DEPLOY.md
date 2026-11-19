@@ -52,7 +52,7 @@ Checked in November 2026. Rules change, so re-check before you submit.
 | **Message limits** | Per player: 400 input messages/s (burst 120; a 240 Hz monitor sends 240), 4 pings/s, 5 unknown messages/s. Excess is dropped; 120 dropped in a row = the connection is closed (code 4003). Any single WebSocket message over 4 KB closes the connection (a real input batch is under 1 KB). Every input is also clamped by `sanitizeCmd`. |
 | **Room cap** | `MAX_ROOMS=40` (default). When reached, new players get `server busy - try again in a minute` instead of everybody lagging. One match is about 5.5% of one core (`node scripts/bench-sim.mjs`), so 40 rooms is about two cores: size it to your VPS. |
 | **Per-IP limits** | Not in the game server on purpose: put them in the reverse proxy. With Caddy install the rate-limit plugin, with nginx use `limit_req_zone` / `limit_conn_zone` on the WebSocket route (for example 10 new connections per minute per IP). Cloudflare in front of the VPS gives basic DDoS protection too. |
-| **Env vars** | `PORT`, `LOBBY_SECS`, `MATCH_SIZE`, `VEHICLES=0`, `LOOT=0`, `DROP=0` (skip the parachute drop), `DIFFICULTY=easy/normal/hard/brutal`, `MAX_ROOMS`, `RECONNECT_SECS`, `METRICS_TOKEN`. |
+| **Env vars** | `PORT`, `LOBBY_SECS`, `MATCH_SIZE`, `VEHICLES=0`, `LOOT=0`, `DROP=0` (skip the parachute drop), `COMPRESS=0` (switch WebSocket compression off), `DIFFICULTY=easy/normal/hard/brutal`, `MAX_ROOMS`, `RECONNECT_SECS`, `METRICS_TOKEN`. |
 
 Quick look from the VPS: `curl -s localhost:2567/health` and `curl -s -H "Authorization: Bearer $METRICS_TOKEN" localhost:2567/metrics | head`.
 
@@ -64,12 +64,13 @@ Result on this 2-core, 8 GB sandbox, with the **clients running in the same proc
 
 | Run | Server tick avg / p99 (budget 16.7 ms) | Memory (rss) | Per player download | Whole server |
 |---|---|---|---|---|
-| 1 room, 16 humans + bots, 25 s | 0.87 ms / 1.9 ms | 458 MB | 37.9 KB/s (21 messages/s) | 607 KB/s = 2.1 GB per hour |
-| 2 rooms, 32 humans + bots, 30 s | 0.60 ms / 1.1 ms | 499 MB | 38.5 KB/s | 1.2 MB/s = 4.2 GB per hour |
+| 1 room, 16 humans + bots, 20 s, **compression off** | 0.73 ms / 1.7 ms | about 460 MB | 39.8 KB/s (20 messages/s) | 637 KB/s = 2.2 GB per hour |
+| same, **compression on** (the default) | 0.89 ms / 1.7 ms | about 460 MB | **23.9 KB/s** | 382 KB/s = **1.3 GB per hour** |
+| 2 rooms, 32 humans + bots, 30 s, compression off | 0.60 ms / 1.1 ms | 499 MB | 38.5 KB/s | 1.2 MB/s = 4.2 GB per hour |
 
 What this does and does not tell you:
 - **CPU is not the problem**: a full 16-player match with bots uses about 1 ms of a 16.7 ms tick, so one small VPS core should carry several rooms. Rare single ticks of 65 to 70 ms were seen once per run (probably match start or garbage collection); the 2 s worst-case p99 stayed under 15 ms. A 2-hour soak is still to do.
-- **Bandwidth is the bill**: about 38 KB/s per player is roughly 137 MB per player-hour (upload is only about 1.4 KB/s). A 16-player match for an hour is about 2 GB out. A plan with 1 TB of outbound traffic a month covers roughly 500 full-match hours. Ways to cut it later: send nearby fighters at 20 Hz and far ones at 10 Hz, quantise positions harder, and skip unchanged fighters (delta snapshots).
+- **Bandwidth is the bill**: without compression a player downloads about 40 KB/s (140 MB per player-hour; upload is only about 1.8 KB/s). The server now turns on WebSocket **permessage-deflate** (browsers negotiate it by themselves), which cut that by about 40% to 24 KB/s for about 0.15 ms more tick time; set `COMPRESS=0` to switch it off. A 16-player match for an hour is then about 1.3 GB out, and a plan with 1 TB of outbound traffic a month covers roughly 750 full-match hours. The byte counts are read from the server side of each TCP socket, so they include WebSocket framing. Ways to cut it further later: send nearby fighters at 20 Hz and far ones at 10 Hz, quantise positions harder, and skip unchanged fighters (delta snapshots).
 - **Not measured**: real players on real networks (loss, jitter), browsers on the other end, many matches starting at once, a server on a VPS instead of localhost. Those are still on the list; this is the localhost ceiling, not a promise.
 
 ## D. Things that will bite you

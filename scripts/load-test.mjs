@@ -9,7 +9,7 @@ import { idleCmd } from '../src/sim/cmd.js';
 import { OPERATORS } from '../src/sim/world.js';
 
 const HUMANS = +process.argv[2] || 16, SECS = +process.argv[3] || 40, ROOMS = +process.argv[4] || 1, PORT = 2650, STEP = 1 / 60;
-const server = createServer({ lobbySecs: 2, total: 16, maxClients: HUMANS, loot: true, vehicles: true, drop: false, maxRooms: 8 });
+const server = createServer({ lobbySecs: 2, total: 16, maxClients: HUMANS, loot: true, vehicles: true, drop: false, maxRooms: 8, compress: process.env.COMPRESS !== '0' });
 await server.listen(PORT);
 const URL = `ws://localhost:${PORT}`;
 const ops = OPERATORS.map((o) => o.id);
@@ -19,9 +19,15 @@ for (let r = 0; r < ROOMS; r++) {
   const batch = await Promise.all(Array.from({ length: HUMANS }, (_, i) => NetSim.join(URL, { name: `P${r}-${i}`, operator: ops[i % ops.length], lag: 40 })));
   clients.push(...batch);
 }
-// byte counters on the real sockets
-const io = clients.map((ns) => { const c = { rx: 0, tx: 0, msgs: 0 }; const ws = ns.room.connection?.transport?.ws; if (ws) { ws.addEventListener('message', (e) => { c.rx += e.data?.byteLength ?? e.data?.length ?? 0; c.msgs++; }); const send = ws.send.bind(ws); ws.send = (d, ...a) => { c.tx += d?.byteLength ?? d?.length ?? 0; return send(d, ...a); }; } return c; });
-if (!io.some((c) => c.rx >= 0) || !clients[0].room.connection?.transport?.ws) console.log('(could not hook the socket: byte counts will be zero)');
+// byte counters on the real sockets: read on the SERVER side of each connection (a Node client has no raw socket to look at), so they are what really crossed the
+// wire, WebSocket framing and permessage-deflate included. 'rx' = what the player downloads, 'tx' = what the player uploads.
+const io = [];
+for (const room of MatchRoom.instances) for (const c of Array.from(room.clients)) {
+  const s = c.ref?._socket; io.push({ s, w0: s?.bytesWritten ?? 0, r0: s?.bytesRead ?? 0, msgs: 0, get rx() { return (s?.bytesWritten ?? 0) - this.w0; }, get tx() { return (s?.bytesRead ?? 0) - this.r0; } });
+}
+clients.forEach((ns, i) => ns.room.onMessage('s', () => { if (io[i]) io[i].msgs++; }));
+if (!io.length || !io[0].s) console.log('(could not hook the sockets: byte counts will be zero)');
+console.log(`server compression: ${process.env.COMPRESS === '0' ? 'OFF' : 'ON (permessage-deflate)'}`);
 
 /** each client: a random walk with bursts of fire, jumps and turns, driven at 60 Hz in real time */
 let seed = 12345; const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
