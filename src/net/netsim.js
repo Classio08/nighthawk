@@ -12,6 +12,7 @@ import { makeRng } from '../sim/rng.js';
 import { SLOT_ORDER } from '../sim/weapons.js';
 import { isCloaked } from '../sim/abilities.js';
 import { STEP, TICKS_PER_MS, INTERP_TICKS, packCmd, unpackFighterInto, unpackZoneInto } from './protocol.js';
+import { createRoomTicket } from './account-session.js';
 
 const OWN_EVENTS = new Set(['shot', 'fire', 'reload', 'dry', 'switch', 'throw', 'melee', 'slide', 'mantle']);   // predicted locally, so the server's copy is ignored
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -82,7 +83,11 @@ export class NetSim {
   /** open a connection, join a match room and resolve once the server has built the match (lobby countdown included) */
   static async join(url, { name = 'Operator', operator = 'roms', skin = null, lag = 0, onLobby, now } = {}) {
     const { Client } = await import('@colyseus/sdk');
-    const room = await new Client(url).joinOrCreate('match', { name, operator, skin });
+    let ticket = null;
+    try { ticket = await createRoomTicket(url); } catch { /* account API may be absent on older / local servers; anonymous play remains available */ }
+    const client = new Client(url);
+    if (ticket) client.auth.token = ticket;
+    const room = await client.joinOrCreate('match', { name, operator, skin });
     const ns = new NetSim(room, { lag, now }); ns.onLobby = onLobby;
     await ns._wait;
     return ns;
