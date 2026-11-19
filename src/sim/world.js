@@ -24,7 +24,7 @@ import { FactionIntelligence } from './faction-intel.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
-import { DustLanternMission } from './missions.js';
+import { createMission } from './operations.js';
 
 export const GRAV = -22;
 export const OPERATORS = operatorData.operators;
@@ -115,7 +115,7 @@ export class Simulation {
     this.obstacles = [];            // Yuka obstacle entities (for bot steering)
     this.weather = pickWeather(this.seed, opts.weather);       // same seed => same weather on the server and in every browser
     this.contracts = new Contracts(this);
-    this.mission = opts.mission === 'dust-lantern' ? new DustLanternMission(this) : null;
+    this.mission = opts.mission ? createMission(opts.mission, this) : null;
     if (this.mission) this.contracts.off = true;
     this.loot = new LootSystem(this);      // starting items come from the seed (loot.js); only a loot match (opts.loot) has any
     this.strikes = [];              // mortar barrages in progress
@@ -727,7 +727,7 @@ export class Simulation {
     if (cmd.smoke) this.throwGrenade(p, this._aimDir(p, 0), 15, true);
     if (cmd.melee) this.melee(p);
     if (cmd.mortar) this.callMortarFromView(p);
-    if (cmd.use && !this.mission?.interact(p)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
+    if (cmd.use && !this.mission?.interact(p, dt)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
     p.nadeT = Math.max(0, p.nadeT - dt); p.meleeT = Math.max(0, p.meleeT - dt);
     this.tickHeal(p, dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
