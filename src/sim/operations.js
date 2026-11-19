@@ -14,7 +14,7 @@ function pad(sim) {
 function finish(sim, mission) {
   if (mission.finished) return;
   mission.finished = true; mission.stage = 'complete'; sim.state = 'won';
-  sim.result = { to: sim.player?.id ?? 0, won: true, placement: 1, kills: sim.player?.kills ?? 0, time: mission.elapsed, mission: true, missionId: mission.id };
+  sim.result = { to: sim.player?.id ?? 0, won: true, placement: 1, kills: sim.player?.kills ?? 0, time: mission.elapsed, mission: true, missionId: mission.id, missionName: mission.name };
   sim.emit({ t: 'end', ...sim.result, mission: true, missionId: mission.id, objectives: mission.objectiveCount ?? 0 });
 }
 function fail(mission) {
