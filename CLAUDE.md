@@ -2,9 +2,10 @@
 
 Before planning or changing code, read these files in order:
 1. `docs/PROJECT_DIRECTION_AND_CHAT_NOTES.md` — latest owner-approved product direction and decisions.
-2. `docs/CLAUDE_HANDOFF.md` — current engineering handoff and sprint priorities.
-3. `docs/ROADMAP.md` and `docs/MASTER_SYSTEMS.md` — actual implementation status.
-4. The relevant source files and tests. Verify the code, not just the documents.
+2. `docs/CLAUDE_HANDOFF.md` — engineering handoff and historical decisions.
+3. `docs/CHATGPT_CLAUDE_COORDINATION.md` — latest shared AI coordination, active parallel work and reconciled priorities.
+4. `docs/ROADMAP.md` and `docs/MASTER_SYSTEMS.md` — actual implementation status.
+5. The relevant source files and tests. Verify the code, not just the documents.
 
 ## Working rules
 - The owner wants a complete, replayable tactical shooter platform, not only a battle-royale prototype.
@@ -19,6 +20,6 @@ Before planning or changing code, read these files in order:
 - Do not put an LLM in control of authoritative combat, movement, hit detection or physics. AI reasoning must be bounded, testable and optional.
 
 ## Immediate owner-approved focus
-Build and validate the first offline playable operation, **Operation DUST LANTERN**, as a vertical slice on top of the current simulation. Keep it isolated from online multiplayer until mission state has a versioned server snapshot protocol and server tests. See the mission acceptance criteria in `docs/PROJECT_DIRECTION_AND_CHAT_NOTES.md`.
+Follow the priority order in `docs/CHATGPT_CLAUDE_COORDINATION.md`. Operation DUST LANTERN and its initial evidence-based alert ladder are now present on main as an offline-only vertical slice; do not duplicate that work. The current parallel ChatGPT branch is `feature/mobile-touch-controls`; do not rewrite it. Claude should keep visual production, faction response, mission expansion and external-network validation on separate branches, coordinated through the shared handoff. Keep mission state offline until its server snapshot and server-side interaction validation are designed and tested.
 
 When starting a new task, first check the latest main SHA, open PRs and work in progress. Do not assume an older handoff describes the latest repository state.
