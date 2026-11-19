@@ -95,3 +95,15 @@ Dependent branch: `feature/crypto-cosmetic-checkout-client`, based on Claude's `
 - Pending transaction hashes/intent ids live in session storage. The long-lived guest token continues to live in the existing account-session store.
 - Test specs are present in `tests/crypto-checkout.test.js`, but the owner has asked to finish building before running tests/builds. Do not claim validation or a real-wallet transaction has been tested.
 - Integration order: review/merge the backend branch only when the owner approves; then review this dependent branch and mount `mountCryptoCheckout(container, serverUrl)` in the Economy view. No merge has been performed.
+
+
+## Multi-wallet checkout follow-on — 19 November 2026
+
+Dependent branch: `feature/wallet-discovery-eip6963`, based on `feature/crypto-cosmetic-checkout-client`.
+
+- Checkout now discovers injected wallets with EIP-6963 and presents a name-based wallet selector only when multiple providers respond.
+- The registry deduplicates announced UUIDv4 values and retains the EIP-6963 announce listener for the page lifetime. UI subscriptions can be removed when the view closes; the standard window listener remains.
+- Legacy `window.ethereum` is used only when no EIP-6963 provider responds. No WalletConnect / QR / native deep-link support is claimed.
+- The browser does not render wallet-supplied SVG icons or persist provider identities. Re-check active account and chain immediately before sending the exact ERC-20 transfer.
+- Wallet discovery and the lifetime listener are only activated once the server says crypto checkout is enabled. Do not weaken or bypass the server-side payment gate.
+- Tests have been added as specifications but have not been run. No wallet transaction was sent.
