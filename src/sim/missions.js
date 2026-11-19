@@ -110,8 +110,8 @@ export class DustLanternMission {
     if (this.finished) return;
     this.finished = true; this.stage = 'complete';
     this.sim.state = 'won';
-    this.sim.result = { to: this.sim.player?.id ?? 0, won: true, placement: 1, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true };
-    this.sim.emit({ t: 'end', ...this.sim.result, mission: true, clues: this.foundCount });
+    this.sim.result = { to: this.sim.player?.id ?? 0, won: true, placement: 1, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true, missionId: this.id ?? 'dust-lantern', missionName: this.name ?? 'DUST LANTERN' };
+    this.sim.emit({ t: 'end', ...this.sim.result, mission: true, missionId: this.id ?? 'dust-lantern', missionName: this.name ?? 'DUST LANTERN', clues: this.foundCount, objectives: this.foundCount + 1 });
   }
 
   fail() {
