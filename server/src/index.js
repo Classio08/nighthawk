@@ -2,8 +2,11 @@ import { defineServer, defineRoom } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { MatchRoom, DEFAULTS } from './MatchRoom.js';
 import { accountService, COSMETIC_CATALOG, SAFEHOUSE_CATALOG } from './account-service.js';
+import { CryptoPaymentService } from './crypto/crypto-payment-service.js';
 import { communityServerRegistry } from './community-registry.js';
 import express from 'express';
+
+const cryptoPayments = new CryptoPaymentService({ accounts: accountService });
 
 /** Prometheus text format of /metrics (counters and gauges), for a scraper or Grafana */
 export function toPrometheus(m) {
@@ -89,7 +92,41 @@ export function createServer(cfg = {}) {
           res.json(result);
         } catch { apiError(res, 500, 'safehouse-purchase-failed'); }
       });
-      app.get('/api/v1/community/servers', (_req, res) => res.set('Cache-Control', 'no-store').json({ ok: true, servers: communityServerRegistry.list() }));
+
+      // Non-custodial token checkout. A connected wallet submits a direct ERC-20 transfer to the configured merchant address.
+      // The server never receives a seed phrase, private key or signing credential.
+      app.get('/api/v1/crypto/config', (_req, res) => {
+        res.set('Cache-Control', 'no-store').json(cryptoPayments.publicConfig());
+      });
+      app.post('/api/v1/crypto/intents', async (req, res) => {
+        try {
+          const result = await cryptoPayments.createIntent(bearer(req), {
+            cosmeticId: req.body?.cosmeticId,
+            walletAddress: req.body?.walletAddress,
+          });
+          if (!result.ok) { apiError(res, result.status ?? 400, result.error); return; }
+          res.set('Cache-Control', 'no-store').status(201).json(result);
+        } catch (error) {
+          apiError(res, error.status ?? 500, error.status ? error.message : 'crypto-intent-create-failed');
+        }
+      });
+      app.get('/api/v1/crypto/intents/:intentId', async (req, res) => {
+        try {
+          const intent = await accountService.getCryptoIntent(bearer(req), req.params.intentId);
+          if (!intent) { apiError(res, 404, 'payment-intent-not-found'); return; }
+          res.set('Cache-Control', 'no-store').json({ ok: true, intent });
+        } catch { apiError(res, 500, 'crypto-intent-read-failed'); }
+      });
+      app.post('/api/v1/crypto/intents/:intentId/confirm', async (req, res) => {
+        try {
+          const result = await cryptoPayments.confirmIntent(bearer(req), req.params.intentId, req.body?.txHash);
+          if (!result.ok) { apiError(res, result.status ?? 400, result.error); return; }
+          res.set('Cache-Control', 'no-store').status(result.pending ? 202 : 200).json(result);
+        } catch (error) {
+          apiError(res, error.status ?? 500, error.status ? error.message : 'crypto-payment-confirm-failed');
+        }
+      });
+\n      app.get('/api/v1/community/servers', (_req, res) => res.set('Cache-Control', 'no-store').json({ ok: true, servers: communityServerRegistry.list() }));
       app.post('/api/v1/community/heartbeat', (req, res) => {
         const secret = String(req.get('x-nh-registry-key') ?? '');
         const result = communityServerRegistry.heartbeat(secret, req.body ?? {});
