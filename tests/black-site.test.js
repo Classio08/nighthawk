@@ -81,6 +81,7 @@ test('a body report opens a meeting and votes can eject a suspect', () => {
   round.roles.set(suspect.id, 'infiltrator');
   const body = sim.fighters[15];
   body.alive = false;
+  round.suspicion.set(suspect.id, 10);
   sim.player.x = body.x; sim.player.z = body.z;
   assert.equal(round.interact(sim.player), true);
   assert.equal(round.stage, 'meeting');
