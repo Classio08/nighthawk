@@ -171,6 +171,7 @@ export async function checkoutCosmetic(serverUrl, cosmeticId, {
   provider = injectedWallet(),
   fetchImpl = globalThis.fetch,
   storage = globalThis.localStorage,
+  pendingStorage = globalThis.sessionStorage,
 } = {}) {
   if (!provider) throw new Error('Open NIGHTHAWK in a browser wallet that supports EIP-1193.');
   await ensureGuestSession(serverUrl, { fetchImpl, storage });
@@ -178,7 +179,7 @@ export async function checkoutCosmetic(serverUrl, cosmeticId, {
   const config = await fetchCryptoCheckoutConfig(serverUrl, { fetchImpl });
   if (config.enabled !== true) throw new Error(config.reason ?? 'Crypto checkout is disabled by the server.');
   const listed = Array.isArray(config.catalog) ? config.catalog.find((item) => item.id === cosmeticId) : null;
-  if (!listed || listed.cosmeticOnly !== true) throw new Error('This cosmetic is not enabled for crypto checkout.');
+  if (!listed) throw new Error('This cosmetic is not enabled for crypto checkout.');
 
   const response = await createCryptoPaymentIntent(serverUrl, cosmeticId, walletAddress, { fetchImpl, storage });
   if (response.ok !== true || !response.intent) throw new Error(response.error ?? 'Could not create a payment quote.');
@@ -189,16 +190,16 @@ export async function checkoutCosmetic(serverUrl, cosmeticId, {
       String(intent.amountUnits) !== String(listed.tokenUnits) || intent.decimals !== listed.decimals) {
     throw new Error('The payment quote does not match the server catalog. No transaction was sent.');
   }
-  upsertPending(storage, { intentId: intent.id, cosmeticId, txHash: null, createdAt: Date.now() });
+  upsertPending(pendingStorage, { intentId: intent.id, cosmeticId, txHash: null, createdAt: Date.now() });
 
   const txHash = await sendErc20Transfer(provider, intent);
-  upsertPending(storage, { intentId: intent.id, cosmeticId, txHash, createdAt: Date.now() });
+  upsertPending(pendingStorage, { intentId: intent.id, cosmeticId, txHash, createdAt: Date.now() });
   const confirmation = await confirmCryptoPayment(serverUrl, intent.id, txHash, { fetchImpl, storage });
   if (confirmation.ok !== true) throw new Error(confirmation.error ?? 'The server could not verify this payment.');
   if (confirmation.pending === true) {
     return { paid: false, pending: true, intent, txHash, confirmations: confirmation.confirmations ?? 0, confirmationsRequired: confirmation.confirmationsRequired ?? intent.confirmations };
   }
-  removePending(storage, intent.id);
+  removePending(pendingStorage, intent.id);
   const account = await getAccount(serverUrl, { fetchImpl, storage });
   return { paid: true, pending: false, intent, txHash, account, item: confirmation.item ?? null };
 }
