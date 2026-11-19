@@ -10,7 +10,7 @@ const PENDING_KEY = 'nh_crypto_checkout_pending_v1';
 
 const cleanError = (error) => {
   const code = Number(error?.code);
-  if (code === 4001) return 'You cancelled the wallet request.';
+  if (code === 4001) return 'You cancelled the wallet request. No transfer was sent; the unused payment quote expires automatically.';
   if (code === 4902) return 'This wallet does not know the configured network. Add the network through your wallet, then try again.';
   return String(error?.message ?? error ?? 'Wallet request failed').slice(0, 180);
 };
