@@ -6,6 +6,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { makeRng } from './rng.js';
 import { findFreeSpot, insideAnyBox, MAP_HALF } from './map.js';
+import { materialForPropKind } from './physics-correlation.js';
 
 export const VEHICLE_KINDS = ['buggy', 'bike'];
 export const VEHICLE_TYPES = {
@@ -40,7 +41,7 @@ export class VehicleSystem {
       input: { thr: 0, steer: 0, brake: false, boost: false }, steerVis: 0, lastDriver: -1, hitT: {}, crashT: 0, lastHitBy: -1, body: null, col: null };
     v.body = sim.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, T.half[1], z).setRotation(this._quat(yaw)));
     v.col = sim.world.createCollider(RAPIER.ColliderDesc.cuboid(T.half[0], T.half[1], T.half[2]), v.body);
-    sim.solid.add(v.col.handle); this.byCol.set(v.col.handle, v);
+    sim.solid.add(v.col.handle); sim.surfaceByCol.set(v.col.handle, materialForPropKind('vehicle')); this.byCol.set(v.col.handle, v);
     this.list.push(v); this.byId.set(v.id, v);
     return v;
   }
@@ -119,7 +120,7 @@ export class VehicleSystem {
     v.hp = 0; v.dead = true; v.speed = 0;
     const credit = owner ?? (v.lastHitBy >= 0 ? sim.fighters[v.lastHitBy] : null) ?? (v.lastDriver >= 0 ? sim.fighters[v.lastDriver] : null);
     for (const f of this.occupants(v)) this.leave(f);                         // thrown out: they stand next to the wreck and take the blast
-    sim.solid.delete(v.col.handle); this.byCol.delete(v.col.handle);
+    sim.solid.delete(v.col.handle); sim.surfaceByCol.delete(v.col.handle); this.byCol.delete(v.col.handle);
     sim.world.removeRigidBody(v.body); v.body = null; v.col = null;
     sim.emit({ t: 'vehicle', phase: 'boom', id: v.id, x: v.x, z: v.z, kind: v.kind });
     sim._blast(v.x, 0.8, v.z, 9, 125, credit, 'vehicle');
@@ -217,7 +218,7 @@ export class VehicleSystem {
       const v = this.byId.get(a[0]); if (!v) continue;
       if (smooth && Math.hypot(v.x - a[2], v.z - a[3]) < 4) { v.x += (a[2] - v.x) * 0.6; v.z += (a[3] - v.z) * 0.6; } else { v.x = a[2]; v.z = a[3]; }
       v.yaw = a[4]; v.speed = a[5]; v.hp = a[6]; v.driver = a[7]; v.pass = a[8]; v.steerVis = a[10] ?? 0;
-      if (a[9] && !v.dead) { v.dead = true; if (v.col) { this.sim.solid.delete(v.col.handle); this.byCol.delete(v.col.handle); this.sim.world.removeRigidBody(v.body); v.body = null; v.col = null; } }
+      if (a[9] && !v.dead) { v.dead = true; if (v.col) { this.sim.solid.delete(v.col.handle); this.sim.surfaceByCol.delete(v.col.handle); this.byCol.delete(v.col.handle); this.sim.world.removeRigidBody(v.body); v.body = null; v.col = null; } }
       this._sync(v);
     }
   }
