@@ -84,11 +84,11 @@ export class Hud {
     const e = this.el, w = WEAPONS[p.cur], st = p.weapons[p.cur];
     e.alive.textContent = sim.aliveCount(); e.kills.textContent = p.kills;
     const z = sim.zone;
-    const outside = !sim.mission && !p.air && z.outside(p.x, p.z) > 0;                 // (no zone in an operation; no zone warning while you are still in the plane or on a parachute)
+    const outside = !sim.mission && !sim.blackSite && !p.air && z.outside(p.x, p.z) > 0;                 // (no zone in an operation; no zone warning while you are still in the plane or on a parachute)
     const clock = sim.planeT ? sim.planeT() : sim.time, pre = sim.zoneStart > 0 ? Math.max(0, sim.zoneStart - clock) : 0;      // drop-in: the zone's clock only starts once everybody has had time to land
     const t = Math.max(0, Math.ceil(z.timeLeft + pre));
-    e.zone.textContent = sim.mission ? 'OPERATION' : z.done ? 'FINAL ZONE' : z.shrinking ? `ZONE CLOSING  ${fmt(t)}` : `NEXT ZONE  ${fmt(t)}`;
-    e.zone.classList.toggle('warn', !sim.mission && (z.shrinking || outside));
+    e.zone.textContent = sim.mission || sim.blackSite ? (sim.blackSite ? 'BLACK SITE' : 'OPERATION') : z.done ? 'FINAL ZONE' : z.shrinking ? `ZONE CLOSING  ${fmt(t)}` : `NEXT ZONE  ${fmt(t)}`;
+    e.zone.classList.toggle('warn', !sim.mission && !sim.blackSite && (z.shrinking || outside));
     e.hpbar.style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
     e.hpbar.style.background = p.hp / p.maxHp > 0.5 ? '#5be37a' : p.hp / p.maxHp > 0.25 ? '#ffcf4d' : '#ff4d4d';
     e.hpn.textContent = Math.ceil(Math.max(0, p.hp)); e.opname.textContent = p.name.toUpperCase();
@@ -122,7 +122,8 @@ export class Hud {
     this.drawLoot(sim, p);
     this.drawAbility(p);
     this.drawContracts(sim, p);
-    this.drawMission(sim.mission, p);
+    if (sim.blackSite) this.drawBlackSite(sim.blackSite, p);
+    else this.drawMission(sim.mission, p);
     this.drawVehicle(sim, p);
     this.drawAir(sim, p);
     this.drawMini(dt, sim, p);
@@ -133,13 +134,44 @@ export class Hud {
     if (!el) return;
     if (!mission) { el.style.display = 'none'; return; }
     el.style.display = 'block';
-    const stage = mission.stage;
-    const progress = stage === 'recon' ? `${mission.foundCount}/2 CLUES` : stage === 'extract' ? `${Math.min(100, Math.round(mission.extractT / 4 * 100))}% EXTRACTION` : stage === 'recover' ? 'TARGET IDENTIFIED' : stage === 'complete' ? 'SUCCESS' : 'IN PROGRESS';
-    const nearClue = stage === 'recon' && mission.clues.some((clue) => !clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 3.4);
-    const nearCaptive = stage === 'recover' && Math.hypot(mission.captive.x - p.x, mission.captive.z - p.z) < 3.5;
-    const detail = stage === 'recon' ? (nearClue ? 'PRESS E TO INVESTIGATE' : 'Search the marked evidence sites') : stage === 'recover' ? (nearCaptive ? 'PRESS E TO SECURE THE TECHNICIAN' : `Locate the technician · ${mission.targetSite.name}`) : stage === 'extract' ? (mission.captive.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Keep the technician with you and reach the extraction pad') : stage === 'complete' ? 'Technician safely extracted' : 'Operation ended';
+    const stage = mission.stage, clues = mission.clues ?? [];
+    const found = mission.foundCount ?? clues.filter((clue) => clue.found).length;
+    const nearClue = stage === 'recon' && clues.some((clue) => !clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 3.4);
+    const nearCaptive = stage === 'recover' && mission.captive?.visible && Math.hypot(mission.captive.x - p.x, mission.captive.z - p.z) < 3.5;
+    const fallback = stage === 'recon' ? (nearClue ? 'PRESS E TO INVESTIGATE' : 'Search the evidence sites')
+      : stage === 'recover' ? (nearCaptive ? 'PRESS E TO SECURE THE TECHNICIAN' : `Locate the technician · ${mission.targetSite?.name ?? 'TARGET AREA'}`)
+        : stage === 'extract' ? (mission.captive?.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Reach the extraction pad')
+          : stage === 'complete' ? 'Operation complete' : 'Operation ended';
+    const detail = mission.detailFor?.(p) ?? fallback;
+    const percent = stage === 'recon' ? found / Math.max(1, clues.length || 2) * 100
+      : stage === 'hack' ? (mission.hackT ?? 0) / Math.max(1, mission.hackDuration ?? 1) * 100
+        : stage === 'hold' ? (mission.holdT ?? 0) / Math.max(1, mission.holdDuration ?? 1) * 100
+          : stage === 'extract' ? (mission.extractT ?? 0) / 4 * 100
+            : stage === 'complete' ? 100 : 0;
+    const progress = mission.progressLabel ?? (stage === 'recon' ? `${found}/${clues.length || 2} CLUES` : stage === 'hack' ? `UPLOAD ${Math.round(percent)}%` : stage === 'hold' ? `DEFENCE ${Math.round(percent)}%` : stage === 'extract' ? `EXTRACTION ${Math.round(percent)}%` : stage === 'complete' ? 'SUCCESS' : stage.toUpperCase());
     const alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
-    const html = `<small>OPERATION DUST LANTERN · THREAT ${alert.level.toUpperCase()}</small><b>${mission.objective}</b><span>${detail}</span><i><em style="width:${stage === 'recon' ? mission.foundCount / 2 * 100 : stage === 'extract' ? mission.extractT / 4 * 100 : stage === 'complete' ? 100 : 0}%"></em></i><small>${progress}</small>`;
+    const title = String(mission.name ?? mission.id ?? 'TACTICAL OPERATION').toUpperCase();
+    const html = `<small>OPERATION ${title} · THREAT ${String(alert.level ?? 'routine').toUpperCase()}</small><b>${mission.objective ?? title}</b><span>${detail}</span><i><em style="width:${Math.max(0, Math.min(100, percent))}%"></em></i><small>${progress}</small>`;
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+
+  drawBlackSite(round, player) {
+    const el = this.el.mission;
+    if (!el) return;
+    const privateState = round.privateSnapshot(player.id);
+    const state = round.publicSnapshot();
+    const task = state.tasks.find((t) => t.id === round.activeTaskId);
+    const role = privateState.role === 'infiltrator' ? 'INFILTRATOR' : 'OPERATIVE';
+    let detail;
+    if (state.stage === 'meeting') detail = 'Vote on the evidence or skip. Do not reveal your role.';
+    else if (state.stage === 'extract') detail = privateState.role === 'operative' ? 'Reach the extraction pad and remain inside for 4 seconds' : 'Protect the infiltrators; stop the operative extraction';
+    else if (privateState.role === 'infiltrator') detail = 'Press E near an objective to sabotage it. Three disruptions secure an infiltrator victory.';
+    else detail = task ? `${task.label} · ${Math.round(task.progress * 100)}% · stay nearby` : 'Locate a task marker and press E to begin working. Report discovered bodies.';
+    const progress = privateState.role === 'infiltrator' ? `SABOTAGE ${state.sabotageCount}/3` : `TASKS ${state.objectiveCount}/3`;
+    const percent = privateState.role === 'infiltrator' ? state.sabotageCount / 3 * 100 : state.objectiveCount / 3 * 100;
+    const blackout = state.blackoutT > 0 ? ` · BLACKOUT ${Math.ceil(state.blackoutT)}s` : '';
+    const html = `<small>BLACK SITE · ${role}${blackout}</small><b>${round.objective}</b><span>${detail}</span><i><em style="width:${Math.max(0, Math.min(100, percent))}%"></em></i><small>${progress}</small>`;
+    el.style.display = 'block';
     if (el.innerHTML !== html) el.innerHTML = html;
   }
 
@@ -221,7 +253,7 @@ export class Hud {
     const g = this.mctx, S = 150, k = this.k, z = sim.zone;
     g.clearRect(0, 0, S, S); g.drawImage(this.mapBg, 0, 0);
     // The operation map has no shrinking zone; retain the red tint only in battle-royale modes.
-    if (!sim.mission) {
+    if (!sim.mission && !sim.blackSite) {
       g.save(); g.beginPath(); g.rect(0, 0, S, S); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283, true);
       g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
     }
@@ -246,6 +278,19 @@ export class Hud {
         g.fillStyle = '#53d9ff'; g.strokeStyle = '#061a22'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, 4.5, 0, 6.283); g.fill(); g.stroke();
       }
       if (sim.mission.stage === 'extract') { g.strokeStyle = '#58d8ff'; g.lineWidth = 1.5; g.beginPath(); g.arc(S / 2 + sim.mission.extraction.x * k, S / 2 + sim.mission.extraction.z * k, 5, 0, 6.283); g.stroke(); }
+    }
+    if (sim.blackSite) {
+      const state = sim.blackSite.publicSnapshot();
+      for (const task of state.tasks) {
+        const x = S / 2 + task.x * k, y = S / 2 + task.z * k;
+        g.fillStyle = task.completed ? '#5be37a' : task.sabotaged ? '#ffad55' : '#53d9ff';
+        g.strokeStyle = '#07131a'; g.lineWidth = 1;
+        g.beginPath(); g.arc(x, y, 4, 0, 6.283); g.fill(); g.stroke();
+      }
+      if (state.stage === 'extract') {
+        g.strokeStyle = '#5be37a'; g.lineWidth = 1.5;
+        g.beginPath(); g.arc(S / 2 + state.extraction.x * k, S / 2 + state.extraction.z * k, 5, 0, 6.283); g.stroke();
+      }
     }
     for (const c of sim.contracts?.list ?? []) {            // contracts on the map
       const x = S / 2 + c.x * k, y = S / 2 + c.z * k;
