@@ -1,6 +1,6 @@
 # Roadmap
 
-Rule: every milestone ends with something you can open in a browser and play. The statuses below are based on the current `main` branch history as checked 18 November 2026. "Built" means code exists; it does not mean production deployment, load testing or external playtesting is complete.
+Rule: every milestone ends with something you can open in a browser and play. Status is based on `main` commit `27e84f29` (19 November 2026). "Built" means code exists and has automated coverage; it does not mean production deployment, load testing or external playtesting is complete.
 
 ## Current verified baseline
 
@@ -28,48 +28,50 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 | Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
 | Monetisation | Not implemented | Platform adapters and policy review required |
 | Production deployment | Pending | Deploy and test with players on separate networks; load tests outstanding |
+| Missions | First offline operation built | Operation DUST LANTERN: seeded rescue/recovery/extraction with clues, escort, alert ladder and debrief (offline only; online mission state needs a versioned snapshot and server validation first) |
+| Automated quality | Built | 196 unit tests, smoke checks, server netcode test (retried up to 3x, it is timing-sensitive), 15 browser scripts, production build in `npm run check`; CI workflow merged |
+| Persistent accounts/progression | Not implemented | Guest profile is local only; no cross-device account, mission ledger or server-backed economy |
+| AI long-term memory | Not implemented | Current AI is tactical/utility based plus a mission alert director; no persistent faction intelligence model |
+| Audio/haptics | First pass | ZzFX and gameplay cues exist; full spatial audio and controller/mobile haptics remain open |
 
-## Built so far (milestones 0 to 1.5 plus stages 2-8 of `MASTER_SYSTEMS.md`)
+## Completed engineering stages
 
-| # | Milestone | Done when | Status |
+- **Stages 0–8:** playable BR foundation, multiplayer, utility AI, weapon handling/skins, destruction, contracts, vehicles and loot.
+- **Stage 9:** eight operator abilities, crouch, fall damage and related netcode.
+- **Stages 10–11:** A* bot navigation, difficulty settings and key rebinding.
+- **Stage 12:** server hardening, rate limits, room/payload caps, reconnect handling, health and metrics.
+- **Stage 13:** guest profile (XP, levels, ranks, stats, badges, skin unlocks).
+- **Stage 14:** parachute drop-in (plane, free fall, parachute; solo and online).
+- **Operation DUST LANTERN** (ChatGPT, merged and browser-tested): offline rescue mission with an alert director.
+- **Frame-time telemetry:** `window.__nhPerf()` gives rolling p50/p95/p99.
+- **Mission objective extension:** two-stage relay uplink; secure the relay alone, then hold it alone for upload. Existing garrison guards redeploy without spawning extra fighters.
+- **CI:** GitHub Actions runs `npm ci` and `npm run check`.
+
+See `docs/MASTER_SYSTEMS.md` for the detailed engineering map and tests.
+
+## Next milestones — updated direction
+
+| Priority | Milestone | Deliverable | Gate |
 |---|---|---|---|
-| 0 | **Tech proof** | Move, jump, shoot, grenades, physics crates, AI bots, tests, build | DONE |
-| 0.5 | **Multiplayer spike** | Colyseus 0.18 server runs Rapier; two fake clients join, move, get blocked by a wall, and shoot each other with server-validated hits | DONE (replaced by Milestone 1) |
-| 0.7 | **Battle-royale core (offline)** | Rules split into a graphics-free `Simulation` (`src/sim/`); 6 data-driven weapons with recoil / ADS / reload; bots with line-of-sight, hearing, cover, grenades; shrinking zone; win/lose + play again; zzfx sounds, blood/spark particles, bullet holes, ragdoll deaths, screen shake, HUD + minimap; 25 tests + 22-step browser test | DONE |
-| 1 | **Two tabs, one match** | Server-authoritative Colyseus room runs the real `Simulation`; browser prediction + reconciliation, interpolation, lag-compensated capsule hits, lobby with bots filling slots, leaver replaced by a bot, Dockerfile + `DEPLOY.md`. Tested with a real server and two real browsers. **Still to do: deploy to a VPS and test with a friend on another network** | DONE (code) / deploy pending |
-| 1.5 | **Systems wave (Master Prompt)** | Utility AI + personalities + squads + garrison guards; tactical/empty reloads, dropped mags, GLSL weapon skins; destructible cover + explosive barrels; contracts (airdrop / hardpoint / bounty / two-stage relay uplink), mortar killstreak, weather + night, gore toggle; arcade buggy + bike with roadkill and bots that drive; loot on the ground (guns, ammo, armor, medkits, grenades), death drops, airdrop crates, bots that loot and heal. 91 unit tests, server test, 8 browser checks. Details: `MASTER_SYSTEMS.md` | DONE |
+| P0 | Production multiplayer validation | Deploy test server; friend joins from another network; test 2/8/16 clients, reconnect, jitter and packet loss | Measurements and incident notes, not just "it works" |
+| P1 | **Tactical mission foundation** | Data-driven objective graph and one complete 5–8 minute rescue/recovery/extraction mission | Server-authoritative objectives, seeded tests, playable browser build |
+| P2 | Living faction response | Patrol schedules, suspicion, witness reports, search, reinforcements, withdrawal and scoped memory | NPC knowledge is evidence-based and fair; deterministic scenario suite |
+| P3 | Combat/movement feel | Input buffering, acceleration, slide/vault prototype, weapon animation state machine, spatial sound and haptics | Before/after responsiveness and performance measurements |
+| P4 | Visual vertical slice | One realistic operator, weapon, modular building kit and Southern African PBR environment | LODs, collision review, asset licences and minimum-device benchmark |
+| P5 | Identity/progression | Guest-first profile, optional sign-in, server XP/inventory/mission ledger, account linking and recovery | Security/privacy review and migration tests |
+| P6 | Operations/social | Extraction/co-op matchmaking, parties, mission rotation, reporting/moderation and replay tools | Abuse controls and real-player playtest |
+| P7 | Fair economy | Direct-purchase cosmetics, earnable soft currency and auditable server ledger | No pay-to-win; payment-provider and regional policy approval |
+| P8 | Optional wallet proof | Wallet-linked cosmetic ownership proof only | Legal, privacy, platform and security review; never ask for seed phrases |
+| Later | Wagering / token prizes | Not scheduled or approved | No implementation without written legal advice, licensing analysis and region-specific compliance |
 
-## Next milestones
+## Performance and release gates
 
-| # | Milestone | Done when | Status |
-|---|---|---|---|
-| 7 | **Production multiplayer validation** | Deploy server to a test VPS; friend joins from another network; reconnect, packet loss, jitter, 2/8/16 clients and many-room tests documented | NEXT (needs you: a VPS) |
-| 8 | **Operator abilities + movement polish** | Eight active abilities (server-validated, cooldown HUD, bots use them), crouch, fall damage DONE (Stage 9); slide, mantle/vault, melee and accessibility controls still open | IN PROGRESS |
-| 9 | **First real visual slice** | One CC0 PBR ground set integrated; one modular environment kit; one realistic GLB operator with shared rig, LODs and animation; browser performance measured | NEXT (needs asset downloads) |
-| 10 | **One complete map** | Kavari Basin vertical slice with three routes per POI, cover, navmesh/AI, story props, weather presets and a working extraction point | PLANNED (greybox exists) |
-| 11 | **Mission modes** | Extraction contracts and a short Black Site social-deduction PvPvE mode with evidence, sabotage, counterplay and replayable objectives | PLANNED |
-| 12 | **Profiles and progression** | Guest-first profile, local save, settings menu, optional account linking, XP, weapon mastery and cosmetics; privacy policy and migration tests | Guest profile + settings DONE (Stages 11, 13); account linking, weapon mastery, privacy policy still open |
-| 13 | **Replay and creator tools** | Short replay buffer, kill snapshot export, streamer mode, custom lobby links, consent-based sharing | PLANNED |
-| 14 | **Platform readiness** | Low-end performance pass, mobile touch UI, portal-specific builds/SDK adapters, policy and privacy review | PLANNED |
-| 15 | **Monetisation** | Cosmetics-only store/battle pass after retention evidence; platform-specific ads/IAP compliance; no pay-to-win | PLANNED |
-| 16 | **Expansion** | Extra maps, named boss events, wildlife, advanced gadgets, mobile/desktop builds and optional Web3 research only after core metrics justify them | LATER |
+- Preserve server authority for position, damage, inventory, objectives, rewards and match results.
+- Run unit tests, server tests, browser E2E and build after gameplay changes.
+- Record frame-time p50/p95/p99, first playable time, draw calls, memory, input latency, RTT, jitter, packet loss and server tick cost.
+- Profile named devices and exact commit SHAs before claiming optimisation.
+- Keep the initial load small; stream optional maps, operators, skins and audio.
+- Record every external asset and its licence in `ASSETS.md`.
+- Do not add real-money betting, crypto wagering or cash-out as a shortcut to monetisation.
 
-## Quality gates
-
-- Preserve server authority for all gameplay outcomes.
-- Run unit tests, server tests, browser E2E and build after each gameplay stage.
-- Measure real FPS, load time, memory, RTT, jitter and packet loss on target hardware.
-- Every external asset must be logged in `ASSETS.md` with its exact licence.
-- Do not merge a feature just because it compiles; playtest it.
-- Keep the first-frame download small and load map/character assets on demand.
-
-See `MASTER_SYSTEMS.md` for the complete product architecture and `ASSET_CATALOG.md` for candidate material sources.
-
-## 19 November 2026 — owner-approved direction update
-
-The owner has approved a wider African-rooted tactical shooter direction and the first offline mission vertical slice. See root `CLAUDE.md` and `docs/PROJECT_DIRECTION_AND_CHAT_NOTES.md` for the durable product brief and hard engineering/legal constraints.
-
-- **First operation:** Operation DUST LANTERN is in draft PR #20 on `feature/dust-lantern-first-playable`. It adds an offline mission director, clues, rescue interaction, escort following, extraction hold, dedicated HUD/view and deterministic tests. It is not merged or yet declared release-ready.
-- **Online mission mode:** intentionally deferred until mission state has a versioned snapshot protocol and server-side validation.
-- **Next:** review CI and playtest the first operation; then improve the captive AI, alternate mission outcomes and faction response. Continue the PBR/operator visual slice in parallel only on a separate branch.
-- **Accounts/economy/wallet:** guest-first accounts and server-backed progression are future milestones. Crypto wagering remains blocked pending written legal and licensing approval in Namibia and every launch market.
+See `docs/EXPANSION_ARCHITECTURE.md` for the research-backed product, AI, physics, rendering, audio, UX, account, economy and delivery architecture.
