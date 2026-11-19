@@ -85,3 +85,21 @@ Proposed game translation (editable design proposal):
 ## Next approval gate
 
 Owner decision: realistic art style, redesign the characters, fictional African special-operations unit, modern equipment, first- and third-person camera support. The five likeness references are approved as design inputs. Keep this document as the source of truth for character art direction.
+
+
+## Procedural field-kit implementation — 19 November 2026
+
+A first gameplay-facing kit pass is now implemented in `src/render/operator-kit.js` and baked through `src/render/fighter.js`. It keeps the existing body / left leg / right leg / arm mesh layout, so equipment detail does not introduce dozens of extra draw calls.
+
+| Operator | Field-kit identity |
+|---|---|
+| Roms | Heavy-support pack, reinforced side pouches and ammunition-carrier silhouette |
+| Shadow | Low-profile slim pack and reduced pouch count |
+| Douglas | Medic pack, medical cross panel and radio |
+| Cliffhanger | Demolition charges and detonator pouch |
+| Navy Blue | Recon pack and low-profile optic / NVG bridge |
+| Rampol | Heavy-breach pack, reinforced shoulders and radio |
+| Maetja | Signals pack, radio antenna and stowed forearm terminal |
+| Cleiseis | Slim close-protection harness |
+
+The models remain stylised procedural block geometry. This pass improves role readability and loadout identity, but it is **not** the final realistic GLB/animation deliverable. The next art slice is one licensed humanoid rig, retargeted locomotion/combat/reload clips and texture maps, with the current procedural models kept as the fallback. Do not invent facial likenesses for operators without approved references.
