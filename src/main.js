@@ -13,6 +13,7 @@ import { RagdollWorld } from './render/ragdoll.js';
 import { RagdollView } from './render/ragdoll-view.js';
 import { Particles } from './fx/particles.js';
 import { Decals } from './fx/decals.js';
+import { BloodPools } from './fx/blood-pools.js';
 import { Tracers } from './fx/tracers.js';
 import { CameraFx } from './fx/camerafx.js';
 import { MagDrops } from './fx/mags.js';
@@ -87,12 +88,12 @@ function disposeScene(scene) {
 }
 
 async function newMatch(online = null, operation = false) {          // `operation`: false for a battle royale, or a mission id from missions.js
-  if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
+  if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.bloodPools?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
   const sim = online ?? await Simulation.create({ seed, bots: operation ? 0 : +(params.get('bots') ?? 15), guards: operation ? 8 : undefined, mission: operation || undefined, contracts: operation ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operation, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
-  const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
+  const particles = new Particles(scene), decals = new Decals(scene), bloodPools = new BloodPools(scene), tracers = new Tracers(scene);
   particles.onBloodLand = (x, z) => { if (settings.gore) decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4); };
   const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim), vview = new VehiclesView(scene, sim), lview = sim.loot ? new LootView(scene, sim) : null;
   const pview = sim.plane ? new PlaneView(scene, sim.plane) : null;
@@ -108,7 +109,7 @@ async function newMatch(online = null, operation = false) {          // `operati
   playerView.label.visible = false;
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.melee = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, pview, sview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
+  G = { sim, net: online, scene, world, pview, sview, mview, bloodPools, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0, vm: new ViewMotion(), vmo: { y: 0, roll: 0, pitch: 0, fov: 0 } };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd(); $('snapwrap').style.display = 'none';
@@ -213,6 +214,7 @@ function handleEvents() {
         const pw = e.cause === 'explosion' ? 2.3 : e.w === 'shotgun' ? 1.8 : e.w === 'dmr' ? 1.5 : 1;
         const rg = G.rag.spawn({ x: e.x, y: e.y - 0.9, z: e.z, yaw: t.yaw, vx: e.vx, vz: e.vz, dx: e.dx, dy: e.dy, dz: e.dz, power: pw, head: e.head });
         G.ragViews.push(new RagdollView(G.scene, rg, t.color, t.id, G.rag.life));
+        if (settings.gore) G.bloodPools?.add(rg, { size: e.cause === 'explosion' ? 1.15 : e.head ? 0.98 : 0.82 });
         const v = views.get(e.target); if (v) { v.dispose(); views.delete(e.target); }
         if (you) { hud.hitmarker(true, e.head); audio.play('kill', { vol: 1 }); hud.message(`ELIMINATED ${e.name.toUpperCase()}`, '#ffcf4d', 1.6); }
         if (me) { G.deadT = performance.now(); G.killer = e.byName; viewmodel.root.visible = false; camfx.add(0.8); }
@@ -535,7 +537,7 @@ function frame(now) {
       G.engT -= dt;
       if (nearest && G.engT <= 0) { G.engT = nearest.kind === 'bike' ? 0.16 : 0.2; audio.play('engine', { x: nearest.x, z: nearest.z, maxD: 45, vol: 0.5 + Math.min(0.5, Math.abs(nearest.speed) / 30), rate: 0.7 + Math.abs(nearest.speed) / 25 }); }
     }
-    G.particles.update(dt); G.tracers.update(dt); G.mags.update(dt);
+    G.particles.update(dt); G.bloodPools.update(dt); G.tracers.update(dt); G.mags.update(dt);
     for (let i = G.later.length - 1; i >= 0; i--) if (now >= G.later[i].at) { const j = G.later.splice(i, 1)[0]; j.fn(); }
   }
   tickSkins(now / 1000, dt);
