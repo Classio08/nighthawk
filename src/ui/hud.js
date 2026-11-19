@@ -233,12 +233,15 @@ export class Hud {
   }
 
   showEnd(r, killerName) {
-    $('endtitle').textContent = r.won ? 'WINNER WINNER' : 'ELIMINATED';
+    $('endtitle').textContent = r.mission ? (r.won ? 'OPERATION COMPLETE' : 'OPERATION FAILED') : r.won ? 'WINNER WINNER' : 'ELIMINATED';
     $('endtitle').style.color = r.won ? '#5be37a' : '#ff4d4d';
-    $('endsub').textContent = r.won ? 'Last one standing. The desert is yours.' : (killerName ? `Taken out by ${killerName}` : 'The zone got you');
-    $('e-place').textContent = `#${r.placement}`; $('e-kills').textContent = r.kills; $('e-time').textContent = fmt(r.time);
+    $('endsub').textContent = r.mission
+      ? (r.won ? `Technician extracted safely · ${r.clues ?? 0}/3 clues recovered · No persistent rewards yet` : 'The operator was lost before the technician could be extracted')
+      : r.won ? 'Last one standing. The desert is yours.' : (killerName ? `Taken out by ${killerName}` : 'The zone got you');
+    $('e-place').textContent = r.mission ? (r.won ? 'SAFE' : 'FAIL') : `#${r.placement}`;
+    $('e-kills').textContent = r.kills ?? 0; $('e-time').textContent = fmt(r.time);
     $('end').classList.add('show');
   }
   hideEnd() { $('end').classList.remove('show'); }
-  reset() { this.el.feed.innerHTML = ''; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
+  reset() { this.el.feed.innerHTML = ''; if (this.el.mission) this.el.mission.style.display = 'none'; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
 }
