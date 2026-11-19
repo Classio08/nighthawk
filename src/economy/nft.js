@@ -28,9 +28,19 @@ export function parseUint(hex) {
 }
 
 async function rpc(url, method, params, fetchFn) {
-  const res = await fetchFn(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
-  if (!res.ok) throw new Error(`rpc http ${res.status}`);
-  const j = await res.json(); if (j.error) throw new Error(`rpc error ${j.error.code ?? ''}`);
+  const res = await fetchFn(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    signal: AbortSignal.timeout(8000),
+    cache: 'no-store',
+  });
+  if (!res?.ok) throw new Error(`rpc http ${res?.status ?? 'unknown'}`);
+  let j;
+  try { j = await res.json(); } catch { throw new Error('rpc returned invalid JSON'); }
+  if (!j || j.jsonrpc !== '2.0' || j.id !== 1 || j.error || !Object.prototype.hasOwnProperty.call(j, 'result')) {
+    throw new Error('rpc returned an invalid JSON-RPC response');
+  }
   return j.result;
 }
 
@@ -40,11 +50,16 @@ async function rpc(url, method, params, fetchFn) {
  */
 export async function ownedCosmetics({ rpcUrl, chainId, contract, address }, fetchFn = globalThis.fetch) {
   const c = normalizeAddress(contract);
-  if (Number(BigInt(await rpc(rpcUrl, 'eth_chainId', [], fetchFn))) !== chainId) throw new Error('rpc is on a different chain than expected');
+  const chainHex = await rpc(rpcUrl, 'eth_chainId', [], fetchFn);
+  if (typeof chainHex !== 'string' || !/^0x[0-9a-fA-F]+$/.test(chainHex)) throw new Error('rpc returned an invalid chain id');
+  const actualChain = Number(BigInt(chainHex));
+  if (!Number.isSafeInteger(actualChain) || actualChain !== chainId) throw new Error('rpc is on a different chain than expected');
   const owned = [];
   for (const id of Object.keys(COSMETIC_TOKENS).map(Number)) {
     const out = await rpc(rpcUrl, 'eth_call', [{ to: c, data: encodeBalanceOf(address, id) }, 'latest'], fetchFn);
-    if (parseUint(out) > 0) owned.push(id);
+    // A malformed value must fail closed, not be mistaken for a valid zero balance.
+    if (typeof out !== 'string' || !/^0x[0-9a-fA-F]{1,64}$/.test(out)) throw new Error('rpc returned an invalid balance result');
+    if (BigInt(out) > 0n) owned.push(id);
   }
   return { tokens: owned, skins: owned.map((id) => COSMETIC_TOKENS[id].skin) };
 }
