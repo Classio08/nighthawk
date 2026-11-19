@@ -11,7 +11,7 @@ export class MissionView {
     this.scene = scene; this.mission = sim.mission;
     if (!this.mission) return;
     this.root = new THREE.Group(); scene.add(this.root);
-    this.clues = this.mission.clues.map((clue, i) => {
+    this.clues = (this.mission.clues ?? []).map((clue, i) => {
       const g = new THREE.Group(); g.position.set(clue.x, 0, clue.z); this.root.add(g);
       const color = 0xffc857;
       put(g, new THREE.CylinderGeometry(0.035, 0.035, 1.15, 6), mat(color, color), 0, 0.8, 0);
@@ -35,6 +35,17 @@ export class MissionView {
     const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(labelCanvas), transparent: true, depthWrite: false }));
     label.scale.set(2.3, 0.58, 1); label.position.y = 2.15; this.hostage.add(label);
 
+    this.target = null;
+    if (this.mission.target) {
+      this.target = new THREE.Group(); this.root.add(this.target);
+      const terminalColor = 0x53d9ff;
+      put(this.target, new THREE.BoxGeometry(0.72, 1.5, 0.52), mat(0x303a43), 0, 0.78, 0);
+      put(this.target, new THREE.BoxGeometry(0.48, 0.52, 0.06), mat(0x194c59, terminalColor), 0, 1.03, -0.29);
+      const targetRing = put(this.target, new THREE.RingGeometry(1.1, 1.3, 32), new THREE.MeshBasicMaterial({ color: terminalColor, transparent: true, opacity: 0.75, side: THREE.DoubleSide }), 0, 0.04, 0);
+      targetRing.rotation.x = -Math.PI / 2;
+      this.target.position.set(this.mission.target.x, 0, this.mission.target.z);
+    }
+
     this.extract = new THREE.Group(); this.root.add(this.extract);
     const pad = put(this.extract, new THREE.RingGeometry(7.2, 7.6, 48), new THREE.MeshBasicMaterial({ color: 0x58d8ff, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }), 0, 0.08, 0);
     pad.rotation.x = -Math.PI / 2;
@@ -51,13 +62,20 @@ export class MissionView {
     this.time += dt;
     const m = this.mission;
     this.clues.forEach((g, i) => {
-      const clue = m.clues[i], near = Math.hypot(clue.x - player.x, clue.z - player.z) < 22;
+      const clue = m.clues[i], near = Math.hypot(clue.x - player.x, clue.z - player.z) < (m.discoveryRange ?? 22);
       g.visible = m.stage === 'recon' && !clue.found && near;
       g.children[0].position.y = 0.8 + Math.sin(this.time * 2.4 + i) * 0.12;
     });
-    this.hostage.visible = m.captive.visible;
-    this.hostage.position.set(m.captive.x, 0, m.captive.z);
-    this.hostage.rotation.y = Math.atan2(player.x - m.captive.x, player.z - m.captive.z);
+    this.hostage.visible = !!m.captive?.visible;
+    if (m.captive) {
+      this.hostage.position.set(m.captive.x, 0, m.captive.z);
+      this.hostage.rotation.y = Math.atan2(player.x - m.captive.x, player.z - m.captive.z);
+    }
+    if (this.target) {
+      this.target.visible = m.stage === 'approach' || m.stage === 'hack' || m.stage === 'hold';
+      this.target.position.y = Math.sin(this.time * 2.2) * 0.06;
+      this.target.rotation.y = Math.sin(this.time * 0.4) * 0.08;
+    }
     this.extract.visible = m.stage === 'extract';
     if (this.extract.visible) this.extract.children[0].rotation.z = this.time * 0.18;
   }
