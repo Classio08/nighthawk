@@ -121,8 +121,12 @@ export class BotBrain {
     let best = null, bs = 1e9;
     for (const o of sim.fighters) {
       if (o === f || !o.alive || o.air) continue;                          // (nobody shoots at a parachute)
-      if (f.squad && f.squad.allies(f, o)) continue;                       // squad-mates are friends (until the circle gets small)
-      if (this.p.guard && o.npc) continue;                                 // guards do not shoot each other
+      if (sim.blackSite) {
+        if (!sim.blackSite.isHostile(f.id, o.id)) continue;                 // BLACK SITE roles override BR squads: operatives and infiltrators are separate sides
+      } else {
+        if (f.squad && f.squad.allies(f, o)) continue;                     // squad-mates are friends (until the circle gets small)
+        if (this.p.guard && o.npc) continue;                                // guards do not shoot each other
+      }
       const d = Math.hypot(o.x - f.x, o.z - f.z);
       if (d > 65) continue;
       if (isCloaked(o) && d > ABILITIES.shadow.cloakRange) continue;        // Shadow's Cloak: only seen from up close
