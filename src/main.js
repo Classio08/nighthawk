@@ -55,6 +55,7 @@ let SKIN = null;
 let profile = loadProfile();                         // guest profile (stats, XP, badges) saved in this browser
 const tracker = new MatchTracker();                  // my damage / headshots / weapon kills for the current match
 const OPERATOR_IDS = new Set(OPERATORS.map((op) => op.id));
+const whizTimes = new Map(); // throttle near-miss audio per shooter; a projectile now produces multiple tracer segments
 let OPERATOR = OPERATOR_IDS.has(params.get('op')) ? params.get('op') : 'roms';
 try { SKIN = skinOk(params.get('skin') ?? localStorage.getItem('nh_skin')); } catch { /* private mode */ }
 if (SKIN && !params.has('skin') && !skinUnlocked(SKIN, levelInfo(profile.xp).level)) SKIN = null;      // a skin you have not unlocked (e.g. after a profile reset) falls back to stock
@@ -184,9 +185,13 @@ function handleEvents() {
         if (Number.isFinite(e.ricochetEndX)) {
           tracers.add(e.surfaceX ?? e.ex, e.surfaceY ?? e.ey, e.surfaceZ ?? e.ez, e.ricochetEndX, e.ricochetEndY, e.ricochetEndZ, 0xffe0a0);
         }
-        if (e.by !== p.id && p.alive) {                                  // a bullet cracked past my head: shake, dark edges, whizz (client-only, changes nothing in the sim)
+        if (e.by !== p.id && p.alive) {                                  // bullet cracks past my head; tracer segments are throttled per source
           const k = suppression(e.ox, e.oy, e.oz, e.ex, e.ey, e.ez, p.x, p.eyeY, p.z);
-          if (k > 0) { camfx.add(0.1 + 0.3 * k); hud.suppress(0.18 + 0.4 * k); audio.play('whiz', { vol: 0.5 + 0.5 * k }); }
+          if (k > 0) {
+            camfx.add(0.1 + 0.3 * k); hud.suppress(0.18 + 0.4 * k);
+            const now = performance.now(), last = whizTimes.get(e.by) ?? -Infinity;
+            if (now - last >= 180) { whizTimes.set(e.by, now); audio.play('whiz', { vol: 0.5 + 0.5 * k }); }
+          }
         }
         void f; break;
       }
