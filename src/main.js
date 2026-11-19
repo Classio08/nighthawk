@@ -429,20 +429,20 @@ function updateCamera(dt, alpha) {
     const x = lerp(G.prev.x, G.cur.x, alpha), y = lerp(G.prev.y, G.cur.y, alpha), z = lerp(G.prev.z, G.cur.z, alpha);
     const driving = !!p.veh && p.seat === 0;
     if (driving) {                                                  // chase camera behind the vehicle; mouse up/down lifts it
-      const d = p.veh.kind === 'bike' ? 4.4 : 6.2, pe = clamp(cmd.pitch - 0.22, -1.3, 1.2), cp = Math.cos(pe);
+      const d = p.veh.kind === 'bike' ? 4.4 : 6.2, pe = clamp(cmd.pitch + (p.recoilPitch ?? 0) - 0.22, -1.3, 1.2), cp = Math.cos(pe);
       camera.position.set(x + Math.sin(cmd.yaw) * cp * d, Math.max(0.5, y + 1.25 - Math.sin(pe) * d), z + Math.cos(cmd.yaw) * cp * d);
       G.roll = lerp(G.roll, 0, 1 - Math.exp(-8 * dt));
-      camera.rotation.set(pe + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
+      camera.rotation.set(pe + shake.pitch, cmd.yaw + (p.recoilYaw ?? 0) + shake.yaw, G.roll + shake.roll);
     } else if (thirdPerson) {
       const pos = thirdPersonCameraPosition({ x, y, z }, cmd.yaw, sim.map);
       camera.position.set(pos.x, pos.y, pos.z);
-      camera.rotation.set(cmd.pitch * 0.72 + shake.pitch, cmd.yaw + shake.yaw, shake.roll);
+      camera.rotation.set((cmd.pitch + (p.recoilPitch ?? 0)) * 0.72 + shake.pitch, cmd.yaw + (p.recoilYaw ?? 0) + shake.yaw, shake.roll);
     } else {
       G.eye = lerp(G.eye ?? 0.72, p.crouch ? 0.2 : 0.72, 1 - Math.exp(-14 * dt));        // the eyes glide down when you crouch
       const vo = G.vmo;                                                                   // body motion from headbob.js (zeroes itself when the setting is off)
       camera.position.set(x, y + G.eye + vo.y, z);
       G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
-      camera.rotation.set(cmd.pitch + vo.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + vo.roll + shake.roll);
+      camera.rotation.set(cmd.pitch + (p.recoilPitch ?? 0) + vo.pitch + shake.pitch, cmd.yaw + (p.recoilYaw ?? 0) + shake.yaw, G.roll + vo.roll + shake.roll);
     }
     const targetFov = driving ? settings.fov + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(settings.fov + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0) + (p.air === 2 ? 16 : 0) + G.vmo.fov, w.adsFov * settings.fov / 78, G.adsK);
     G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
