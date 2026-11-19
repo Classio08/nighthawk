@@ -49,7 +49,7 @@ export class BotBrain {
     this.sim = sim; this.f = f;
     this.state = 'roam'; this.decideT = 0; this.scores = {};
     this.supT = 0; this.supOn = false; this.flankPt = null; this.barrelAim = null;
-    this.radio = null; this.perch = null; this.perchPhase = -1; this.campT = 0; this.post = null; this.leash = 18;
+    this.radio = null; this.evidenceType = 'none'; this.evidenceT = 0; this.lastIntel = null; this.perch = null; this.perchPhase = -1; this.campT = 0; this.post = null; this.leash = 18;
     this.patrolRoute = null; this.patrolIndex = 0;
     this.searchAnchor = null; this.searchGoal = null; this.searchIndex = 0;
     this.main = this.p.weapons.includes(f.op.weapon) ? f.op.weapon : this.p.weapons[f.id % this.p.weapons.length];
@@ -105,7 +105,7 @@ export class BotBrain {
   }
 
   /** squad radio: "contact at x,z" arrives after a short delay */
-  radioIn(contact, delay) { this.radio = { x: contact.x, z: contact.z, at: this.sim.time + delay }; }
+  radioIn(contact, delay) { this.radio = { x: contact.x, z: contact.z, kind: contact.kind ?? 'visual-contact', confidence: contact.confidence ?? 1, at: this.sim.time + delay }; }
 
   onHurt(source) {
     this.hurtT = 0;
@@ -358,6 +358,7 @@ export class BotBrain {
     sim.tickHeal(f, dt); this.lootScanT -= dt;
     if (sim.opts.loot) { this.mainT -= dt; if (this.mainT <= 0) { this.mainT = 1; this._refreshMain(); } }
     this.hurtT += dt; this.lastSeenT += dt; this.heardT += dt;
+    this.evidenceT = Math.max(0, this.evidenceT - dt);
     this.coverT = Math.max(0, this.coverT - dt); this.coverCool = Math.max(0, this.coverCool - dt);
     this.jumpCool = Math.max(0, this.jumpCool - dt); this.nadeCool = Math.max(0, this.nadeCool - dt); this.smokeCool = Math.max(0, this.smokeCool - dt);
     if (this.lookAt) { this.lookAt.t -= dt; if (this.lookAt.t <= 0) this.lookAt = null; }
@@ -369,7 +370,16 @@ export class BotBrain {
 
     // ---- radio: a squad-mate called out an enemy ----
     if (this.radio && sim.time >= this.radio.at) {
-      if (!this.visible) { this.lastSeen = { x: this.radio.x, z: this.radio.z }; this.lastSeenT = 0.4; this.lookAt = { x: this.radio.x, z: this.radio.z, t: 1.0 }; }
+      const report = this.radio;
+      if (!this.visible) {
+        this.lastSeen = { x: report.x, z: report.z };
+        this.lastSeenT = report.kind === 'body' ? 3.2 : 0.4; // a body is a search lead, not a live target lock
+        this.lookAt = { x: report.x, z: report.z, t: 1.0 };
+        if (report.kind === 'body') { this.searchAnchor = { x: report.x, z: report.z }; this.searchGoal = null; this.searchIndex = 0; }
+      }
+      this.evidenceType = report.kind;
+      this.evidenceT = report.kind === 'body' ? 9 : 2.5;
+      this.lastIntel = { kind: report.kind, x: report.x, z: report.z, confidence: report.confidence, at: sim.time };
       this.radio = null;
     }
 
