@@ -239,6 +239,7 @@ export class TouchControls {
 
   destroy() {
     this._releaseAll();
+    document.body.classList.remove('nh-touch-active');
     if (!this.root) return;
     this.root.removeEventListener('pointerdown', this._onPointerDown);
     this.root.removeEventListener('pointermove', this._onPointerMove);
