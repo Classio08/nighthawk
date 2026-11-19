@@ -62,6 +62,26 @@ One thing to confirm before a public release: if any of the voice lines were pro
 
 The owner supplied this image and states it is his. How it was produced (photography, illustration, or an image-generation tool, and under which terms) is not recorded here. Before a store listing or any public release, write the source and terms next to this entry; if an AI image service made it, check that service's commercial-use terms.
 
+## Owner-supplied operator portraits (logged 19 Nov 2026)
+
+Real photos of the friends who inspired the operators. Optimized to 512×512 JPG.
+
+| File | Operator | Status |
+|---|---|---|
+| roms.jpg / roms-alt.jpg | Roms | Ready (sunglasses tactical look preferred) |
+| cleiseis.jpg / cleiseis-alt.jpg | Cleiseis | Ready |
+| douglas.jpg | Douglas | Ready |
+| maetja.jpg | Maetja | Ready |
+| rampol.jpg | Rampol | Ready |
+| shadow.jpg | Shadow | Ready |
+| (missing) | Navy Blue, Cliffhanger | Need photos or stylized placeholders |
+
+Location once uploaded: `assets/portraits/` or `public/portraits/`.
+See `assets/portraits/README.md` for mapping and usage.
+Also available: full tactical concept sheet for Roms + Cleiseis in gear (`assets/ui/operators-concept-sheet.png`).
+
+These are owner-provided with permission from the subjects. Do not redistribute outside the project.
+
 ## Sounds that are code
 
 | Item | Where | Note |
