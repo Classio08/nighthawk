@@ -103,3 +103,15 @@ The physics correlation child branch now shares material attenuation with both N
 - Player-heard remote gunshots and explosions use the full 3D source/listener distance for sound-travel delay (distance / 343) and material path attenuation for volume.
 - Audio attenuation is presentation-only. Server hit registration, weapon fire cadence and explosion timing are not delayed. This is volume reduction, not frequency-dependent low-pass filtering, indoor reverb or reflections.
 - soundOcclusionGain() in src/fx/audio.js clamps invalid gains safely; the unit specification lives in tests/audio-occlusion.test.js and has not been run.
+
+
+## Ballistic projectile continuation — 19 November 2026
+
+Dependent follow-on: `feature/ballistic-projectile-foundation`, based on `feature/physics-shrapnel-correlation`.
+
+- Review `docs/BALLISTICS.md` and `src/sim/ballistics.js` before changing bullet movement.
+- The projectiles are server-authoritative fixed-step swept paths. Rapier owns world collision; no second physics engine or dynamic body per bullet is introduced.
+- Keep the active projectile cap, deterministic per-shot impact random stream, existing material response, and lag-compensated target samples.
+- Tracer segments are transient events through the existing snapshot event buffer; avoid adding 60 Hz replicated projectile state.
+- Net prediction reconciles in-flight rounds by input sequence. Preserve accepted projectiles; prune only unacknowledged predictions before replay.
+- The current branch has not been tested, built or playtested at the owner's request.
