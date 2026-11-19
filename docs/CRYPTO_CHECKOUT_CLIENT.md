@@ -1,6 +1,6 @@
-# Client-side non-custodial crypto checkout
+# Client-side non-custodial ERC-20 cosmetic checkout
 
-This branch is a dependent UI/client contribution to `feature/crypto-wallet-payments`. It expects the server-side merchant-payment intent and receipt verification routes from that branch.
+This branch is a dependent UI/client contribution to `feature/crypto-wallet-payments`. It expects the server-side merchant-payment intent and receipt verification routes from that branch. A successful payment grants an in-game cosmetic entitlement to the NIGHTHAWK account; **it does not mint an ERC-1155 NFT**. The separate NFT ownership-check flow remains read-only.
 
 ## Purchase flow
 
@@ -14,7 +14,8 @@ This branch is a dependent UI/client contribution to `feature/crypto-wallet-paym
 
 ## Security boundaries
 
-- No crypto purchase can change weapon damage, recoil, movement, armor or other gameplay stats. Only items marked cosmetic-only are accepted by the server.
+- No crypto purchase can change weapon damage, recoil, movement, armor or other gameplay stats. The payment-intent service only accepts ids from the server-side cosmetic catalog.
+- This adapter does not deploy contracts, mint NFTs, grant token balances or provide an on-chain player marketplace.
 - The browser never marks an item paid or owned without a positive server response.
 - Token amounts are integers (BigInt); there is no floating-point conversion of money.
 - Wallet account and network are rechecked immediately before the transaction.
