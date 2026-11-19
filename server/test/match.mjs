@@ -123,7 +123,7 @@ sim.contracts.list.length = 0;
   const dA3 = drive(A, () => { if (phase === 'enter' && !useSent) { useSent = 1; return { use: true }; } if (phase === 'drive') return { forward: 1, yaw: bug.yaw }; if (phase === 'exit' && useSent === 1) { useSent = 2; return { use: true }; } return {}; });
   await sleep(500);
   phase = 'enter'; await sleep(900);
-  check('E online: the server seats A in the buggy and A\'s client agrees', sa.veh === bug && sa.seat === 0 && A.seated, `server=${!!sa.veh} client=${A.seated}`);
+  check('E online: the server seats A in the buggy and A\'s client agrees', sa.veh === bug && sa.seat === 0 && A.seated, `server=${!!sa.veh} client=${A.seated} dist=${Math.hypot(sa.x - bug.x, sa.z - bug.z).toFixed(1)} A=${sa.x.toFixed(1)},${sa.z.toFixed(1)} bug=${bug.x.toFixed(1)},${bug.z.toFixed(1)} dir=${JSON.stringify(dir)} useSent=${useSent} alive=${sa.alive} air=${sa.air}`);
   const bx0 = B.vehicles.byId.get(bug.id)?.x ?? 0, bz0 = B.vehicles.byId.get(bug.id)?.z ?? 0;
   phase = 'drive'; await sleep(1700);
   const bb = B.vehicles.byId.get(bug.id), moved = Math.hypot(bb.x - bx0, bb.z - bz0);

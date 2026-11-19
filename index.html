@@ -65,12 +65,15 @@
   #slots div.on{opacity:1;border-color:var(--accent);color:var(--accent)}
   #air{position:absolute;left:50%;top:30%;transform:translateX(-50%);display:none;text-align:center;letter-spacing:3px;text-shadow:0 2px 6px #000;pointer-events:none}
   #air b{display:block;font-size:30px;color:var(--accent);letter-spacing:6px}#air span{display:block;font-size:13px;opacity:.9;margin-top:4px}#air i{display:block;font-style:normal;font-size:12px;opacity:.7;margin-top:8px}
+  #mission{position:absolute;left:min(180px,32vw);right:auto;top:18px;width:min(330px,40vw);padding:12px 14px;background:rgba(7,13,18,.82);border:1px solid rgba(88,216,255,.5);border-left:3px solid #58d8ff;border-radius:4px;letter-spacing:1px;line-height:1.5;backdrop-filter:blur(8px);display:none}
+  #mission small{display:block;color:#58d8ff;font-size:9px;letter-spacing:2px;opacity:.9}#mission b{display:block;font-size:12px;margin:4px 0;color:#fff}#mission span{display:block;font:11px/1.5 system-ui,sans-serif;color:#d5e1e9}#mission i{display:block;height:3px;background:rgba(255,255,255,.14);margin:8px 0 4px;overflow:hidden}#mission em{display:block;height:100%;background:#58d8ff}#mission small:last-child{color:#c2d0d9;font-size:9px}
   #ct{position:absolute;left:50%;top:48px;transform:translateX(-50%);display:none;font-size:12px;letter-spacing:1px;text-align:center;line-height:1.5;padding:3px 12px;background:var(--panel);border-radius:4px}
   #veh{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);display:none;font-size:13px;letter-spacing:2px;text-align:center;line-height:1.5;padding:5px 14px;background:var(--panel);border-radius:4px;border:1px solid rgba(255,255,255,.12)}
   #veh small{font-size:10px;opacity:.7;letter-spacing:1px}
   #msg{position:absolute;left:50%;top:66%;transform:translateX(-50%);font-size:18px;letter-spacing:3px;color:var(--red);opacity:0;text-align:center}
   .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(5,8,12,.78);color:#fff;text-align:center;pointer-events:auto;z-index:5}
   .ov.show{display:flex}
+  #start{overflow-y:auto;justify-content:flex-start;padding:18px 10px 28px}
   #settings{z-index:7;overflow-y:auto;justify-content:flex-start;padding:28px 12px 40px}
   #settingsbody{width:min(560px,94vw);display:flex;flex-direction:column;gap:10px;text-align:left}
   #settingsbody h3{margin:14px 0 2px;font-size:12px;letter-spacing:3px;opacity:.7;font-weight:400}
@@ -133,6 +136,7 @@
     <canvas id="mini" class="box" width="150" height="150"></canvas>
   </div>
   <div id="zone" class="box">ZONE</div>
+  <div id="mission" aria-live="polite"></div>
   <div id="ct"></div>
   <div id="air"></div>
   <div id="veh"></div>
@@ -149,10 +153,11 @@
 
 <div id="start" class="ov show">
   <h1>NIGHTHAWK</h1>
-  <p>16 fighters · one shrinking zone · last one standing</p>
-  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim &nbsp;<small style="opacity:.6">(rebind in SETTINGS)</small><br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E enter / exit buggy &amp; bike</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
+  <p>TACTICAL OPERATIONS · KAVARI BASIN · FIRST / THIRD PERSON</p>
+  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim &nbsp;<small style="opacity:.6">(rebind in SETTINGS)</small><br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E interact / enter / exit vehicle</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
   <p style="font-size:12px;opacity:.7"><b>Every match starts in the plane:</b> press <b>Space</b> to jump, hold <b>W</b> to dive, the parachute opens by itself at 60 m (Space opens it early) &middot; you land with a pistol: <b>loot guns, armor and medkits</b> (walk over them) &middot; grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
+  <button class="btn" id="operationbtn">OPERATION: DUST LANTERN</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <button class="btn" id="startsettings">SETTINGS</button>
   <details id="profile"><summary>LV 1 RECRUIT</summary></details>

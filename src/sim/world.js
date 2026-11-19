@@ -21,6 +21,7 @@ import { rayCapsule } from './geom.js';
 import { idleCmd } from './cmd.js';
 import { BotBrain } from './bot.js';
 import { startDrop, stepAir } from './drop.js';
+import { DustLanternMission } from './missions.js';
 
 export const GRAV = -22;
 export const OPERATORS = operatorData.operators;
@@ -111,6 +112,8 @@ export class Simulation {
     this.obstacles = [];            // Yuka obstacle entities (for bot steering)
     this.weather = pickWeather(this.seed, opts.weather);       // same seed => same weather on the server and in every browser
     this.contracts = new Contracts(this);
+    this.mission = opts.mission === 'dust-lantern' ? new DustLanternMission(this) : null;
+    if (this.mission) this.contracts.off = true;
     this.loot = new LootSystem(this);      // starting items come from the seed (loot.js); only a loot match (opts.loot) has any
     this.strikes = [];              // mortar barrages in progress
   }
@@ -154,6 +157,7 @@ export class Simulation {
     const humans = this.opts.humans ?? [{ operator: this.opts.operator ?? 'roms', skin: this.opts.skin }];
     const nBots = this.opts.bots ?? 15;
     const spawns = pickSpawns(this.map, humans.length + nBots, this.rng);
+    if (this.mission && spawns.length) spawns[0] = this.mission.insertion;
     this.humans = []; const usedOps = new Set();
     humans.forEach((h, i) => {
       const op = OPERATORS.find((o) => o.id === h.operator) ?? OPERATORS[i % OPERATORS.length];
@@ -203,7 +207,7 @@ export class Simulation {
   /** third faction: NPC guards who defend one outpost and never leave it far. They do not count for "last one standing". */
   _makeGuards(n) {
     if (n <= 0) return;
-    const post = findFreeSpot(this.map, this.rng, 0, 0, 26, 7);
+    const post = this.mission ? { ...this.mission.guardPost } : findFreeSpot(this.map, this.rng, 0, 0, 26, 7);
     this.outpost = post;
     // Separate deterministic stream: patrol setup must not perturb match RNG or loot rolls.
     const patrolRng = makeRng(((this.seed | 0) * 65537 + 991) | 0);
@@ -633,7 +637,7 @@ export class Simulation {
       target.result = { to: target.id, won: false, placement: left + 1, kills: target.kills, time: this.time };
       this.emit({ t: 'end', ...target.result });
     }
-    if (this.state === 'playing' && (left <= 1 || !this.humans.some((h) => h.alive))) this._finish();
+    if (this.state === 'playing' && (this.mission ? !this.humans.some((h) => h.alive) : (left <= 1 || !this.humans.some((h) => h.alive)))) this._finish();
   }
 
   /** the match is over: crown the last fighter standing */
@@ -715,7 +719,7 @@ export class Simulation {
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
     if (cmd.mortar) this.callMortarFromView(p);
-    if (cmd.use) this.vehicles.enter(p);                                  // E: get into the nearest vehicle (the server decides, browsers wait for it)
+    if (cmd.use && !this.mission?.interact(p)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
     p.nadeT = Math.max(0, p.nadeT - dt);
     this.tickHeal(p, dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
@@ -754,7 +758,7 @@ export class Simulation {
    */
   step(dt, input) {
     this.time += dt;
-    if (!this.opts.predictor && this.time >= this.zoneStart) this.zone.update(dt);        // with a drop-in the circle waits until everybody had time to land
+    if (!this.opts.predictor && !this.mission && this.time >= this.zoneStart) this.zone.update(dt);        // no zone in an operation; with a drop-in the circle waits until everybody had time to land
 
     let cmds = input;
     if (input && typeof input.yaw === 'number') cmds = this.player ? { [this.player.id]: input } : {};
@@ -776,7 +780,7 @@ export class Simulation {
       const cap = this.opts.loot ? 0.3 : REGEN_CAP;          // in a loot match medkits are how you heal (you only walk it off up to 30%)
       if (f.noHurtT > REGEN_DELAY && f.hp < f.maxHp * cap) f.hp = Math.min(f.maxHp * cap, f.hp + REGEN_RATE * dt);
       // the zone hurts
-      if (this.zone.outside(f.x, f.z) > 0) {
+      if (!this.mission && this.zone.outside(f.x, f.z) > 0) {
         f.zoneAcc += this.zone.dps * dt;
         if (f.zoneAcc >= 1) { const a = f.zoneAcc; f.zoneAcc = 0; this.damage(f, a, null, { cause: 'zone', x: f.x, y: f.y, z: f.z }); }
       }
@@ -787,7 +791,12 @@ export class Simulation {
     if (!this.opts.predictor) this.vehicles.update(dt);
     this.world.step();
 
-    if (!this.opts.predictor) { this._stepBarrels(dt); this._stepStrikes(dt); this.contracts.update(dt); this.loot.update(); }
+    if (!this.opts.predictor) {
+      this.mission?.update(dt);
+      this._stepBarrels(dt); this._stepStrikes(dt);
+      if (!this.mission) this.contracts.update(dt);
+      this.loot.update();
+    }
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i]; g.t += dt;
       if (g.t >= GRENADE_FUSE) { this._explode(g); this.grenades.splice(i, 1); }

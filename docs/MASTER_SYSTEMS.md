@@ -21,8 +21,9 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 12 | Server hardening: rate limits, kicks, payload cap, room cap, reconnect window, /health + /metrics | built | `server/src/limits.js`, `server/src/MatchRoom.js`, `server/src/index.js`, `src/net/netsim.js` | `tests/limits.test.js`, section 6 of `server/test/match.mjs` |
 | 13 | Guest profile: XP, levels and ranks, career stats, 14 badges, weapon skins unlocked by level (cosmetic only), saved in the browser | built | `src/profile.js`, `src/ui/profile-view.js`, `src/main.js` | `tests/profile.test.js`, `scripts/e2e-profile.mjs` |
 | 14 | Parachute drop-in: everyone starts in a transport plane, jumps (Space), free-falls (W dives), parachute opens at 60 m, bots choose landing spots, zone waits for the landing; solo + online + prediction | built | `src/sim/drop.js`, `src/sim/world.js`, `src/sim/bot.js`, `src/render/plane-view.js`, `src/render/fighter.js`, `src/ui/hud.js`, `src/net/protocol.js`, `src/net/netsim.js`, `server/src/MatchRoom.js` | `tests/drop.test.js`, `scripts/e2e-drop.mjs`, `scripts/e2e-online-drop.mjs`, `server/test/match.mjs` section 6 |
+| 15 | Operation DUST LANTERN (ChatGPT, merged and verified): offline rescue mission with seeded site, 3 clues (2 needed), escort, extraction hold, alert director, debrief; no zone, no drop | built (offline only) | `src/sim/missions.js`, `src/sim/mission-alert.js`, `src/render/mission-view.js`, `src/ui/hud.js`, `src/main.js` | `tests/missions.test.js`, `tests/mission-alert.test.js`, `scripts/e2e-mission.mjs` |
 
-Run everything: `npm test` (184 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (196 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
@@ -188,6 +189,23 @@ The rules live in `src/sim/drop.js` (graphics-free and deterministic, so the bro
 3. Roadmap milestone 2: one real handcrafted arena, real weapon models and sounds from CC0 packs (`ASSETS.md`). (Loot, health, armor: Stage 8. Abilities, crouch, fall damage: Stage 9.)
 4. Vehicle polish: engine sound mix, a respawn timer for wrecks, tyre tracks, a horn.
 5. Portal pass: cut the main bundle (about 5 MB, 1.9 MB gzipped) so the first load stays under the Poki target of 8 MB.
+
+## Second integration wave (19 Nov 2026, after Stage 14)
+
+| Branch | What it adds | Notes on the merge |
+|---|---|---|
+| `perf/frame-time-telemetry` | `FrameMetrics` rolling window; `window.__nhPerf()` returns frame-time mean/p50/p95/p99 | clean, read-only, 3 new tests |
+| `feature/dust-lantern-first-playable` + `feature/dust-lantern-alert-director` (alert-director contains the first; draft PRs #20/#22) | Operation DUST LANTERN (offline rescue mission) + a mission-wide alert ladder, `CLAUDE.md`, owner direction notes | conflicts in `index.html`, `main.js`, `world.js`, `hud.js` with the Stage 14 drop code, resolved by keeping both: an operation never has a plane, a zone or bots (`drop: DROP_ON && !operation`, `!sim.mission` guards on the zone) |
+| `design/next-generation-game-platform` | design docs (expansion architecture, mission design) | see below |
+| `chore/ci-quality-gate-stage9`, `feature/relay-uplink-objective` | duplicate CI / superseded by `relay-uplink-objective-v2` (already in main) | not merged |
+
+New browser check for it: `scripts/e2e-mission.mjs` (menu button, no plane/zone/bots, E far from a clue does nothing, two clues identify the site, rescue, extraction needs BOTH of you in the zone plus a 4 s hold, OPERATION COMPLETE screen, dying shows OPERATION FAILED). All 15 browser scripts and `npm run check` were re-run after the merge.
+
+**About `CLAUDE.md` and `docs/PROJECT_DIRECTION_AND_CHAT_NOTES.md`:** ChatGPT wrote them to steer future Claude Code sessions (build DUST LANTERN first, server-authoritative everything, no wagering/staking/cash-out without legal review, no LLM in authoritative combat). They are merged as information about the owner's wishes; delete or edit them if they no longer match what you want.
+
+### Known flaky: the real-time netcode test
+
+`server/test/match.mjs` runs real clients against a real server with fake lag and wall-clock waits. On this machine a run fails one random check (a different one each time: prediction distance, reconnect, buggy entry, dash distance, a bot killing a tester) in roughly 2 of 5 runs, **including on the pre-drop baseline (commit 2cb77d5)**, so Stage 14 did not cause it. `npm run server:test` therefore goes through `scripts/retry.mjs 3`, which prints every failed attempt and passes only if one attempt is fully green. The proper fix is a virtual clock instead of `sleep()` in that test.
 
 ## Integration of the parallel ChatGPT branches (19 Nov 2026)
 

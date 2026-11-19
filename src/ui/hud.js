@@ -13,7 +13,7 @@ export class Hud {
       alive: $('alive'), kills: $('kills'), zone: $('zone'), fps: $('fpsn'), ping: $('pingn'), feed: $('feed'), slots: $('slots'), msg: $('msg'),
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
-      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'), air: $('air'),
+      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'), air: $('air'), mission: $('mission'),
       abil: $('abil'), abname: $('abname'), abbar: $('abbar'), abtxt: $('abtxt'), arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'),
     };
     this.mctx = this.el.mini.getContext('2d');
@@ -82,11 +82,11 @@ export class Hud {
     const e = this.el, w = WEAPONS[p.cur], st = p.weapons[p.cur];
     e.alive.textContent = sim.aliveCount(); e.kills.textContent = p.kills;
     const z = sim.zone;
-    const outside = !p.air && z.outside(p.x, p.z) > 0;                                 // (no zone warning while you are still in the plane or on a parachute)
+    const outside = !sim.mission && !p.air && z.outside(p.x, p.z) > 0;                 // (no zone in an operation; no zone warning while you are still in the plane or on a parachute)
     const clock = sim.planeT ? sim.planeT() : sim.time, pre = sim.zoneStart > 0 ? Math.max(0, sim.zoneStart - clock) : 0;      // drop-in: the zone's clock only starts once everybody has had time to land
     const t = Math.max(0, Math.ceil(z.timeLeft + pre));
-    e.zone.textContent = z.done ? 'FINAL ZONE' : z.shrinking ? `ZONE CLOSING  ${fmt(t)}` : `NEXT ZONE  ${fmt(t)}`;
-    e.zone.classList.toggle('warn', z.shrinking || outside);
+    e.zone.textContent = sim.mission ? 'OPERATION' : z.done ? 'FINAL ZONE' : z.shrinking ? `ZONE CLOSING  ${fmt(t)}` : `NEXT ZONE  ${fmt(t)}`;
+    e.zone.classList.toggle('warn', !sim.mission && (z.shrinking || outside));
     e.hpbar.style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
     e.hpbar.style.background = p.hp / p.maxHp > 0.5 ? '#5be37a' : p.hp / p.maxHp > 0.25 ? '#ffcf4d' : '#ff4d4d';
     e.hpn.textContent = Math.ceil(Math.max(0, p.hp)); e.opname.textContent = p.name.toUpperCase();
@@ -119,9 +119,25 @@ export class Hud {
     this.drawLoot(sim, p);
     this.drawAbility(p);
     this.drawContracts(sim, p);
+    this.drawMission(sim.mission, p);
     this.drawVehicle(sim, p);
     this.drawAir(sim, p);
     this.drawMini(dt, sim, p);
+  }
+
+  drawMission(mission, p) {
+    const el = this.el.mission;
+    if (!el) return;
+    if (!mission) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const stage = mission.stage;
+    const progress = stage === 'recon' ? `${mission.foundCount}/2 CLUES` : stage === 'extract' ? `${Math.min(100, Math.round(mission.extractT / 4 * 100))}% EXTRACTION` : stage === 'recover' ? 'TARGET IDENTIFIED' : stage === 'complete' ? 'SUCCESS' : 'IN PROGRESS';
+    const nearClue = stage === 'recon' && mission.clues.some((clue) => !clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 3.4);
+    const nearCaptive = stage === 'recover' && Math.hypot(mission.captive.x - p.x, mission.captive.z - p.z) < 3.5;
+    const detail = stage === 'recon' ? (nearClue ? 'PRESS E TO INVESTIGATE' : 'Search the marked evidence sites') : stage === 'recover' ? (nearCaptive ? 'PRESS E TO SECURE THE TECHNICIAN' : `Locate the technician · ${mission.targetSite.name}`) : stage === 'extract' ? (mission.captive.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Keep the technician with you and reach the extraction pad') : stage === 'complete' ? 'Technician safely extracted' : 'Operation ended';
+    const alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
+    const html = `<small>OPERATION DUST LANTERN · THREAT ${alert.level.toUpperCase()}</small><b>${mission.objective}</b><span>${detail}</span><i><em style="width:${stage === 'recon' ? mission.foundCount / 2 * 100 : stage === 'extract' ? mission.extractT / 4 * 100 : stage === 'complete' ? 100 : 0}%"></em></i><small>${progress}</small>`;
+    if (el.innerHTML !== html) el.innerHTML = html;
   }
 
   /** the operator ability box: name, cooldown bar, READY / ACTIVE / STUNNED */
@@ -201,11 +217,15 @@ export class Hud {
   drawMini(dt, sim, p) {
     const g = this.mctx, S = 150, k = this.k, z = sim.zone;
     g.clearRect(0, 0, S, S); g.drawImage(this.mapBg, 0, 0);
-    // tint everything outside the safe circle red
-    g.save(); g.beginPath(); g.rect(0, 0, S, S); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283, true);
-    g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
-    g.lineWidth = 1.5; g.strokeStyle = '#fff'; g.beginPath(); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283); g.stroke();
-    if (!z.done && z.nextR < z.radius - 0.5) { g.strokeStyle = '#4aa3ff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(S / 2 + z.nextX * k, S / 2 + z.nextZ * k, z.nextR * k, 0, 6.283); g.stroke(); g.setLineDash([]); }
+    // The operation map has no shrinking zone; retain the red tint only in battle-royale modes.
+    if (!sim.mission) {
+      g.save(); g.beginPath(); g.rect(0, 0, S, S); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283, true);
+      g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
+    }
+    if (!sim.mission) {
+      g.lineWidth = 1.5; g.strokeStyle = '#fff'; g.beginPath(); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283); g.stroke();
+      if (!z.done && z.nextR < z.radius - 0.5) { g.strokeStyle = '#4aa3ff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(S / 2 + z.nextX * k, S / 2 + z.nextZ * k, z.nextR * k, 0, 6.283); g.stroke(); g.setLineDash([]); }
+    }
     if (sim.plane && (p.air === 1 || sim.time < sim.plane.T)) {   // the plane's flight line and where it is now
       const pl = sim.plane, t = p.air === 1 ? p.airT : sim.time, a = { x: pl.x0, z: pl.z0 }, b = { x: pl.x0 + pl.dx * pl.len, z: pl.z0 + pl.dz * pl.len };
       g.save(); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(S / 2 + a.x * k, S / 2 + a.z * k); g.lineTo(S / 2 + b.x * k, S / 2 + b.z * k); g.stroke(); g.restore();
@@ -214,6 +234,11 @@ export class Hud {
     for (const v of sim.vehicles?.list ?? []) {              // vehicles on the map
       if (v.dead) continue; const x = S / 2 + v.x * k, y = S / 2 + v.z * k;
       g.fillStyle = v.driver >= 0 ? '#ff8a4d' : '#5fd6ff'; g.fillRect(x - 2, y - 2, 4, 4);
+    }
+    if (sim.mission) {
+      for (const clue of sim.mission.clues) if (!clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 22) { g.fillStyle = '#ffcf4d'; g.beginPath(); g.arc(S / 2 + clue.x * k, S / 2 + clue.z * k, 3, 0, 6.283); g.fill(); }
+      if (sim.mission.stage === 'recover') { g.fillStyle = '#ff9d45'; g.fillRect(S / 2 + sim.mission.captive.x * k - 2, S / 2 + sim.mission.captive.z * k - 2, 5, 5); }
+      if (sim.mission.stage === 'extract') { g.strokeStyle = '#58d8ff'; g.lineWidth = 1.5; g.beginPath(); g.arc(S / 2 + sim.mission.extraction.x * k, S / 2 + sim.mission.extraction.z * k, 5, 0, 6.283); g.stroke(); }
     }
     for (const c of sim.contracts?.list ?? []) {            // contracts on the map
       const x = S / 2 + c.x * k, y = S / 2 + c.z * k;
@@ -231,12 +256,15 @@ export class Hud {
   }
 
   showEnd(r, killerName) {
-    $('endtitle').textContent = r.won ? 'WINNER WINNER' : 'ELIMINATED';
+    $('endtitle').textContent = r.mission ? (r.won ? 'OPERATION COMPLETE' : 'OPERATION FAILED') : r.won ? 'WINNER WINNER' : 'ELIMINATED';
     $('endtitle').style.color = r.won ? '#5be37a' : '#ff4d4d';
-    $('endsub').textContent = r.won ? 'Last one standing. The desert is yours.' : (killerName ? `Taken out by ${killerName}` : 'The zone got you');
-    $('e-place').textContent = `#${r.placement}`; $('e-kills').textContent = r.kills; $('e-time').textContent = fmt(r.time);
+    $('endsub').textContent = r.mission
+      ? (r.won ? `Technician extracted safely · ${r.clues ?? 0}/3 clues recovered · No persistent rewards yet` : 'The operator was lost before the technician could be extracted')
+      : r.won ? 'Last one standing. The desert is yours.' : (killerName ? `Taken out by ${killerName}` : 'The zone got you');
+    $('e-place').textContent = r.mission ? (r.won ? 'SAFE' : 'FAIL') : `#${r.placement}`;
+    $('e-kills').textContent = r.kills ?? 0; $('e-time').textContent = fmt(r.time);
     $('end').classList.add('show');
   }
   hideEnd() { $('end').classList.remove('show'); }
-  reset() { this.el.feed.innerHTML = ''; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
+  reset() { this.el.feed.innerHTML = ''; if (this.el.mission) this.el.mission.style.display = 'none'; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
 }
