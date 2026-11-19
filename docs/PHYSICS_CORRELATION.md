@@ -24,6 +24,7 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 - Material-specific hit effects use the existing pooled particles and decals: sparks, splinters, shatter/dust effects, blood spray and existing death ragdolls.
 - Remote gunshot audio is delayed by source-listener distance / 343 m/s. Hit registration remains instant hitscan; the audio delay is cosmetic and does not alter server timing.
 - NPC hearing now ray-checks up to two solid surfaces and attenuates the sound by the material transmission coefficient (concrete/rock damp more than glass/wood). Weather hearing range still applies, and repeated fire reports are coalesced to roughly eight updates per second per NPC. This changes only whether a bot receives a sound clue; it does not reveal exact player coordinates.
+- Player-heard gunshots and explosions now use full 3D source-listener distance for speed-of-sound delay and the same material transmission path for volume attenuation. Hit registration and blast damage are still resolved immediately by the server. This is volume occlusion only; frequency-dependent low-pass filters, indoor reverb and reflections remain open.
 - On death, a low-cost instanced blood pool follows the cosmetic Rapier ragdoll's torso while it settles, then remains on the ground and fades. It obeys the existing gore setting and is not replicated or used for damage.
 
 ## Important existing systems retained
