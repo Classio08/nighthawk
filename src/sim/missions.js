@@ -81,7 +81,7 @@ export class DustLanternMission {
     // Follow using the existing navigation grid; only one escort path is refreshed at a low rate.
     this.captive.pathAt -= dt;
     if (d > 3.1 && d < 30 && this.captive.pathAt <= 0) {
-      this.captive.path = this.sim.nav?.findPath(this.captive.x, this.captive.z, operator.x, operator.z, 7000) ?? [];
+      this.captive.path = this.sim.nav?.findPath(this.captive.x, this.captive.z, operator.x, operator.z, 30000) ?? [];
       this.captive.pathAt = 0.8;
     }
     if (d > 3.1 && d < 30) {
