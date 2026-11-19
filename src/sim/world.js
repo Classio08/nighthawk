@@ -42,6 +42,7 @@ const GRENADE_FUSE = 2.2, GRENADE_R = 9, GRENADE_DMG = 150;
 const CRATE_HP = 70, BARREL_HP = 40, BARREL_R = 8, BARREL_DMG = 130;   // props: bullets and blasts wear them down
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ARMORED = new Set(['bullet', 'explosion', 'shrapnel']);        // which kinds of damage armor helps against (not the zone, falls or crashes)
+const HEARING_COOLDOWN = 0.12; // rapid-fire reports are coalesced per NPC at ~8 Hz
 const HIST = 64;                // how many ticks of fighter positions we remember (for lag compensation)
 export const MAX_LAG_TICKS = 30; // never rewind more than 0.5 s
 
@@ -55,7 +56,7 @@ export class Fighter {
     this.alive = true; this.kills = 0; this.veh = null; this.seat = -1;
     this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.vy = 0; this.grounded = false; this.speedH = 0; this.moveX = 0; this.moveZ = 0;
-    this.jumpBufferT = 0; this.coyoteT = 0; this.recoilPitch = 0; this.recoilYaw = 0;
+    this.jumpBufferT = 0; this.coyoteT = 0; this.recoilPitch = 0; this.recoilYaw = 0; this.lastNoiseT = -Infinity;
     this.hitPushX = 0; this.hitPushZ = 0; this.hitPushT = 0; this.limpT = 0;
     this.ads = false; this.sprinting = false; this.crouch = false;
     this.slideT = 0; this.slideVx = 0; this.slideVz = 0; this.slideCd = 0;                   // sprint-slide (SLIDE)
@@ -406,7 +407,7 @@ export class Simulation {
     let remaining = distance, gain = 1;
 
     // A few strongest blockers are enough for game AI; this is not a full acoustic solver.
-    for (let surface = 0; surface < 3 && remaining > 0.05; surface++) {
+    for (let surface = 0; surface < 2 && remaining > 0.05; surface++) {
       const hit = this.world.castRay(
         new RAPIER.Ray(start, dir), remaining, true,
         undefined, undefined, undefined, undefined,
@@ -429,7 +430,9 @@ export class Simulation {
       if (!f.alive || f === src || !f.brain) continue;
       const distance = Math.hypot(f.x - sx, f.eyeY - sy, f.z - sz);
       const weatherRange = radius * this.weather.hearing;
-      if (distance <= weatherRange && distance <= weatherRange * this.soundPathGain(sx, sy, sz, f.x, f.eyeY, f.z)) {
+      if (distance > weatherRange || this.time - f.lastNoiseT < HEARING_COOLDOWN) continue;
+      if (distance <= weatherRange * this.soundPathGain(sx, sy, sz, f.x, f.eyeY, f.z)) {
+        f.lastNoiseT = this.time;
         f.brain.hear(sx, sz); // rain/fog and material blockers attenuate hearing; no exact player tracking is created
       }
     }
