@@ -109,7 +109,7 @@ async function newMatch(online = null, operation = false) {          // `operati
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.melee = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
   G = { sim, net: online, scene, world, pview, sview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
-    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0, vm: new ViewMotion(), vmo: { y: 0, roll: 0, pitch: 0, fov: 0 } };
+    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0, vm: new ViewMotion(), vmo: { y: 0, roll: 0, pitch: 0, fov: 0 } };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd(); $('snapwrap').style.display = 'none';
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
@@ -148,11 +148,10 @@ function handleEvents() {
     switch (e.t) {
       case 'fire': {
         const f = sim.fighters[e.by], w = WEAPONS[e.w];
-        audio.play(e.w, e.by === p.id ? { vol: 1 } : { x: f.x, z: f.z, maxD: w.noise * 1.6 });
+        const soundDistance = e.by === p.id ? 0 : Math.hypot(f.x - p.x, f.z - p.z);
+        audio.play(e.w, e.by === p.id ? { vol: 1 } : { x: f.x, z: f.z, maxD: w.noise * 1.6, delay: soundDistance / 343 });
         if (e.by === p.id) {
           viewmodel.kick(w); camfx.add(0.05 + w.kick * 0.045);
-          const k = (p.ads ? 0.55 : 1);
-          cmd.pitch = clamp(cmd.pitch + w.recoilUp * k, -1.5, 1.5); cmd.yaw += (Math.random() - 0.5) * 2 * w.recoilSide * k; G.recoil += w.recoilUp * k;
           particles.casing(camera.position.x + Math.cos(cmd.yaw) * 0.25, camera.position.y - 0.15, camera.position.z - Math.sin(cmd.yaw) * 0.25, Math.cos(cmd.yaw), -Math.sin(cmd.yaw));
         } else {
           const v = views.get(e.by); if (v) v.shotFlash();
@@ -421,7 +420,6 @@ function handleInput(dt) {
   }
   input.endFrame();
   // recoil recovery: the view settles back down a bit when you stop shooting
-  if (!input.fire && p.fireT <= 0 && G.recoil > 0) { const r = Math.min(G.recoil, G.recoil * 4 * dt + 0.0006); cmd.pitch -= r * 0.6; G.recoil -= r; }
 }
 
 function updateCamera(dt, alpha) {
