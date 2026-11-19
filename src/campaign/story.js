@@ -11,7 +11,7 @@ export const CAMPAIGN = {
 };
 
 /** playable operations, in campaign order (ids are the real ones from src/sim/missions.js) */
-export const MISSION_ORDER = ['dust-lantern', 'signal-blackout'];
+export const MISSION_ORDER = ['dust-lantern', 'relay-uplink', 'signal-blackout'];
 
 export const MISSION_STORIES = {
   'dust-lantern': {
@@ -23,6 +23,18 @@ export const MISSION_STORIES = {
     outroBad: 'Amara walks out, limping, alive. She squeezes your arm: "You came. That is enough." It is not enough. But it is alive.',
     outroFail: 'The operator went down before Amara could be reached. Kavari stays dark one more night.',
     stakes: 'If Amara dies, the Jackal gets the water. If she lives, Kavari has a chance.',
+  },
+  // RELAY UPLINK: the owner's story pack text, unchanged (briefing, CONTROL line, intro, mid, outros, stakes); the failure line is the pack's SILENCED description.
+  'relay-uplink': {
+    title: 'RELAY UPLINK', act: 'act1',
+    briefing: 'The Jackal cut the basin\u2019s comms. Relay Ridge is the only tower left. Hack it, hold it 60 seconds, get the truth out. Then run.',
+    controlBrief: 'CONTROL: "Sixty seconds on that ridge and every village hears us. Sixty seconds and every gun in Kavari hears you."',
+    intro: 'The tower hums. Sable plugs in. "Hack started. Stay in the circle. And Kestrel \u2014 try not to die on a hill."',
+    mid: 'Waves. First three, then five, then seven. The Jackal does not want this story told.',
+    outroGood: 'Uplink complete. The basin hears you. Somewhere, a village turns its radio up. Somewhere else, the Jackal breaks his.',
+    outroBad: 'Uplink complete \u2014 barely. You held, but you bled for every second. Sable: "We got it. Let\u2019s never do that again."',
+    outroFail: 'The tower goes silent. Kavari goes blind. Viper smiles.',
+    stakes: 'Without the uplink, Kavari is blind. With it, the Jackal is exposed.',
   },
   'signal-blackout': {
     title: 'SIGNAL BLACKOUT', act: 'act2',

@@ -91,3 +91,7 @@ These are owner-provided with permission from the subjects. Do not redistribute 
 ## Never import without review
 
 Random search-engine images, Instagram photos, movie screenshots, ripped commercial-game assets, trademarks/logos, or GitHub files without a clear licence. Do not redistribute proprietary GTA/Vice City game data. A game engine port is not permission to use the original game's art/audio/maps.
+
+## Licence audit of the owner's local library (19 Nov 2026): audit only, nothing imported
+
+See `docs/asset-audit/README.md` for the decision record and `docs/asset-audit/LICENSE_AUDIT_2026-11-19.md` for the per-pack evidence. Nine packs carry CC0 text inside their own archive (Quaternius characters, animations, guns and nature kit; Rgsdev vehicles; Breakable Boxes; Classic 64). Twenty-one are UNVERIFIED and must not be imported; one (CMU mocap) is conditional. No file from this library is in the game yet. When one is imported, add its own row to the table above with hashes.

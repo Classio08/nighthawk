@@ -67,7 +67,7 @@ test('debrief: a win carries the ending, rating, real rows and the next operatio
   const w = buildDebrief('dust-lantern', win({ alertMax: 0 }), null);
   assert.equal(w.won, true); assert.equal(w.ending.key, 'A'); assert.equal(w.ending.title, 'SILENT LANTERN');
   assert.equal(w.narrative, MISSION_STORIES['dust-lantern'].outroGood);
-  assert.deepEqual(w.next, { id: 'signal-blackout', title: 'SIGNAL BLACKOUT' }); assert.equal(w.retry, false);
+  assert.deepEqual(w.next, { id: 'relay-uplink', title: 'RELAY UPLINK' }); assert.equal(w.retry, false);
   assert.equal(w.newBest, true); assert.equal(w.newRibbon, true);
   const row = Object.fromEntries(w.rows); assert.equal(row.TIME, '4:00'); assert.equal(row.KILLS, '3'); assert.equal(row['PEAK ALERT'], 'ROUTINE'); assert.equal(row['CLUES FOUND'], '3/3');
   const loud = buildDebrief('dust-lantern', win({ alertMax: 4 }), null);
@@ -87,7 +87,7 @@ test('progress: records runs, keeps the best, adds a ribbon once, never mutates 
   const p1 = recordRun(p0, d1, 240);
   assert.equal(JSON.stringify(p0), snapshot, 'input untouched');
   assert.equal(p1.missions['dust-lantern'].plays, 1); assert.equal(p1.missions['dust-lantern'].wins, 1); assert.equal(p1.missions['dust-lantern'].bestTime, 240);
-  assert.deepEqual(p1.ribbons, ['SILENT LANTERN']); assert.equal(p1.last, 'dust-lantern'); assert.equal(nextOperation(p1), 'signal-blackout'); assert.equal(operationsDone(p1), 1);
+  assert.deepEqual(p1.ribbons, ['SILENT LANTERN']); assert.equal(p1.last, 'dust-lantern'); assert.equal(nextOperation(p1), 'relay-uplink'); assert.equal(operationsDone(p1), 1);
   const d2 = buildDebrief('dust-lantern', win({ alertMax: 0, elapsed: 500 }), p1);
   assert.equal(d2.newRibbon, false); assert.equal(d2.newBest, d2.rating.score > p1.missions['dust-lantern'].bestScore);
   const p2 = recordRun(p1, d2, 500);
@@ -122,11 +122,28 @@ test('progress storage: round-trips, survives broken/missing storage, resets', (
 
 test('carry-forward: the second operation opens with the line that follows how the first one ended', () => {
   assert.equal(carryForwardLine('dust-lantern', defaultProgress()), null, 'the first operation has nothing to carry');
-  assert.equal(carryForwardLine('signal-blackout', defaultProgress()), null);
+  assert.equal(carryForwardLine('relay-uplink', defaultProgress()), null); assert.equal(carryForwardLine('signal-blackout', defaultProgress()), null);
   const p = recordRun(defaultProgress(), buildDebrief('dust-lantern', win({ alertMax: 0 }), null), 240);
-  assert.equal(carryForwardLine('signal-blackout', p), ENDINGS['dust-lantern'].A.dialogueNext);
+  assert.equal(carryForwardLine('relay-uplink', p), ENDINGS['dust-lantern'].A.dialogueNext);
   const q = recordRun(defaultProgress(), buildDebrief('dust-lantern', win({ alertMax: 4 }), null), 240);
-  assert.equal(carryForwardLine('signal-blackout', q), ENDINGS['dust-lantern'].B.dialogueNext);
+  assert.equal(carryForwardLine('relay-uplink', q), ENDINGS['dust-lantern'].B.dialogueNext);
+  const r = recordRun(p, buildDebrief('relay-uplink', win({ taskFails: 0, hackFails: 0, holdBreaks: 0, wavesSpawned: 3, wavesTotal: 3 }), null), 300);
+  assert.equal(carryForwardLine('signal-blackout', r), ENDINGS['relay-uplink'].A.dialogueNext, 'SIGNAL BLACKOUT follows RELAY UPLINK now');
+});
+
+test('RELAY UPLINK: its own endings (loud is fine, interruptions are not), its own rows, and noise never costs points', () => {
+  const e = (s) => evaluateEnding('relay-uplink', s)?.key;
+  assert.equal(e({ won: true, alertMax: 4, taskFails: 0 }), 'A', 'a loud but uninterrupted hold is the CLEAR SIGNAL ending');
+  assert.equal(e({ won: true, alertMax: 0, taskFails: 1 }), 'B'); assert.equal(e({ won: true, alertMax: 0 }), 'B', 'unknown interruptions count as broken');
+  assert.equal(e({ won: false, alertMax: 0, taskFails: 0 }), 'fail');
+  const base = { elapsed: 200, kills: 9, headshots: 2, damage: 800, wavesSpawned: 3, wavesTotal: 3, raidersKilled: 12, raidersTotal: 15, hackFails: 0, holdBreaks: 0, uplink: 60, taskFails: 0, found: 2, total: 2 };
+  assert.equal(scoreRun('relay-uplink', win({ ...base, alertMax: 4 })), scoreRun('relay-uplink', win({ ...base, alertMax: 0 })));
+  assert.ok(scoreRun('relay-uplink', win({ ...base, taskFails: 3 })) < scoreRun('relay-uplink', win(base)));
+  const d = buildDebrief('relay-uplink', win(base), null), row = Object.fromEntries(d.rows);
+  assert.equal(d.ending.title, 'CLEAR SIGNAL'); assert.equal(row.WAVES, '3/3'); assert.equal(row['RAIDERS DOWN'], '12/15'); assert.equal(row['HACK INTERRUPTED'], '0'); assert.equal(row.UPLINK, '100%');
+  assert.ok(!('CLUES FOUND' in row) && !('PEAK ALERT' in row), 'no rows from the other operations');
+  assert.deepEqual(d.next, { id: 'signal-blackout', title: 'SIGNAL BLACKOUT' });
+  assert.equal(buildDebrief('relay-uplink', win({ ...base, won: false }), null).narrative, MISSION_STORIES['relay-uplink'].outroFail);
 });
 
 test('alert director: remembers the highest level ever reached, and the number survives cooling off', () => {

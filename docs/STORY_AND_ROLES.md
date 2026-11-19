@@ -8,6 +8,7 @@ Status: **proposals only** unless a line says "built". The owner has not approve
 | Eight operators with a role, a backstory and one active ability each | built (`data/operators.json`, `src/sim/abilities.js`) |
 | Battle royale in the Kavari Basin (plane drop, zone, loot, contracts, vehicles, weather) | built |
 | Operation DUST LANTERN: recon, rescue a technician, extract | built, offline |
+| Operation RELAY UPLINK: hack a tower, hold 60 s against raider waves, extract | prototype, offline (unit-tested; not human-playtested) |
 | Operation SIGNAL BLACKOUT: jam three relays before a trace locks, extract | built, offline |
 | Movement: slide, mantle, crouch, sprint, melee | built |
 | Everything below | **planned** |
@@ -16,10 +17,11 @@ Status: **proposals only** unless a line says "built". The owner has not approve
 A short chain of operations that share the same map and cast, each one playable on its own:
 
 1. **DUST LANTERN** (built): a signals technician is held at one of two sites. The evidence you recover says someone *inside* the recovery contract sold the unit's schedule.
-2. **SIGNAL BLACKOUT** (built): the people who bought it are tracing your unit through its own relays. You go dark.
-3. **BLACK GLASS** (planned): a night infiltration of the buyer's data vault. Stealth first; every alarm raises the garrison the way the alert director already does. Rewards a quiet approach, allows a loud one.
-4. **LAST LIGHT** (planned): the unit defends the Extraction Pad while a convoy arrives. A hold-the-line mission using the vehicles and mortar that already exist.
-5. **THE BROKER** (planned): a final contract to take the buyer alive. Choice at the end: hand them over, or the evidence.
+2. **RELAY UPLINK** (prototype, from the owner's pack): the unit hacks the last standing tower on Relay Ridge and holds it while the Jackal's raiders come in waves.
+3. **SIGNAL BLACKOUT** (built): the people who bought it are tracing your unit through its own relays. You go dark.
+4. **BLACK GLASS** (planned): a night infiltration of the buyer's data vault. Stealth first; every alarm raises the garrison the way the alert director already does. Rewards a quiet approach, allows a loud one.
+5. **LAST LIGHT** (planned): the unit defends the Extraction Pad while a convoy arrives. A hold-the-line mission using the vehicles and mortar that already exist.
+6. **THE BROKER** (planned): a final contract to take the buyer alive. Choice at the end: hand them over, or the evidence.
 
 Each mission ends with a one-screen debrief card (it already exists) carrying a line of story. Writing, not tech, is the cost.
 

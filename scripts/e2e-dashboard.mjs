@@ -49,10 +49,10 @@ try {
   const home = await page.evaluate(() => ({
     kpis: [...document.querySelectorAll('#dashkpis .kpi')].map((k) => k.textContent), cards: [...document.querySelectorAll('#dashops .opcard')].map((c) => ({ t: c.querySelector('h3').textContent, s: c.classList.contains('playable') ? 'playable' : 'planned', btn: !!c.querySelector('button') })),
     art: (() => { const i = document.querySelector('.dash-art'); return { ok: i.complete && i.naturalWidth > 1000, w: i.naturalWidth }; })(), tabs: [...document.querySelectorAll('.dtab')].map((t) => t.textContent),
-    playVisible: ['playbtn', 'onlinebtn', 'operationbtn', 'operation2btn', 'startsettings', 'navplay'].every((id) => { const r = document.getElementById(id).getBoundingClientRect(); return r.width > 0 && r.height > 0; }),
+    playVisible: ['playbtn', 'onlinebtn', 'operationbtn', 'operation2btn', 'operation3btn', 'startsettings', 'navplay'].every((id) => { const r = document.getElementById(id).getBoundingClientRect(); return r.width > 0 && r.height > 0; }),
   }));
-  check('four KPI cards (operations, best grade, ribbons, level)', home.kpis.length === 4 && /0\/2/.test(home.kpis[0]) && /LV 1/.test(home.kpis[3]), JSON.stringify(home.kpis));
-  check('two PLAYABLE operation cards carry the real start buttons, the rest are PLANNED without one', home.cards.filter((c) => c.s === 'playable').length === 2 && home.cards.filter((c) => c.s === 'planned').length >= 6 && home.cards.filter((c) => c.btn).length === 2, JSON.stringify(home.cards.map((c) => `${c.t}:${c.s}`)));
+  check('four KPI cards (operations, best grade, ribbons, level)', home.kpis.length === 4 && /0\/3/.test(home.kpis[0]) && /LV 1/.test(home.kpis[3]), JSON.stringify(home.kpis));
+  check('three PLAYABLE operation cards carry the real start buttons, the rest are PLANNED without one', home.cards.filter((c) => c.s === 'playable').length === 3 && home.cards.filter((c) => c.s === 'planned').length >= 6 && home.cards.filter((c) => c.btn).length === 3, JSON.stringify(home.cards.map((c) => `${c.t}:${c.s}`)));
   check('the key art loaded (a real image, not a broken one)', home.art.ok, `w=${home.art.w}`);
   check('HOME shows every play button and SETTINGS without scrolling to another tab', home.playVisible);
   check('tabs: HOME LOADOUT ECONOMY CONTROLS', home.tabs.join() === 'HOME,LOADOUT,ECONOMY,CONTROLS', home.tabs.join());

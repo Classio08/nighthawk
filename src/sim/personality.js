@@ -10,6 +10,8 @@ export const PERSONALITIES = {
   // NPC third faction: defends a post, never leaves it (see Simulation guards)
   // the named elite (VIPER, stealth.js): a guard-type brain that is drawn to the freshest garrison contact instead of holding a post
   hunter:    { label: 'Hunter', greed: 0, drive: 0,    aggr: 0.95, caution: 0.15, camper: 0,   curiosity: 0.1, social: 0.1, tact: 0.4, skillBonus: 0.12,  weapons: ['ar'],             guard: true, hunter: true },
+  // the Jackal's raiders (RELAY UPLINK waves, relay-uplink.js): a guard-type brain, so garrison and raiders never shoot each other; their post is the relay under attack
+  raider:    { label: 'Raider', greed: 0, drive: 0,    aggr: 0.9,  caution: 0.2,  camper: 0,    curiosity: 0.1, social: 0.2, tact: 0.3, skillBonus: 0.04,  weapons: ['smg', 'ar'],      guard: true, raider: true },
   guard:     { label: 'Guard', greed: 0, drive: 0,     aggr: 0.8,  caution: 0.3,  camper: 0,    curiosity: 0.1, social: 0.1, tact: 0.2, skillBonus: 0.1,   weapons: ['smg'],            guard: true },
 };
 export const PERSONALITY_IDS = ['rusher', 'sniper', 'tactician', 'survivor', 'brawler'];

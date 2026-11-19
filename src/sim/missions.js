@@ -4,6 +4,7 @@ import { MissionAlertDirector } from './mission-alert.js';
 import { makeRng } from './rng.js';
 import { findFreeSpot } from './map.js';
 import { stealthTag } from './stealth.js';
+import { RelayUplinkMission } from './relay-uplink.js';
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -325,6 +326,7 @@ export class SignalBlackoutMission {
 export const MISSIONS = {
   'dust-lantern': { id: 'dust-lantern', name: 'DUST LANTERN', blurb: 'Recon, rescue, extract', create: (sim) => new DustLanternMission(sim) },
   'signal-blackout': { id: 'signal-blackout', name: 'SIGNAL BLACKOUT', blurb: 'Jam three relays before the trace locks', create: (sim) => new SignalBlackoutMission(sim) },
+  'relay-uplink': { id: 'relay-uplink', name: 'RELAY UPLINK', blurb: 'Hack the tower, hold sixty seconds against three raider waves', create: (sim) => new RelayUplinkMission(sim) },
 };
 export const MISSION_IDS = Object.keys(MISSIONS);
 /** a fresh mission director for `id`, or null for no / an unknown id */

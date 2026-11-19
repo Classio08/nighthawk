@@ -1,6 +1,7 @@
 // Visual-only presentation for the offline operations (createMissionView picks the right one for sim.mission.id). Never reads or writes simulation state.
 import * as THREE from 'three';
 import { TASK } from '../sim/missions.js';
+import { UPLINK } from '../sim/relay-uplink.js';
 
 const mat = (color, emissive = 0x000000) => new THREE.MeshStandardMaterial({ color, roughness: 0.82, emissive, emissiveIntensity: 0.35 });
 const put = (group, geometry, material, x, y, z) => {
@@ -131,9 +132,61 @@ export class SignalBlackoutView {
   }
 }
 
+// RELAY UPLINK: the tower on Relay Ridge (mast, dish, beacon, a far-away signpost beam), the hold circle on the ground (white = in, red = stalled) with a cyan
+// fill that grows with the uplink, and the extraction pad that appears once the uplink is sent. Reads the mission, never writes it.
+export class RelayUplinkView {
+  constructor(scene, sim) {
+    this.scene = scene; this.mission = sim.mission;
+    this.root = new THREE.Group(); scene.add(this.root);
+    const concrete = mat(0x59616a), steel = mat(0x8d98a3), dark = mat(0x2a3037);
+    const t = this.mission.tower;
+    this.tower = new THREE.Group(); this.tower.position.set(t.x, 0, t.z); this.root.add(this.tower);
+    put(this.tower, new THREE.BoxGeometry(3.2, 0.6, 3.2), concrete, 0, 0.3, 0);
+    put(this.tower, new THREE.BoxGeometry(1.6, 1.6, 1.6), dark, 0, 1.4, 0);                          // the equipment hut at the foot of the mast
+    put(this.tower, new THREE.CylinderGeometry(0.12, 0.22, 9, 6), steel, 0, 5.1, 0);
+    const dish = put(this.tower, new THREE.ConeGeometry(1.0, 0.5, 14, 1, true), steel, 0.55, 8.0, 0); dish.rotation.z = -1.0; dish.material.side = THREE.DoubleSide;
+    for (const y of [3.4, 5.6]) put(this.tower, new THREE.BoxGeometry(1.1, 0.08, 0.08), steel, 0, y, 0);
+    this.beaconMat = new THREE.MeshBasicMaterial({ color: 0xffc857 });
+    this.beacon = put(this.tower, new THREE.SphereGeometry(0.28, 10, 8), this.beaconMat, 0, 9.8, 0);
+    this.beamMat = new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.3, depthWrite: false });
+    this.beam = put(this.tower, new THREE.CylinderGeometry(0.18, 0.18, 90, 6, 1, true), this.beamMat, 0, 45, 0);
+    this.ringMat = new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
+    this.ring = put(this.tower, new THREE.RingGeometry(UPLINK.CIRCLE - 0.25, UPLINK.CIRCLE, 64), this.ringMat, 0, 0.05, 0); this.ring.rotation.x = -Math.PI / 2;
+    this.fillMat = new THREE.MeshBasicMaterial({ color: 0x58d8ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false });
+    this.fill = put(this.tower, new THREE.CircleGeometry(UPLINK.CIRCLE - 0.4, 48), this.fillMat, 0, 0.04, 0); this.fill.rotation.x = -Math.PI / 2; this.fill.visible = false;
+    this.hackMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    this.hackDisc = put(this.tower, new THREE.CircleGeometry(UPLINK.HACK_RANGE, 32), this.hackMat, 0, 0.06, 0); this.hackDisc.rotation.x = -Math.PI / 2; this.hackDisc.visible = false;
+    this.extract = new THREE.Group(); this.root.add(this.extract);
+    const pad = put(this.extract, new THREE.RingGeometry(UPLINK.EXTRACT_R - 1.3, UPLINK.EXTRACT_R - 0.9, 48), new THREE.MeshBasicMaterial({ color: 0x58d8ff, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }), 0, 0.08, 0); pad.rotation.x = -Math.PI / 2;
+    const centre = put(this.extract, new THREE.CircleGeometry(UPLINK.EXTRACT_R - 1.5, 48), new THREE.MeshBasicMaterial({ color: 0x58d8ff, transparent: true, opacity: 0.08, side: THREE.DoubleSide }), 0, 0.025, 0); centre.rotation.x = -Math.PI / 2;
+    this.extract.position.set(this.mission.extraction.x, 0, this.mission.extraction.z); this.extract.visible = false;
+    this.time = 0;
+    this.col = { todo: new THREE.Color(0xffc857), hold: new THREE.Color(0xffffff), broken: new THREE.Color(0xff4d4d), done: new THREE.Color(0x5be37a) };
+  }
+
+  update(dt, player) {
+    this.time += dt;
+    const m = this.mission;
+    const c = m.stage === 'hold' ? (m.broken ? this.col.broken : this.col.hold) : m.stage === 'extract' || m.stage === 'complete' ? this.col.done : this.col.todo;
+    this.beaconMat.color.copy(c); this.ringMat.color.copy(c); this.beamMat.color.copy(c);
+    const near = player ? Math.hypot(player.x - m.tower.x, player.z - m.tower.z) : 99;
+    this.beamMat.opacity = (m.stage === 'complete' ? 0.1 : 0.32) * Math.min(1, Math.max(0, (near - 6) / 12));            // a far-away signpost that fades out as you walk up to it
+    this.beacon.scale.setScalar(1 + 0.25 * Math.sin(this.time * (m.stage === 'hold' ? 8 : 3)));
+    this.ring.rotation.z = this.time * 0.3;
+    this.ring.visible = m.stage === 'hold' || m.stage === 'hack' || m.stage === 'approach';
+    this.fill.visible = m.stage === 'hold';
+    if (this.fill.visible) this.fill.scale.setScalar(Math.max(0.02, m.uplink / UPLINK.HOLD_T));
+    this.hackDisc.visible = m.stage === 'hack';
+    if (this.hackDisc.visible) this.hackDisc.scale.setScalar(Math.max(0.05, m.hackP / UPLINK.HACK_T));
+    this.extract.visible = m.stage === 'extract';
+    if (this.extract.visible) this.extract.children[0].rotation.z = this.time * 0.18;
+  }
+}
+
 /** the view for whichever operation the simulation is running */
 export function createMissionView(scene, sim) {
   if (!sim.mission) return null;
+  if (sim.mission.id === 'relay-uplink') return new RelayUplinkView(scene, sim);
   return sim.mission.id === 'signal-blackout' ? new SignalBlackoutView(scene, sim) : new DustLanternView(scene, sim);
 }
 export { DustLanternView as MissionView };           // (the old name)

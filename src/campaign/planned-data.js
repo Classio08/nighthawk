@@ -20,40 +20,6 @@ export const ACTS = [
  }
 ];
 export const PLANNED_MISSIONS = {
- "relay_uplink": {
-  "title": "RELAY UPLINK",
-  "act": "act1",
-  "briefing": "The Jackal cut the basin’s comms. Relay Ridge is the only tower left. Hack it, hold it 60 seconds, get the truth out. Then run.",
-  "controlBrief": "CONTROL: \"Sixty seconds on that ridge and every village hears us. Sixty seconds and every gun in Kavari hears you.\"",
-  "intro": "The tower hums. Sable plugs in. \"Hack started. Stay in the circle. And Kestrel — try not to die on a hill.\"",
-  "mid": "Waves. First three, then five, then seven. The Jackal does not want this story told.",
-  "outroGood": "Uplink complete. The basin hears you. Somewhere, a village turns its radio up. Somewhere else, the Jackal breaks his.",
-  "outroBad": "Uplink complete — barely. You held, but you bled for every second. Sable: \"We got it. Let’s never do that again.\"",
-  "stakes": "Without the uplink, Kavari is blind. With it, the Jackal is exposed.",
-  "endings": {
-   "A": {
-    "id": "clear_signal",
-    "title": "CLEAR SIGNAL",
-    "subtitle": "Perfect Hold",
-    "condition": "Hack completes with <2 deaths + no hack interruption",
-    "desc": "Sixty seconds, no break, no panic. The uplink is clean. Every village hears you, clear as day."
-   },
-   "B": {
-    "id": "broken_signal",
-    "title": "BROKEN SIGNAL",
-    "subtitle": "Barely Held",
-    "condition": "Hack completes with interruption or 2+ deaths",
-    "desc": "You held — barely. The uplink stutters, cuts, comes back. It is enough. It is never clean in war."
-   },
-   "fail": {
-    "id": "silenced",
-    "title": "SILENCED",
-    "subtitle": "Uplink Lost",
-    "condition": "Hack fails / squad wiped / time up",
-    "desc": "The tower goes silent. Kavari goes blind. Viper smiles."
-   }
-  }
- },
  "relay_uplink_coop": {
   "title": "RELAY UPLINK: CO-OP",
   "act": "act1",

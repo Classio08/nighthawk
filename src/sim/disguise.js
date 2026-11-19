@@ -26,6 +26,7 @@ export const isDisguised = (f) => !!f && f.alive !== false && (f.disguiseT ?? 0)
 export function disguiseFools(observer, target, dist, alertLevel) {
   if (!isDisguised(target)) return false;
   if (alertLevel && UNIFORM_USELESS.has(alertLevel)) return false;
+  if (observer?.brain?.p?.raider) return false;                   // the Jackal's raiders (relay-uplink.js) are sent for the operator: a garrison jacket means nothing to them
   const reach = observer?.brain?.p?.hunter ? DISGUISE.HUNTER_RANGE : DISGUISE.SEE_THROUGH;
   return dist > reach;
 }

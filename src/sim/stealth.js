@@ -58,7 +58,7 @@ export class MissionStealth {
     if (!p?.alive || p.veh || p.air) return false;
     let body = null, best = DISGUISE.TAKE_RANGE;
     for (const f of sim.fighters) {
-      if (f.alive || !f.npc || f.uniformTaken || !f.brain?.p?.guard || f.brain.p.hunter) continue;
+      if (f.alive || !f.npc || f.uniformTaken || !f.brain?.p?.guard || f.brain.p.hunter || f.brain.p.raider) continue;      // raiders wear no garrison uniform
       const d = dist2(f, p);
       if (d <= best) { best = d; body = f; }
     }
@@ -100,8 +100,9 @@ export class MissionStealth {
     const a = this.rng() * Math.PI * 2;
     const spot = findFreeSpot(sim.map, this.rng, p.x + Math.cos(a) * VIPER.SPAWN_DIST, p.z + Math.sin(a) * VIPER.SPAWN_DIST, 6, 2.2);
     const op = { id: VIPER.ID, name: VIPER.NAME, color: VIPER.COLOR, hp: VIPER.HP, speed: VIPER.SPEED, weapon: 'ar' };
-    const f = sim._addFighter(sim.fighters.length, VIPER.NAME, op, false, spot);
-    f.npc = true; f.maxHp = VIPER.HP; f.hp = VIPER.HP;
+    const f = sim.spawnMissionFighter(op, spot);
+    if (!f) { this.viperEnabled = false; return; }                       // the roster is full (or this is not an operation): never retry every tick
+    f.maxHp = VIPER.HP; f.hp = VIPER.HP;
     f.armor = VIPER.ARMOR; f.armorLv = VIPER.ARMOR_LV; f.nades = 2; f.smokes = 0;
     f.brain = new BotBrain(sim, f, 0.9, 'hunter');
     f.brain.post = { x: p.x, z: p.z }; f.brain.leash = 24;

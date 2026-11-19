@@ -101,7 +101,7 @@ function disposeScene(scene) {
 async function newMatch(online = null, operation = false) {          // `operation`: false for a battle royale, or a mission id from missions.js
   if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: operation ? 0 : +(params.get('bots') ?? 15), guards: operation ? 8 : undefined, mission: operation || undefined, contracts: operation ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operation, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
+  const sim = online ?? await Simulation.create({ seed, bots: operation ? 0 : +(params.get('bots') ?? 15), guards: operation ? (operation === 'relay-uplink' ? 4 : 8) : undefined, mission: operation || undefined, contracts: operation ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operation, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
@@ -164,6 +164,7 @@ function speak(r) {
 
 function handleEvents() {
   const { sim, particles, decals, tracers, views } = G, p = sim.player;
+  if (sim.mission) for (const f of sim.fighters) if (!f.isPlayer && f.alive && !views.has(f.id)) views.set(f.id, new FighterView(f, G.scene));     // fighters an operation added after the start (VIPER, RELAY UPLINK raiders) get a body before their first event is drawn
   for (const e of sim.drainEvents()) {
     tracker.onEvent(e, p.id);
     if (G.barks) speak(G.barks.event(e, { t: sim.time, id: p.id, hp: p.hp, maxHp: p.maxHp, x: p.x, z: p.z }));
@@ -234,7 +235,7 @@ function handleEvents() {
       case 'propHit': break;
       case 'mission': {                                        // the operation decides what each of its events says
         const msg = sim.mission?.eventMessage?.(e) ?? stealthMessage(e);
-        if (e.phase === 'viper') { const vf = sim.fighters.find((x) => x.id === e.id); if (vf && !views.has(vf.id)) views.set(vf.id, new FighterView(vf, G.scene)); }     // the hunter arrives mid-operation: give him a body
+        if (e.phase === 'viper') { const vf = sim.fighters.find((x) => x.id === e.id); if (vf && !views.has(vf.id)) views.set(vf.id, new FighterView(vf, G.scene)); }     // (same as the sweep above, kept so the hunter's body exists the instant his event is read)
         if (msg) { hud.message(msg.text, msg.color, msg.secs); audio.play(msg.sfx, msg.at ? { x: msg.at.x, z: msg.at.z, maxD: 120, vol: 0.9 } : { vol: 0.9 }); }
         break;
       }
@@ -601,6 +602,7 @@ async function beginOperation(id = 'dust-lantern') {
   if (!AUTOSTART) input.lock();
 }
 $('operationbtn').addEventListener('click', () => beginOperation('dust-lantern'));
+$('operation3btn').addEventListener('click', () => beginOperation('relay-uplink'));
 $('operation2btn').addEventListener('click', () => beginOperation('signal-blackout'));
 
 input.onLockChange = (locked) => {
@@ -678,7 +680,7 @@ function refreshProfileUi() {
 function refreshDashboard() {
   const level = levelInfo(profile.xp).level;
   renderKpis(document, $('dashkpis'), kpiCards({ progress: campaign, level, rank: rankName(level) }));
-  renderOps(document, $('dashops'), opCards(campaign), { 'dust-lantern': $('operationbtn'), 'signal-blackout': $('operation2btn') });
+  renderOps(document, $('dashops'), opCards(campaign), { 'dust-lantern': $('operationbtn'), 'relay-uplink': $('operation3btn'), 'signal-blackout': $('operation2btn') });
 }
 const eco = { status: undefined, session: null, me: null, busy: false, note: '', base: '' };
 async function ecoCall(fn) { eco.busy = true; eco.note = ''; drawEconomy(); try { await fn(); } catch (e) { eco.note = String(e?.message ?? e).slice(0, 160); if (e?.status === 401) { clearSession(); eco.session = null; eco.me = null; } } eco.busy = false; drawEconomy(); }

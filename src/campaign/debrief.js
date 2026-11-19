@@ -2,7 +2,7 @@
 import { getMissionStory, actOf, MISSION_ORDER } from './story.js';
 import { evaluateEnding, ALERT_LEVELS, ENDINGS } from './endings.js';
 
-const PAR = { 'dust-lantern': 360, 'signal-blackout': 300 };                      // seconds; slower than this costs points (gently)
+const PAR = { 'dust-lantern': 360, 'signal-blackout': 300, 'relay-uplink': 330 };                      // seconds; slower than this costs points (gently)
 export const GRADES = [
   { min: 92, grade: 'S', label: 'LEGENDARY', color: '#ffd24d', desc: 'Clean, fast, nobody noticed. The kind of operation they retell.' },
   { min: 80, grade: 'A', label: 'EXCELLENT', color: '#5be37a', desc: 'Professional. NIGHTHAWK standard.' },
@@ -19,7 +19,7 @@ const lvl = (v) => Math.max(0, Math.min(4, Math.trunc(fin(v, 4))));             
 /** the score a successful run earns, 0..100 (transparent: every deduction is in this one function) */
 export function scoreRun(missionId, s) {
   let score = 100;
-  score -= [0, 3, 8, 16, 26][lvl(s.alertMax)];                                       // how loud the garrison got
+  if (missionId !== 'relay-uplink') score -= [0, 3, 8, 16, 26][lvl(s.alertMax)];     // how loud the garrison got (RELAY UPLINK is loud by design, so it is not scored on noise)
   score -= Math.min(25, Math.max(0, fin(s.elapsed) - (PAR[missionId] ?? 360)) / 12);   // time over par
   score -= Math.max(0, fin(s.taskFails)) * 4;                                        // interrupted jams
   score += Math.max(0, Math.min(8, fin(s.headshots)));                               // clean shooting
@@ -41,6 +41,12 @@ export function buildDebrief(missionId, s, progress = null) {
   const narrative = !won ? story.outroFail : ending.key === 'A' ? story.outroGood : story.outroBad;
   const rows = [['TIME', mmss(s.elapsed)], ['KILLS', String(Math.trunc(fin(s.kills)))], ['HEADSHOTS', String(Math.trunc(fin(s.headshots)))], ['DAMAGE DEALT', String(Math.round(fin(s.damage)))],
     ['PEAK ALERT', ALERT_LEVELS[lvl(s.alertMax)].toUpperCase()], [missionId === 'signal-blackout' ? 'RELAYS JAMMED' : 'CLUES FOUND', `${Math.trunc(fin(s.found))}/${Math.trunc(fin(s.total))}`]];
+  if (missionId === 'relay-uplink') {
+    rows.length = 0;                                                            // this operation reads different numbers: waves and the uplink, not clues and the garrison
+    rows.push(['TIME', mmss(s.elapsed)], ['KILLS', String(Math.trunc(fin(s.kills)))], ['HEADSHOTS', String(Math.trunc(fin(s.headshots)))], ['DAMAGE DEALT', String(Math.round(fin(s.damage)))],
+      ['WAVES', `${Math.trunc(fin(s.wavesSpawned))}/${Math.trunc(fin(s.wavesTotal))}`], ['RAIDERS DOWN', `${Math.trunc(fin(s.raidersKilled))}/${Math.trunc(fin(s.raidersTotal))}`],
+      ['HACK INTERRUPTED', String(Math.trunc(fin(s.hackFails)))], ['HOLD STALLED', String(Math.trunc(fin(s.holdBreaks)))], ['UPLINK', `${Math.round(fin(s.uplink) / 60 * 100)}%`]);
+  }
   if (missionId === 'signal-blackout') { rows.push(['JAMS INTERRUPTED', String(Math.trunc(fin(s.taskFails)))]); if (won) rows.push(['TRACE LEFT', mmss(s.traceLeft)]); }
   if (missionId === 'signal-blackout') {                                       // the stealth layer's two stories (stealth.js), shown only when they happened
     if (s.viper === 'down' || s.viper === 'loose') rows.push(['VIPER', s.viper === 'down' ? 'DOWN' : 'STILL HUNTING']);

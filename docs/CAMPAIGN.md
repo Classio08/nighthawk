@@ -6,22 +6,23 @@ Status: **shipped (offline, this browser only)** for the two playable operations
 
 | Piece | Where | Status |
 |---|---|---|
-| Story text, act list, operation list | `src/campaign/story.js` | shipped (DUST LANTERN text from the owner's pack; SIGNAL BLACKOUT text written to continue it) |
+| Story text, act list, operation list | `src/campaign/story.js` | shipped (DUST LANTERN and RELAY UPLINK text from the owner's pack; SIGNAL BLACKOUT text written to continue it). Order: DUST LANTERN, RELAY UPLINK, SIGNAL BLACKOUT |
 | Three outcomes per operation (A clean / B loud / fail) | `src/campaign/endings.js` | shipped, decided from real sim stats |
 | Rating S/A/B/C/D + score 0..100 | `src/campaign/debrief.js` | shipped, one transparent function (`scoreRun`) |
 | Debrief card on the end screen | `src/ui/hud.js` `showDebrief`, `index.html` `#debrief` | shipped; browser-checked in headless Chrome by `e2e-mission` / `e2e-signal-blackout` |
 | Progress (best grade/time, endings seen, ribbons) | `src/campaign/progress.js`, key `nh_campaign_v1` | shipped, validated on load; stored in this browser only |
-| Other six pack operations | `src/campaign/planned-data.js` | **planned**: pure text/data, nothing runs |
+| Other five pack operations | `src/campaign/planned-data.js` | **planned**: pure text/data, nothing runs |
 
 ## Where the numbers come from
 
 `MissionAlertDirector` remembers the highest alert level reached (`maxIndex`, index into `routine..crisis`). Each mission has `stats(won)`:
-Dust Lantern gives elapsed, peak alert, clues found, kills; Signal Blackout adds jams interrupted (`taskFails`) and trace time left.
+Dust Lantern gives elapsed, peak alert, clues found, kills; Signal Blackout adds jams interrupted (`taskFails`) and trace time left; Relay Uplink gives waves, raiders down, hack interruptions, hold stalls and the uplink percentage (its score ignores garrison noise).
 `src/main.js` adds headshots and damage from the existing `MatchTracker`. Nothing is invented: a missing or non-finite number is treated as "loud / zero", never as a clean run.
 
 ## Endings
 
 * DUST LANTERN: **SILENT LANTERN** (garrison never reached ALERT), **BURNING LANTERN** (it did), **LANTERN OUT** (operator lost).
+* RELAY UPLINK: **CLEAR SIGNAL** (no interrupted hack, no stalled hold), **BROKEN SIGNAL** (uplink sent, but interrupted), **SILENCED** (operator lost or window closed). The pack's "<2 deaths" clause cannot apply offline, see `docs/MISSION_RELAY_UPLINK.md`.
 * SIGNAL BLACKOUT: **DEAD AIR** (at most one interrupted jam, never ALERT), **STATIC AND SMOKE** (extracted, but loud), **TRACE LOCKED** (trace or operator lost).
 
 ## Rewards are cosmetic only

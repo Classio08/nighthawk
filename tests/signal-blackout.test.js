@@ -9,8 +9,8 @@ const place = (f, p) => { f.x = p.x; f.z = p.z; f.rb.setTranslation({ x: p.x, y:
 const events = (sim) => sim.drainEvents().filter((e) => e.t === 'mission');
 const tick = (m, secs) => { for (let i = 0; i < Math.round(secs * 60); i++) m.update(1 / 60); };
 
-test('registry: both operations are registered, unknown ids give no mission, ids on the objects match', async () => {
-  assert.deepEqual(MISSION_IDS.sort(), ['dust-lantern', 'signal-blackout']);
+test('registry: every operation is registered, unknown ids give no mission, ids on the objects match', async () => {
+  assert.deepEqual(MISSION_IDS.sort(), ['dust-lantern', 'relay-uplink', 'signal-blackout']);
   for (const id of MISSION_IDS) assert.equal(MISSIONS[id].id, id);
   assert.equal(createMission('nope', {}), null); assert.equal(createMission(undefined, {}), null);
   const a = await make(), b = await Simulation.create({ seed: 5, bots: 0, guards: 0, mission: 'dust-lantern', loot: false, contracts: false });

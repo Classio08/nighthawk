@@ -8,18 +8,18 @@ const win = { won: true, alertMax: 0, elapsed: 200, kills: 1, headshots: 1, dama
 
 test('KPI cards: zero state, then real numbers after a recorded win', () => {
   const z = Object.fromEntries(kpiCards({ progress: defaultProgress(), level: 1, rank: 'Recruit' }).map((c) => [c.id, c.value]));
-  assert.deepEqual(z, { ops: '0/2', grade: '-', ribbons: '0', level: 'LV 1' });
+  assert.deepEqual(z, { ops: '0/3', grade: '-', ribbons: '0', level: 'LV 1' });
   const p = recordRun(defaultProgress(), buildDebrief('dust-lantern', win, null), 200);
   const k = Object.fromEntries(kpiCards({ progress: p, level: 7, rank: 'sergeant' }).map((c) => [c.id, c]));
-  assert.equal(k.ops.value, '1/2'); assert.match(k.grade.value, /^[SABCD]$/); assert.equal(k.ribbons.value, '1'); assert.equal(k.level.value, 'LV 7'); assert.equal(k.level.sub, 'SERGEANT');
+  assert.equal(k.ops.value, '1/3'); assert.match(k.grade.value, /^[SABCD]$/); assert.equal(k.ribbons.value, '1'); assert.equal(k.level.value, 'LV 7'); assert.equal(k.level.sub, 'SERGEANT');
   assert.doesNotThrow(() => kpiCards({ progress: null }));
 });
 
 test('operation cards: playable first with real records, planned ones are labelled planned and carry no play record', () => {
   const p = recordRun(defaultProgress(), buildDebrief('signal-blackout', win, null), 200);
   const cards = opCards(p);
-  assert.deepEqual(cards.slice(0, 2).map((c) => [c.id, c.status]), [['dust-lantern', 'playable'], ['signal-blackout', 'playable']]);
-  assert.equal(cards[0].record, 'not played yet'); assert.match(cards[1].record, /1\/1 won · best [SABCD] · 3:20/);
+  assert.deepEqual(cards.slice(0, 3).map((c) => [c.id, c.status]), [['dust-lantern', 'playable'], ['relay-uplink', 'playable'], ['signal-blackout', 'playable']]);
+  assert.equal(cards[0].record, 'not played yet'); assert.equal(cards[1].record, 'not played yet'); assert.match(cards[2].record, /1\/1 won · best [SABCD] · 3:20/);
   const planned = cards.filter((c) => c.status === 'planned'); assert.ok(planned.length >= 6);
   for (const c of planned) { assert.equal(c.record, 'planned: not playable yet'); assert.ok(c.title && c.blurb); }
 });

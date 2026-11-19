@@ -27,6 +27,9 @@ import { createMission } from './missions.js';
 import { MissionStealth } from './stealth.js';
 import { MANTLE, findLedge, mantlePos } from './mantle.js';
 
+/** the most fighters an operation may ever hold (map fighters + garrison + VIPER + every raider wave); spawnMissionFighter refuses past it */
+export const MISSION_FIGHTER_CAP = 48;
+
 export const GRAV = -22;
 export const OPERATORS = operatorData.operators;
 const EYE = 0.72;               // eye height above the capsule centre (capsule centre is 0.9 above the feet)
@@ -80,6 +83,11 @@ export class Fighter {
   /** the garrison: an SMG and a light vest (they guard the best spot, so they should be a bit hard to take out) */
   loadoutGuard() {
     this.weapons.smg = { ammo: WEAPONS.smg.mag, reserve: WEAPONS.smg.reserve, have: true }; this.cur = 'smg'; this.armor = 40; this.armorLv = 1; this.nades = 1; this.smokes = 0;
+  }
+  /** the Jackal's raiders (relay-uplink.js waves): one gun of their own and a light vest, like the garrison but not the same kit */
+  loadoutRaider(w) {
+    const id = WEAPONS[w] ? w : 'smg';
+    this.weapons[id] = { ammo: WEAPONS[id].mag, reserve: WEAPONS[id].reserve, have: true }; this.cur = id; this.armor = 30; this.armorLv = 1; this.nades = 1; this.smokes = 0;
   }
   get haveBits() { let b = 0; SLOT_ORDER.forEach((k, i) => { if (this.weapons[k].have) b |= 1 << i; }); return b; }
 
@@ -244,7 +252,7 @@ export class Simulation {
 
   /** Existing garrison guards redeploy to a live relay objective without spawning new fighters. */
   alertGarrison(point, urgency = 1) {
-    const guards = this.fighters.filter((f) => f.alive && f.npc && f.brain?.p.guard);
+    const guards = this.fighters.filter((f) => f.alive && f.npc && f.brain?.p.guard && !f.brain.p.raider);      // the garrison only: raiders keep the tower as their post
     if (!guards.length) return;
     const radius = urgency >= 2 ? 5 : 8;
     const seed = ((this.seed | 0) * 8191 + Math.round(point.x * 31 + point.z * 17) + 1931 + urgency * 101) | 0;
@@ -358,6 +366,19 @@ export class Simulation {
     this.colMap.set(f.col.handle, f);
     if (this.opts.loot) f.loadoutLoot();
     this.fighters.push(f);
+    return f;
+  }
+
+  /**
+   * The ONE way an operation adds a fighter after the match began (VIPER in stealth.js, the RELAY UPLINK raider waves in relay-uplink.js).
+   * Offline operations only: the owner's rule is "no dynamic enemy spawning until fighter roster replication and snapshot handling are deliberately
+   * designed", and online rooms never run a mission, so this returns null there (and past MISSION_FIGHTER_CAP) instead of growing the roster.
+   * The new fighter is an NPC (does not count as a player), appended to the end of `fighters`, so every existing id and index stays valid.
+   */
+  spawnMissionFighter(op, spot) {
+    if (!this.mission || this.state !== 'playing' || this.fighters.length >= MISSION_FIGHTER_CAP) return null;
+    const f = this._addFighter(this.fighters.length, op.name, op, false, spot);
+    f.npc = true;
     return f;
   }
 

@@ -30,7 +30,7 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 21 | End-of-match snapshot card: last frame + caption bar, saved as a PNG (client only) | built | `src/ui/snapshot.js`, `src/main.js`, `index.html` | `tests/snapshot.test.js`, `scripts/e2e-signal-blackout.mjs` |
 | 22 | Mission stealth layer: stolen-uniform disguise (E over a downed guard), the named hunter VIPER (arrives at ALERT, follows garrison contacts only), extraction searchlights (SIGNAL BLACKOUT). Deterministic, offline missions only, sim + small client view; rules in `docs/STEALTH.md` | prototype (sim tested; feel and visuals untuned) | `src/sim/stealth.js`, `src/sim/disguise.js`, `src/render/stealth-view.js` | `tests/stealth.test.js`, `scripts/e2e-stealth.mjs` |
 
-Run everything: `npm test` (352 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (365 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
