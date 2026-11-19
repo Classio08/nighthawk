@@ -82,3 +82,15 @@ Do not attempt all systems in one sprint. Preserve the existing Three.js/Rapier/
 A follow-on branch `feature/dust-lantern-alert-director` (draft PR #22) builds on the first playable DUST LANTERN branch. It adds `MissionAlertDirector` which derives a compact operation-wide threat level from evidence already held by living guard NPC brains: direct visual contact, recent sound investigation, and recent last-known-position reports. The pressure rises faster than it cools, and the HUD reports routine / uneasy / searching / alert / crisis. This system must never reveal hidden player coordinates or grant guards omniscient tracking. Tests cover escalation, observer counts, decay, and exclusion of dead/non-guard NPCs.
 
 Do not merge this follow-on before PR #20 is reviewed; it is based on the PR #20 branch to keep the dependency explicit. The alert director is an initial aggregate signal, not yet a full witness/body discovery, radio network or branching mission director.
+
+
+## Procedural PBR visual slice — 19 November 2026
+
+Parallel branch: `feature/procedural-pbr-materials`, based on latest `main`.
+
+- Adds deterministic, seamless 256px normal and roughness data maps generated from authored tileable noise for sand, gravel, concrete and corrugated metal.
+- Integrates the maps into high-quality `MeshStandardMaterial` for terrain, dry riverbed and merged static concrete/metal world meshes. Low and medium quality keep the prior Lambert path.
+- Data maps use `THREE.NoColorSpace`; base-colour maps remain sRGB. Ground and river normal/roughness repeat values must match their base-colour texture tiling.
+- No asset pack binaries were copied. Candidate packs named in the owner's catalogue review are mapped in `docs/LOCAL_ASSET_CANDIDATE_MAP.md`; the complete generated catalogue and local extracted files still need inspection by Claude Code on the owner's Windows machine.
+- Keep `raw-zips/` and `sorted-assets/` ignored. Do not copy entire archives or treat candidate names as proof of licence.
+- Do not run tests/build/browser/CI/VPS/deploy checks until the owner explicitly asks. The branch is source-reviewed only and still needs visual inspection across all three quality presets.
