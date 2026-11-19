@@ -14,7 +14,7 @@ export class Hud {
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
       cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'),
-      abil: $('abil'), abname: $('abname'), abbar: $('abbar'), abtxt: $('abtxt'), arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'),
+      abil: $('abil'), abname: $('abname'), abbar: $('abbar'), abtxt: $('abtxt'), arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'), mission: $('mission'),
     };
     this.mctx = this.el.mini.getContext('2d');
     this.hurt = 0; this.hitT = 0; this.msgT = 0; this.flashV = 0; this.pings = [];
@@ -82,10 +82,10 @@ export class Hud {
     const e = this.el, w = WEAPONS[p.cur], st = p.weapons[p.cur];
     e.alive.textContent = sim.aliveCount(); e.kills.textContent = p.kills;
     const z = sim.zone;
-    const outside = z.outside(p.x, p.z) > 0;
+    const outside = !sim.mission && z.outside(p.x, p.z) > 0;
     const t = Math.max(0, Math.ceil(z.timeLeft));
-    e.zone.textContent = z.done ? 'FINAL ZONE' : z.shrinking ? `ZONE CLOSING  ${fmt(t)}` : `NEXT ZONE  ${fmt(t)}`;
-    e.zone.classList.toggle('warn', z.shrinking || outside);
+    e.zone.textContent = sim.mission ? 'OPERATION' : z.done ? 'FINAL ZONE' : z.shrinking ? `ZONE CLOSING  ${fmt(t)}` : `NEXT ZONE  ${fmt(t)}`;
+    e.zone.classList.toggle('warn', !sim.mission && (z.shrinking || outside));
     e.hpbar.style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
     e.hpbar.style.background = p.hp / p.maxHp > 0.5 ? '#5be37a' : p.hp / p.maxHp > 0.25 ? '#ffcf4d' : '#ff4d4d';
     e.hpn.textContent = Math.ceil(Math.max(0, p.hp)); e.opname.textContent = p.name.toUpperCase();
@@ -118,8 +118,21 @@ export class Hud {
     this.drawLoot(sim, p);
     this.drawAbility(p);
     this.drawContracts(sim, p);
+    this.drawMission(sim.mission, p);
     this.drawVehicle(sim, p);
     this.drawMini(dt, sim, p);
+  }
+
+  drawMission(mission, p) {
+    const el = this.el.mission;
+    if (!el) return;
+    if (!mission) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const stage = mission.stage;
+    const progress = stage === 'recon' ? `${mission.foundCount}/2 CLUES` : stage === 'extract' ? `${Math.min(100, Math.round(mission.extractT / 4 * 100))}% EXTRACTION` : stage === 'recover' ? 'TARGET IDENTIFIED' : stage === 'complete' ? 'SUCCESS' : 'IN PROGRESS';
+    const detail = stage === 'recon' ? 'Search the marked evidence sites and press E' : stage === 'recover' ? `Locate the technician · ${mission.targetSite.name}` : stage === 'extract' ? (mission.captive.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Keep the technician with you and reach the extraction pad') : stage === 'complete' ? 'Technician safely extracted' : 'Operation ended';
+    const html = `<small>OPERATION DUST LANTERN</small><b>${mission.objective}</b><span>${detail}</span><i><em style="width:${stage === 'recon' ? mission.foundCount / 2 * 100 : stage === 'extract' ? mission.extractT / 4 * 100 : stage === 'complete' ? 100 : 0}%"></em></i><small>${progress}</small>`;
+    if (el.innerHTML !== html) el.innerHTML = html;
   }
 
   /** the operator ability box: name, cooldown bar, READY / ACTIVE / STUNNED */
@@ -198,6 +211,11 @@ export class Hud {
     for (const v of sim.vehicles?.list ?? []) {              // vehicles on the map
       if (v.dead) continue; const x = S / 2 + v.x * k, y = S / 2 + v.z * k;
       g.fillStyle = v.driver >= 0 ? '#ff8a4d' : '#5fd6ff'; g.fillRect(x - 2, y - 2, 4, 4);
+    }
+    if (sim.mission) {
+      for (const clue of sim.mission.clues) if (!clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 22) { g.fillStyle = '#ffcf4d'; g.beginPath(); g.arc(S / 2 + clue.x * k, S / 2 + clue.z * k, 3, 0, 6.283); g.fill(); }
+      if (sim.mission.stage === 'recover') { g.fillStyle = '#ff9d45'; g.fillRect(S / 2 + sim.mission.captive.x * k - 2, S / 2 + sim.mission.captive.z * k - 2, 5, 5); }
+      if (sim.mission.stage === 'extract') { g.strokeStyle = '#58d8ff'; g.lineWidth = 1.5; g.beginPath(); g.arc(S / 2 + sim.mission.extraction.x * k, S / 2 + sim.mission.extraction.z * k, 5, 0, 6.283); g.stroke(); }
     }
     for (const c of sim.contracts?.list ?? []) {            // contracts on the map
       const x = S / 2 + c.x * k, y = S / 2 + c.z * k;
