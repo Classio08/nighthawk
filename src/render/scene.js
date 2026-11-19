@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bakeGeometries, placed } from './bake.js';
-import { makeGroundTexture, makeConcreteTexture, makeMetalTexture, mottlePlane, worldUV } from './proc-textures.js';
+import { makeGroundTexture, makeConcreteTexture, makeMetalTexture, makeSurfacePbrMaps, mottlePlane, worldUV } from './proc-textures.js';
+import { settings } from '../settings.js';
 
 const lambert = (c) => new THREE.MeshLambertMaterial({ color: c });
 
@@ -16,7 +17,14 @@ function mergeStatic(scene, meshes, textures) {
     const g = m.geometry.clone().applyMatrix4(m.matrix), tex = m.userData.tex ?? null;
     if (tex) worldUV(g, textures[tex].metres);
     const key = m.material.color.getHex() + '|' + tex;
-    let e = byMat.get(key); if (!e) byMat.set(key, e = { mat: new THREE.MeshLambertMaterial({ color: m.material.color, map: tex ? textures[tex].map : null }), geos: [] });
+    let e = byMat.get(key); if (!e) {
+      const surface = tex ? textures[tex] : null;
+      const color = m.material.color;
+      const mat = surface?.pbr
+        ? new THREE.MeshStandardMaterial({ color, map: surface.map, normalMap: surface.pbr.normalMap, roughnessMap: surface.pbr.roughnessMap, roughness: surface.roughness, metalness: surface.metalness })
+        : new THREE.MeshLambertMaterial({ color, map: surface?.map ?? null });
+      byMat.set(key, e = { mat, geos: [] });
+    }
     e.geos.push(g); m.geometry.dispose(); m.material.dispose();
   }
   for (const { mat, geos } of byMat.values()) { const merged = mergeGeometries(geos, false); geos.forEach((g) => g.dispose()); const mesh = new THREE.Mesh(merged, mat); mesh.frustumCulled = false; scene.add(mesh); }
@@ -52,11 +60,19 @@ export class WorldView {
     this.sky = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
     this.sky.renderOrder = -10; scene.add(this.sky);
 
+    const highQualityPbr = settings.quality === 'high';
     const groundTex = makeGroundTexture();
-    const ground = new THREE.Mesh(mottlePlane(new THREE.PlaneGeometry(600, 600, 48, 48), 48), new THREE.MeshLambertMaterial({ map: groundTex, vertexColors: true }));   // procedural sand + large soft patches
+    const groundPbr = highQualityPbr ? makeSurfacePbrMaps('sand', 256) : null;
+    const groundMat = highQualityPbr
+      ? new THREE.MeshStandardMaterial({ map: groundTex, vertexColors: true, normalMap: groundPbr.normalMap, roughnessMap: groundPbr.roughnessMap, roughness: 0.94, metalness: 0 })
+      : new THREE.MeshLambertMaterial({ map: groundTex, vertexColors: true });
+    const ground = new THREE.Mesh(mottlePlane(new THREE.PlaneGeometry(600, 600, 48, 48), 48), groundMat);   // procedural sand + large soft patches
     ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
-    const textures = { concrete: { map: makeConcreteTexture(), metres: 4 }, metal: { map: makeMetalTexture(), metres: 2.4 } };
+    const textures = {
+      concrete: { map: makeConcreteTexture(), metres: 4, pbr: highQualityPbr ? makeSurfacePbrMaps('concrete', 256) : null, roughness: 0.92, metalness: 0.02 },
+      metal: { map: makeMetalTexture(), metres: 2.4, pbr: highQualityPbr ? makeSurfacePbrMaps('metal', 256) : null, roughness: 0.52, metalness: 0.58 },
+    };
     let k = 0; const statics = [];
     for (const b of sim.map.boxes) {
       if (b.kind === 'poi-mast') continue; // the detailed cylinder below replaces this collision-only box visually
