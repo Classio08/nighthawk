@@ -189,7 +189,12 @@ export class NetSim {
     const pl = this.predictor.player;
     const shownX = pl.x + this.err.x, shownY = pl.y + this.err.y, shownZ = pl.z + this.err.z;
     while (this.pending.length && this.pending[0].seq <= ack) this.pending.shift();
-    pl.importSelf(me); this.predictor.world.propagateModifiedBodyPositionsToColliders();
+    pl.importSelf(me);
+    // Discard only unacknowledged predicted bullets, then replay those inputs below.
+    // Accepted in-flight bullets continue smoothly across reconciliation.
+    this.predictor.projectiles = this.predictor.projectiles.filter((projectile) =>
+      projectile.createdSeq == null || projectile.createdSeq <= ack);
+    this.predictor.world.propagateModifiedBodyPositionsToColliders();
     pl.veh = me.sv >= 0 ? this.predictor.vehicles.byId.get(me.sv) ?? null : null; pl.seat = me.ss ?? -1; this.seated = !!pl.veh;
     if (this.seated) { this._stepSeated({ yaw: pl.yaw, pitch: pl.pitch }); return; }
     if (this.me.alive) { for (const c of this.pending) this.predictor.step(STEP, c); this.predictor.drainEvents(); }   // replay: effects were already shown the first time
