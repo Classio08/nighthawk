@@ -93,3 +93,14 @@ export function hitPushImpulse(damage, direction, zone = 'torso') {
     magnitude,
   };
 }
+
+/** Uniform direction on a sphere, using the match's injected RNG (never Math.random). */
+export function shrapnelDirection(rng) {
+  if (typeof rng !== 'function') throw new TypeError('A deterministic random function is required');
+  const u = Math.max(0, Math.min(0.999999999, Number(rng()) || 0));
+  const v = Math.max(0, Math.min(0.999999999, Number(rng()) || 0));
+  const y = 1 - 2 * u;
+  const ring = Math.sqrt(Math.max(0, 1 - y * y));
+  const angle = 2 * Math.PI * v;
+  return { x: ring * Math.cos(angle), y, z: ring * Math.sin(angle) };
+}
