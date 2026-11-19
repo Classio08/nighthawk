@@ -63,6 +63,7 @@ export class WorldView {
     const highQualityPbr = settings.quality === 'high';
     const groundTex = makeGroundTexture();
     const groundPbr = highQualityPbr ? makeSurfacePbrMaps('sand', 256) : null;
+    if (groundPbr) { groundPbr.normalMap.repeat.set(75, 75); groundPbr.roughnessMap.repeat.set(75, 75); }
     const groundMat = highQualityPbr
       ? new THREE.MeshStandardMaterial({ map: groundTex, vertexColors: true, normalMap: groundPbr.normalMap, roughnessMap: groundPbr.roughnessMap, roughness: 0.94, metalness: 0 })
       : new THREE.MeshLambertMaterial({ map: groundTex, vertexColors: true });
@@ -100,6 +101,7 @@ export class WorldView {
     const addPoiMesh = (mesh) => { scene.add(mesh); this.poiMeshes.push(mesh); return mesh; };
     const riverTex = groundTex.clone(); riverTex.repeat.set(13 / 8, 34 / 8); riverTex.needsUpdate = true;    // the same procedural sand, darker and greyer = gravel (one tile is 8 m)
     const riverPbr = highQualityPbr ? makeSurfacePbrMaps('gravel', 256) : null;
+    if (riverPbr) { riverPbr.normalMap.repeat.set(13 / 8, 34 / 8); riverPbr.roughnessMap.repeat.set(13 / 8, 34 / 8); }
     const padMat = highQualityPbr
       ? new THREE.MeshStandardMaterial({ color: 0xa09c92, map: riverTex, normalMap: riverPbr.normalMap, roughnessMap: riverPbr.roughnessMap, roughness: 0.96, metalness: 0 })
       : new THREE.MeshLambertMaterial({ color: 0xa09c92, map: riverTex });
