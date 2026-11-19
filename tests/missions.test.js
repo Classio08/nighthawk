@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/sim/world.js';
 
-async function make(seed = 31415) {
-  return Simulation.create({ seed, bots: 0, guards: 0, mission: 'dust-lantern', loot: false, contracts: false });
+async function make(seed = 31415, guards = 0) {
+  return Simulation.create({ seed, bots: 0, guards, mission: 'dust-lantern', loot: false, contracts: false });
 }
 const place = (f, p) => { f.x = p.x; f.z = p.z; f.rb.setTranslation({ x: p.x, y: 0.9, z: p.z }, true); };
 
@@ -55,5 +55,17 @@ test('DUST LANTERN: extraction cannot complete while the technician is separated
     place(p, { x: 56, z: 56 }); m.captive.x = -40; m.captive.z = -40;
     m.update(8); assert.equal(m.stage, 'extract');
     assert.equal(m.finished, false);
+  } finally { sim.dispose(); }
+});
+
+test('DUST LANTERN: eliminating a defender does not end the one-player operation', async () => {
+  const sim = await make(31415, 1);
+  try {
+    const defender = sim.fighters.find((f) => f.npc);
+    assert.ok(defender?.alive);
+    sim.damage(defender, 9999, sim.player, { cause: 'bullet' });
+    assert.equal(defender.alive, false);
+    assert.equal(sim.state, 'playing');
+    assert.equal(sim.mission.stage, 'recon');
   } finally { sim.dispose(); }
 });
