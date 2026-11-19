@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { makeRng } from '../src/sim/rng.js';
 import {
   MATERIALS, materialForMapKind, materialForPropKind, surfaceImpact,
-  classifyHitZone, hitZoneMultiplier, blastImpulse, projectileDrop, gunshotDelay, hitPushImpulse, shrapnelDirection,
+  classifyHitZone, hitZoneMultiplier, blastImpulse, projectileDrop, gunshotDelay, hitPushImpulse, shrapnelDirection, soundTransmission,
 } from '../src/sim/physics-correlation.js';
 
 test('map and prop geometry resolve to consistent physical materials', () => {
@@ -56,4 +56,11 @@ test('shrapnel directions are deterministic, normalized and evenly spread over a
     assert.deepEqual(first, second);
     assert.ok(Math.abs(Math.hypot(first.x, first.y, first.z) - 1) < 1e-9);
   }
+});
+
+test('sound transmission is attenuated more by concrete and rock than glass', () => {
+  assert.ok(soundTransmission('concrete') < soundTransmission('glass'));
+  assert.ok(soundTransmission('rock') < soundTransmission('wood'));
+  assert.ok(soundTransmission('metal') < 0.5);
+  assert.equal(soundTransmission('unknown'), 0.24);
 });
