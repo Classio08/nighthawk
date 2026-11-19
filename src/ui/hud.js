@@ -239,8 +239,12 @@ export class Hud {
       g.fillStyle = v.driver >= 0 ? '#ff8a4d' : '#5fd6ff'; g.fillRect(x - 2, y - 2, 4, 4);
     }
     if (sim.mission) {
-      for (const clue of sim.mission.clues) if (!clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 22) { g.fillStyle = '#ffcf4d'; g.beginPath(); g.arc(S / 2 + clue.x * k, S / 2 + clue.z * k, 3, 0, 6.283); g.fill(); }
-      if (sim.mission.stage === 'recover') { g.fillStyle = '#ff9d45'; g.fillRect(S / 2 + sim.mission.captive.x * k - 2, S / 2 + sim.mission.captive.z * k - 2, 5, 5); }
+      for (const clue of sim.mission.clues ?? []) if (!clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < (sim.mission.discoveryRange ?? 22)) { g.fillStyle = '#ffcf4d'; g.beginPath(); g.arc(S / 2 + clue.x * k, S / 2 + clue.z * k, 3, 0, 6.283); g.fill(); }
+      if (sim.mission.stage === 'recover' && sim.mission.captive?.visible) { g.fillStyle = '#ff9d45'; g.fillRect(S / 2 + sim.mission.captive.x * k - 2, S / 2 + sim.mission.captive.z * k - 2, 5, 5); }
+      if (sim.mission.target && ['approach', 'hack', 'hold'].includes(sim.mission.stage)) {
+        const x = S / 2 + sim.mission.target.x * k, y = S / 2 + sim.mission.target.z * k;
+        g.fillStyle = '#53d9ff'; g.strokeStyle = '#061a22'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, 4.5, 0, 6.283); g.fill(); g.stroke();
+      }
       if (sim.mission.stage === 'extract') { g.strokeStyle = '#58d8ff'; g.lineWidth = 1.5; g.beginPath(); g.arc(S / 2 + sim.mission.extraction.x * k, S / 2 + sim.mission.extraction.z * k, 5, 0, 6.283); g.stroke(); }
     }
     for (const c of sim.contracts?.list ?? []) {            // contracts on the map
