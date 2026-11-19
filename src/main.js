@@ -39,6 +39,8 @@ import { ViewMotion } from './render/headbob.js';
 import { BarkDirector, operationVoiceIds } from './fx/bark-director.js';
 import { VoicePlayer } from './fx/voice.js';
 import { detectSameOriginServer } from './net/server-url.js';
+import { buildDebrief } from './campaign/debrief.js';
+import { loadProgress, saveProgress, recordRun } from './campaign/progress.js';
 
 const STEP = 1 / 60;
 const $ = (id) => document.getElementById(id);
@@ -55,6 +57,7 @@ const FAKE_LAG = +(params.get('lag') ?? 0);                         // ?lag=120 
 const DROP_ON = params.has('drop') ? params.get('drop') !== '0' : !navigator.webdriver;
 let SKIN = null;
 let profile = loadProfile();                         // guest profile (stats, XP, badges) saved in this browser
+let campaign = loadProgress();                       // campaign progress (grades, endings, ribbons) saved in this browser
 const tracker = new MatchTracker();                  // my damage / headshots / weapon kills for the current match
 const OPERATOR_IDS = new Set(OPERATORS.map((op) => op.id));
 let OPERATOR = OPERATOR_IDS.has(params.get('op')) ? params.get('op') : 'roms';
@@ -343,8 +346,14 @@ function handleEvents() {
           $('xpgain').innerHTML = '';
           paused = true;
           const result = { ...e, mission: true, clues: sim.mission.objectivesDone, alert: sim.mission.alert.snapshot(), debrief: sim.mission.debrief(!!e.won) };
-          if (e.won) { audio.play('win'); setTimeout(() => { hud.showEnd(result); showSnap(result); }, 900); }
-          else { audio.play('lose'); setTimeout(() => { hud.showEnd(result, G.killer); showSnap(result); }, 1200); }
+          let debrief = null;
+          try {                                                  // the campaign layer must never be able to break the end screen
+            const stats = { ...sim.mission.stats(!!e.won), headshots: tracker.headshots, damage: tracker.damage };
+            debrief = buildDebrief(sim.mission.id, stats, campaign);
+            if (debrief) { campaign = recordRun(campaign, debrief, stats.elapsed); saveProgress(campaign); }
+          } catch (err) { console.warn('campaign debrief failed', err); }
+          if (e.won) { audio.play('win'); setTimeout(() => { hud.showEnd(result); hud.showDebrief(debrief); showSnap(result); }, 900); }
+          else { audio.play('lose'); setTimeout(() => { hud.showEnd(result, G.killer); hud.showDebrief(debrief); showSnap(result); }, 1200); }
         } else if (e.won) { audio.play('win'); setTimeout(() => { hud.showEnd(e); showSnap(e); }, 1200); }
         else { audio.play('lose'); setTimeout(() => { hud.showEnd(e, G.killer); showSnap(e); }, 1900); }
         if (document.pointerLockElement) document.exitPointerLock();

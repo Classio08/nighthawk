@@ -295,16 +295,34 @@ export class Hud {
     g.fillStyle = '#ffcf4d'; g.beginPath(); g.moveTo(0, -5); g.lineTo(3.5, 4); g.lineTo(0, 2); g.lineTo(-3.5, 4); g.closePath(); g.fill(); g.restore();
   }
 
+  /** the campaign debrief card (grade, ending, real stats). Built with textContent only: nothing here is parsed as HTML. */
+  showDebrief(d) {
+    const box = $('debrief'); if (!box) return;
+    box.textContent = ''; $('end').classList.toggle('deb', !!d);
+    if (!d) { box.style.display = 'none'; return; }
+    const el = (tag, cls, text, parent = box) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; parent.appendChild(n); return n; };
+    const top = el('div', 'dtop'); el('span', '', `${d.act} · ${d.title}`, top);
+    const g = el('span', 'dgrade', d.rating.grade, top); g.style.color = d.rating.color; g.title = d.rating.label;
+    el('div', 'dend', d.ending.title); el('p', 'dsub', `${d.ending.subtitle} · ${d.rating.label}${d.won ? ` · SCORE ${d.rating.score}` : ''}`);
+    el('p', 'dnarr', d.narrative);
+    const rows = el('div', 'drows'); for (const [k, v] of d.rows) { const r = el('div', '', k, rows); el('b', '', v, r); }
+    if (d.newBest) el('span', 'dtag', 'NEW BEST');
+    if (d.newRibbon && d.ending.ribbon) el('span', 'dtag', `RIBBON · ${d.ending.ribbon}`);
+    if (d.next) el('p', 'dnote', `Next operation: ${d.next.title}`);
+    if (d.ending.dialogueNext) el('p', 'dnote', d.ending.dialogueNext);
+    box.style.display = 'block';
+  }
   showEnd(r, killerName) {
+    this.showDebrief(null);
     $('endtitle').textContent = r.mission ? (r.won ? 'OPERATION COMPLETE' : 'OPERATION FAILED') : r.won ? 'WINNER WINNER' : 'ELIMINATED';
     $('endtitle').style.color = r.won ? '#5be37a' : '#ff4d4d';
     $('endsub').textContent = r.mission
-      ? (r.debrief ?? (r.won ? 'Operation complete · No persistent rewards yet' : 'The operator was lost'))
+      ? (r.debrief ?? (r.won ? 'Operation complete' : 'The operator was lost'))
       : r.won ? 'Last one standing. The desert is yours.' : (killerName ? `Taken out by ${killerName}` : 'The zone got you');
     $('e-place').textContent = r.mission ? (r.won ? 'SAFE' : 'FAIL') : `#${r.placement}`;
     $('e-kills').textContent = r.kills ?? 0; $('e-time').textContent = fmt(r.time);
     $('end').classList.add('show');
   }
-  hideEnd() { $('end').classList.remove('show'); }
+  hideEnd() { $('end').classList.remove('show'); this.showDebrief(null); }
   reset() { this.clearSubtitle(); this.el.feed.innerHTML = ''; if (this.el.mission) this.el.mission.style.display = 'none'; this.pings.length = 0; this.hurt = 0; this.lastKey = ''; this.ctHtml = null; this.vehHtml = null; }
 }

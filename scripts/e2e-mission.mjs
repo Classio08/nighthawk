@@ -1,6 +1,8 @@
 // Browser check for Operation DUST LANTERN (offline mission mode): the menu button starts it, there is no plane / no shrinking zone, E gathers clues, the
 // second clue identifies the site, E rescues the technician, extraction needs both of you in the zone and a 4 s hold, the debrief shows, no errors.
 import puppeteer from 'puppeteer-core';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 const CHROME = process.env.CHROME || '/usr/bin/google-chrome', URL = process.env.URL || 'http://127.0.0.1:4173/';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--window-size=1280,720'] });
@@ -51,6 +53,11 @@ await page.waitForFunction("document.getElementById('end').classList.contains('s
 const end = await page.evaluate(() => ({ shown: document.getElementById('end').classList.contains('show'), title: document.getElementById('endtitle').textContent, sub: document.getElementById('endsub').textContent }));
 check('the debrief screen says OPERATION COMPLETE', end.shown && end.title === 'OPERATION COMPLETE', JSON.stringify(end).slice(0, 120));
 
+const deb = await page.evaluate(() => { const d = document.getElementById('debrief'); return { shown: getComputedStyle(d).display !== 'none', grade: d.querySelector('.dgrade')?.textContent, ending: d.querySelector('.dend')?.textContent, rows: d.querySelectorAll('.drows div').length, saved: JSON.parse(localStorage.getItem('nh_campaign_v1') || 'null') }; });
+check('the campaign debrief card shows a grade, an ending and the stat rows', deb.shown && /^[SABCD]$/.test(deb.grade ?? '') && /SILENT LANTERN|BURNING LANTERN/.test(deb.ending ?? '') && deb.rows >= 6, JSON.stringify({ ...deb, saved: undefined }));
+check('the run is saved to campaign progress in this browser', deb.saved?.missions?.['dust-lantern']?.wins === 1 && deb.saved.missions['dust-lantern'].plays === 1, JSON.stringify(deb.saved).slice(0, 160));
+await page.screenshot({ path: join(tmpdir(), 'nighthawk_dustlantern_debrief.png') });
+
 /* ---- failure: dying ends the operation with the failure screen ---- */
 await page.close();
 const page2 = await browser.newPage(); await page2.setViewport({ width: 1280, height: 720 });
@@ -61,6 +68,8 @@ await page2.evaluate(() => { const { sim } = window.__nh; sim.damage(sim.player,
 await page2.waitForFunction("document.getElementById('end').classList.contains('show')", { timeout: 15000 }).catch(() => {});
 const fail = await page2.evaluate(() => ({ shown: document.getElementById('end').classList.contains('show'), title: document.getElementById('endtitle').textContent, stage: window.__nh.sim.mission.stage }));
 check('dying fails the operation (OPERATION FAILED screen, stage failed)', fail.shown && fail.title === 'OPERATION FAILED' && fail.stage === 'failed', JSON.stringify(fail));
+const fdeb = await page2.evaluate(() => { const d = document.getElementById('debrief'); return { shown: getComputedStyle(d).display !== 'none', grade: d.querySelector('.dgrade')?.textContent, ending: d.querySelector('.dend')?.textContent, saved: JSON.parse(localStorage.getItem('nh_campaign_v1') || 'null') }; });
+check('a lost operation shows LANTERN OUT with no grade and counts as a play, not a win', fdeb.shown && fdeb.grade === '-' && fdeb.ending === 'LANTERN OUT' && fdeb.saved?.missions?.['dust-lantern']?.plays === 2 && fdeb.saved.missions['dust-lantern'].wins === 1, JSON.stringify(fdeb).slice(0, 200));
 check('no browser errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 await browser.close();
 console.log(fails === 0 ? '\nmission e2e: all good' : `\n${fails} FAILED`); process.exit(fails ? 1 : 0);

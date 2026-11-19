@@ -123,6 +123,22 @@
   #xpgain .xpnote{margin-top:6px;color:var(--green);text-align:center}#xpgain .xpnote.up{color:var(--accent);font-size:15px}
   .skin.lock{opacity:.4;cursor:not-allowed;filter:grayscale(.7)}
   #snapwrap{display:flex;flex-direction:column;align-items:center;gap:8px}#snapimg{width:min(300px,60vw);border:1px solid rgba(255,255,255,.25);border-radius:4px}#snapbtn{padding:6px 14px;font-size:12px}
+  #debrief{width:min(560px,92vw);text-align:left;border:1px solid rgba(255,255,255,.14);background:rgba(10,16,22,.72);border-radius:8px;padding:12px 16px;font-size:13px}
+  #debrief .dtop{display:flex;justify-content:space-between;align-items:center;letter-spacing:3px;font-size:11px;opacity:.85}
+  #debrief .dgrade{font-size:44px;line-height:1;font-weight:700;letter-spacing:0}
+  #debrief .dend{font-size:20px;letter-spacing:4px;margin:6px 0 0;color:var(--accent)}
+  #debrief .dsub{letter-spacing:2px;font-size:11px;opacity:.7;margin:0 0 8px}
+  #debrief .dnarr{margin:0 0 10px;line-height:1.6}
+  #debrief .drows{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px 14px;margin:0 0 8px}
+  #debrief .drows div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(255,255,255,.08);padding:2px 0;font-size:11px;letter-spacing:1px}
+  #debrief .drows b{font-weight:400;color:var(--accent)}
+  #debrief .dnote{margin:4px 0 0;font-size:12px;opacity:.8;font-style:italic}
+  #debrief .dtag{display:inline-block;margin:6px 8px 0 0;padding:1px 8px;border:1px solid var(--accent);color:var(--accent);border-radius:99px;font-size:10px;letter-spacing:2px}
+  #end.deb{gap:8px;overflow-y:auto;justify-content:safe center;padding:10px 0}
+  #end.deb h1{font-size:34px;letter-spacing:6px}
+  #end.deb #stats-end{display:none}                 /* the debrief card already shows kills and time */
+  #end.deb #snapimg{width:min(220px,50vw)}
+  #end.deb #xpgain:empty{display:none}
   #stats-end{display:flex;gap:26px;font-size:14px}#stats-end b{display:block;font-size:30px;color:var(--accent)}
   #rotate{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:#0b0e13;color:#ffcf4d;font-size:22px;letter-spacing:3px;text-align:center}
   @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
@@ -181,6 +197,7 @@
 <div id="end" class="ov">
   <h1 id="endtitle">ELIMINATED</h1>
   <p id="endsub"></p>
+  <div id="debrief" style="display:none" aria-live="polite"></div>
   <div id="stats-end"><div><b id="e-place">#1</b>PLACE</div><div><b id="e-kills">0</b>KILLS</div><div><b id="e-time">0:00</b>SURVIVED</div></div>
   <div id="xpgain" aria-live="polite"></div>
   <div id="snapwrap" style="display:none"><img id="snapimg" alt="Snapshot of the final moment" /><button class="btn" id="snapbtn" type="button">SAVE SNAPSHOT</button></div>

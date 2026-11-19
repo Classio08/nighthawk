@@ -50,6 +50,9 @@ a = await M(); check('four seconds on the pad completes the operation', a.stage 
 await page.waitForFunction("document.getElementById('end').classList.contains('show')", { timeout: 10000 }).catch(() => {});
 const end = await page.evaluate(() => ({ shown: document.getElementById('end').classList.contains('show'), title: document.getElementById('endtitle').textContent, sub: document.getElementById('endsub').textContent }));
 check('the debrief shows OPERATION COMPLETE with the relay summary', end.shown && /COMPLETE/.test(end.title) && /relays/i.test(end.sub), `${end.title} / ${end.sub}`);
+const deb = await page.evaluate(() => { const d = document.getElementById('debrief'); return { shown: getComputedStyle(d).display !== 'none', grade: d.querySelector('.dgrade')?.textContent, ending: d.querySelector('.dend')?.textContent, rows: [...d.querySelectorAll('.drows div')].map((r) => r.textContent), saved: JSON.parse(localStorage.getItem('nh_campaign_v1') || 'null') }; });
+check('the campaign debrief card shows a grade, an ending and the relay rows', deb.shown && /^[SABCD]$/.test(deb.grade ?? '') && /DEAD AIR|STATIC AND SMOKE/.test(deb.ending ?? '') && deb.rows.some((r) => /RELAYS JAMMED.*3\/3/.test(r)) && deb.rows.some((r) => /JAMS INTERRUPTED/.test(r)), JSON.stringify({ g: deb.grade, e: deb.ending, rows: deb.rows }));
+check('the run is saved to campaign progress in this browser', deb.saved?.missions?.['signal-blackout']?.wins === 1, JSON.stringify(deb.saved).slice(0, 160));
 
 const snap = await page.evaluate(() => { const i = document.getElementById('snapimg'); return { shown: getComputedStyle(document.getElementById('snapwrap')).display !== 'none', png: i.src.startsWith('data:image/png'), w: i.naturalWidth, h: i.naturalHeight }; });
 check('the end screen shows a snapshot card (a PNG of the final frame with a caption)', snap.shown && snap.png && snap.w === 960 && snap.h === 540, JSON.stringify(snap));

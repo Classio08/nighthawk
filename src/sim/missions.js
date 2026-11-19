@@ -70,8 +70,10 @@ export class DustLanternMission {
     if (e.phase === 'rescued') return { text: 'TECHNICIAN SECURED · MOVE TO EXTRACTION', color: '#5be37a', secs: 2.8, sfx: 'healend' };
     return null;
   }
-  debrief(won) { return won ? `Technician extracted safely · ${this.foundCount}/3 clues recovered · No persistent rewards yet` : 'The operator was lost before the technician could be extracted'; }
+  debrief(won) { return won ? `Technician extracted safely · ${this.foundCount}/3 clues recovered · cosmetic ribbons only` : 'The operator was lost before the technician could be extracted'; }
   get objectivesDone() { return this.foundCount; }
+  /** the real numbers the campaign debrief and endings are built from (pure read of mission state) */
+  stats(won) { return { won: !!won, elapsed: this.elapsed, alertMax: this.alert.maxIndex, found: this.foundCount, total: 3, rescued: this.captive.rescued, kills: this.sim.player?.kills ?? 0 }; }
 
   /** E interaction. Returns true only when the mission consumed the interaction. */
   interact(operator) {
@@ -192,7 +194,7 @@ export class SignalBlackoutMission {
     }));
     const far = this.nodes.reduce((a, b) => (distance(b, this.insertion) > distance(a, this.insertion) ? b : a));
     this.guardPost = findFreeSpot(sim.map, this.rng, far.x, far.z, 6, 2.2);       // the garrison sits at the relay farthest from where you land
-    this.active = null; this.lastHp = null; this._warned = 0;
+    this.active = null; this.lastHp = null; this._warned = 0; this.taskFails = 0;
     this.stage = 'tasks'; this.extractT = 0; this.elapsed = 0; this.finished = false; this.reason = '';
     this.alert = new MissionAlertDirector();
   }
@@ -200,6 +202,7 @@ export class SignalBlackoutMission {
   get doneCount() { return this.nodes.reduce((n, node) => n + (node.done ? 1 : 0), 0); }
   get foundCount() { return this.doneCount; }
   get objectivesDone() { return this.doneCount; }
+  stats(won) { return { won: !!won, elapsed: this.elapsed, alertMax: this.alert.maxIndex, found: this.doneCount, total: 3, taskFails: this.taskFails, traceLeft: this.trace, kills: this.sim.player?.kills ?? 0 }; }
   get trace() { return Math.max(0, TRACE_T - this.elapsed); }
   get objective() {
     if (this.stage === 'tasks') return `JAM THE RELAY NODES (${this.doneCount}/3)`;
@@ -235,7 +238,7 @@ export class SignalBlackoutMission {
     return null;
   }
   debrief(won) {
-    return won ? `All relays jammed · extracted with ${SignalBlackoutMission.fmt(this.trace)} left on the trace · No persistent rewards yet`
+    return won ? `All relays jammed · extracted with ${SignalBlackoutMission.fmt(this.trace)} left on the trace · cosmetic ribbons only`
       : this.reason === 'trace' ? `The trace locked on with ${this.doneCount}/3 relays jammed` : `The operator was lost with ${this.doneCount}/3 relays jammed`;
   }
 
@@ -267,7 +270,7 @@ export class SignalBlackoutMission {
     if (a) {
       const hit = this.lastHp !== null && op.hp < this.lastHp - 1e-6;
       if (hit || distance(op, a) > TASK.HOLD_RANGE) {
-        a.progress = 0; this.active = null;
+        a.progress = 0; this.active = null; this.taskFails++;
         this.sim.emit({ t: 'mission', phase: 'taskfail', id: a.id, reason: hit ? 'hit' : 'moved' });
       } else {
         a.progress += dt;

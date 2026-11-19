@@ -1,6 +1,7 @@
 // Deterministic, evidence-based alert pressure for offline mission NPCs.
 // It observes only information already held by living guard brains; it never grants omniscient player tracking.
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+export const ALERT_LEVEL_NAMES = ['routine', 'uneasy', 'searching', 'alert', 'crisis'];
 
 export class MissionAlertDirector {
   constructor() {
@@ -8,6 +9,7 @@ export class MissionAlertDirector {
     this.level = 'routine';
     this.observers = 0;
     this.lastEvidence = 'none';
+    this.maxIndex = 0;                // the highest level the garrison ever reached this run (index into ALERT_LEVEL_NAMES): the campaign's endings read it
   }
 
   update(dt, fighters) {
@@ -41,6 +43,7 @@ export class MissionAlertDirector {
       : this.pressure >= 0.18 ? 'uneasy' : 'routine';
     const changed = next !== this.level;
     this.level = next;
+    this.maxIndex = Math.max(this.maxIndex, ALERT_LEVEL_NAMES.indexOf(next));
     return changed;
   }
 
@@ -50,6 +53,7 @@ export class MissionAlertDirector {
       pressure: +this.pressure.toFixed(3),
       observers: this.observers,
       evidence: this.lastEvidence,
+      max: this.maxIndex,
     };
   }
 }
