@@ -134,12 +134,32 @@ export class Hud {
     if (!mission) { el.style.display = 'none'; return; }
     el.style.display = 'block';
     const stage = mission.stage;
-    const progress = stage === 'recon' ? `${mission.foundCount}/2 CLUES` : stage === 'extract' ? `${Math.min(100, Math.round(mission.extractT / 4 * 100))}% EXTRACTION` : stage === 'recover' ? 'TARGET IDENTIFIED' : stage === 'complete' ? 'SUCCESS' : 'IN PROGRESS';
-    const nearClue = stage === 'recon' && mission.clues.some((clue) => !clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 3.4);
-    const nearCaptive = stage === 'recover' && Math.hypot(mission.captive.x - p.x, mission.captive.z - p.z) < 3.5;
-    const detail = stage === 'recon' ? (nearClue ? 'PRESS E TO INVESTIGATE' : 'Search the marked evidence sites') : stage === 'recover' ? (nearCaptive ? 'PRESS E TO SECURE THE TECHNICIAN' : `Locate the technician · ${mission.targetSite.name}`) : stage === 'extract' ? (mission.captive.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Keep the technician with you and reach the extraction pad') : stage === 'complete' ? 'Technician safely extracted' : 'Operation ended';
+    const clues = mission.clues ?? [];
+    const found = mission.foundCount ?? clues.filter((clue) => clue.found).length;
+    const nearClue = stage === 'recon' && clues.some((clue) => !clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 3.4);
+    const nearCaptive = stage === 'recover' && mission.captive?.visible && Math.hypot(mission.captive.x - p.x, mission.captive.z - p.z) < 3.5;
+    const defaultDetail = stage === 'recon'
+      ? (nearClue ? 'PRESS E TO INVESTIGATE' : 'Search the evidence sites')
+      : stage === 'recover'
+        ? (nearCaptive ? 'PRESS E TO SECURE THE TECHNICIAN' : `Locate the technician · ${mission.targetSite?.name ?? 'TARGET AREA'}`)
+        : stage === 'extract'
+          ? (mission.captive?.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Reach the extraction pad')
+          : stage === 'complete' ? 'Operation objective complete' : 'Operation ended';
+    const detail = mission.detailFor?.(p) ?? defaultDetail;
+    const denom = Math.max(1, clues.length || 2);
+    const percent = stage === 'recon' ? found / denom * 100
+      : stage === 'hack' ? (mission.hackT ?? 0) / Math.max(1, mission.hackDuration ?? 1) * 100
+        : stage === 'hold' ? (mission.holdT ?? 0) / Math.max(1, mission.holdDuration ?? 1) * 100
+          : stage === 'extract' ? (mission.extractT ?? 0) / 4 * 100
+            : stage === 'complete' ? 100 : 0;
+    const progress = mission.progressLabel ?? (stage === 'recon' ? `${found}/${clues.length || 2} CLUES`
+      : stage === 'hack' ? `UPLOAD ${Math.round(percent)}%`
+        : stage === 'hold' ? `DEFENCE ${Math.round(percent)}%`
+          : stage === 'extract' ? `EXTRACTION ${Math.round(percent)}%`
+            : stage === 'complete' ? 'SUCCESS' : stage.toUpperCase());
     const alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
-    const html = `<small>OPERATION DUST LANTERN · THREAT ${alert.level.toUpperCase()}</small><b>${mission.objective}</b><span>${detail}</span><i><em style="width:${stage === 'recon' ? mission.foundCount / 2 * 100 : stage === 'extract' ? mission.extractT / 4 * 100 : stage === 'complete' ? 100 : 0}%"></em></i><small>${progress}</small>`;
+    const title = String(mission.name ?? mission.id ?? 'TACTICAL OPERATION').toUpperCase();
+    const html = `<small>OPERATION ${title} · THREAT ${String(alert.level ?? 'routine').toUpperCase()}</small><b>${mission.objective ?? title}</b><span>${detail}</span><i><em style="width:${Math.max(0, Math.min(100, percent))}%"></em></i><small>${progress}</small>`;
     if (el.innerHTML !== html) el.innerHTML = html;
   }
 
