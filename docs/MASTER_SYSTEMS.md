@@ -18,8 +18,9 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 9 | Operator abilities (Q) for all 8 operators, crouch (C), fall damage | built | `src/sim/abilities.js`, `src/sim/world.js` | `tests/abilities.test.js`, `tests/movement.test.js`, `scripts/e2e-abilities.mjs`, section 5 of `server/test/match.mjs` |
 | 10 | Bot navigation (grid + A*), difficulty levels | built | `src/sim/nav.js`, `src/sim/difficulty.js`, `src/sim/bot.js` | `tests/nav.test.js`, `tests/bot-difficulty.test.js` |
 | 11 | Settings menu (sensitivity, FOV, volume, graphics, difficulty, gore, key rebinding), saved in the browser | built | `src/settings.js`, `src/ui/settings-menu.js`, `src/input/input.js` | `tests/settings.test.js`, `scripts/e2e-settings.mjs` |
+| 12 | Server hardening: rate limits, kicks, payload cap, room cap, reconnect window, /health + /metrics | built | `server/src/limits.js`, `server/src/MatchRoom.js`, `server/src/index.js`, `src/net/netsim.js` | `tests/limits.test.js`, section 6 of `server/test/match.mjs` |
 
-Run everything: `npm test` (144 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (150 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
@@ -145,6 +146,10 @@ Effect: a sniper that needed 30 s to reach a nest now needs about 20 s; bots no 
 ## Stage 11: settings menu
 
 `SETTINGS` on the start and pause screens (`src/ui/settings-menu.js`): mouse sensitivity (0.2x-3x), field of view (60-110, ADS zoom scales with it), volume, graphics (render scale 60 / 85 / 100% of the device pixel ratio), bot difficulty, gore, and **key rebinding** for 15 actions (weapon slots 1-6, mouse and Esc stay fixed). Click a key button, press the new key; a key that another action uses swaps the two so nothing is ever unbound; Esc, Tab, 1-6 and F-keys are refused; `Esc` cancels. `settings.js` validates everything it loads (a corrupted or hand-edited save cannot produce NaN, an unknown key or a double binding; a double binding falls back to the default layout) and saves to `localStorage` key `nh_settings_v1` (the old `nh_gore` value is still read once). Portal builds still start with gore off. Game code asks `input.act('jump')` / `input.actPressed('use')` instead of hard-coded key codes.
+
+## Stage 12: server hardening
+
+See `docs/MULTIPLAYER.md` (section "Hardening and reconnect") for how it works and `docs/DEPLOY.md` section C2 for what to run on the VPS (health check, metrics, limits, env vars). Short version: every connection has message-rate buckets and a 4 KB payload cap, flooders are kicked, the server refuses new matches above `MAX_ROOMS`, a dropped player gets 12 s to reconnect before a bot takes over, and `/health` + `/metrics` (token-protected) show tick times and abuse counters.
 
 ## What to look at next (open items)
 

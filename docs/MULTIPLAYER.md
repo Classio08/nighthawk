@@ -70,6 +70,13 @@ See `DEPLOY.md` for the step-by-step. Latency reality: a Johannesburg server giv
 - Private self-state gets `ab: [abCd, abT, dashT, dashVx, dashVz, stunT]` and `cr`. Everyone else sees snapshot flags `FF.ab`, `FF.cloak`, `FF.stun`, `FF.dash`, `FF.crouch` on each fighter record (so a Cloak or a stun is visible without sending timers).
 - `ability` and `stun` are server events (not in `OWN_EVENTS`). Fall damage is server-only. Lag compensation stores a crouch bit per tick (`hist` value 2 = alive and crouching).
 
+## Hardening and reconnect (Stage 12)
+- **Limits** (`server/src/limits.js`): a token bucket per connection and message type (`c` 400/s burst 120, `ping` 4/s, unknown 5/s). Over the limit = dropped; 120 dropped in a row = `client.leave(4003)`. WebSocket payloads over 4 KB are refused by the transport. Unknown message types hit the `'*'` handler and only count.
+- **Room cap**: `MAX_ROOMS` (default 40); `onCreate` throws `server busy` beyond it.
+- **Reconnect** (Colyseus 0.18 `onDrop` / `allowReconnection` / `onReconnect`): an abnormal close during a running match keeps the human fighter alive and standing (`q.offline = true`, no snapshots sent, queued inputs cleared) for `RECONNECT_SECS` (12). The SDK client retries by itself (`NetSim` sets minUptime 1 s, up to 10 tries, max 2 s apart, no queued messages), shows RECONNECTING and keeps predicting locally; on `onReconnect` the server clears the queue and the very next snapshot carries the full state. When the window ends the normal `onLeave` path runs (`botify`). A consented leave (menu, `NetSim.leave()`) or a dead / finished player is replaced at once. A page refresh is a new page and cannot rejoin (a later task: store the reconnection token in `sessionStorage`).
+- **Observability**: `MatchRoom.metrics()`; `GET /health`, `GET /metrics[?format=prom]` (see `docs/DEPLOY.md` section C2). Tick times are measured around `sim.step` of every match.
+- Tests: `tests/limits.test.js` (buckets, kick rule, stats, Prometheus text) and section 6 of `server/test/match.mjs` (endpoints and token, junk, flood kick, oversized payload, room cap, a dropped connection that returns and walks on, a drop that does not return and gets a bot).
+
 ## Vehicles over the network (Stage 7)
 - The server drives the vehicles. Snapshots carry them as `vh` (id, kind, x, z, yaw, speed, hp, driver, passenger, dead, steering).
 - Every client has the same vehicles (same seed) inside its predictor. Their poses come from the snapshots; their colliders move with them, so your predicted walking bumps into the same things the server sees.

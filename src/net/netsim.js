@@ -69,6 +69,12 @@ export class NetSim {
     hook('s', (m) => (this.ready ? this._onSnap(m) : this.inbox.push(m)));
     hook('over', (m) => { this.final = m; this.onOver?.(m); });
     hook('pong', (t) => { this.rtt = this.now() - t; });
+    // the connection dropped (wifi blip, tab refresh): the Colyseus client retries by itself and the server keeps the fighter standing for a few seconds.
+    // Old inputs are worthless after a gap, so nothing is queued while we are down.
+    this.reconnecting = false; this.onReconnecting = null;
+    if (room.reconnection) Object.assign(room.reconnection, { maxEnqueuedMessages: 0, minUptime: 1000, maxRetries: 10, maxDelay: 2000 });      // give up after ~10 s: the server only holds the seat for 12
+    room.onDrop?.(() => { this.reconnecting = true; this.outbox.length = 0; this.onReconnecting?.(true); });
+    room.onReconnect?.(() => { this.reconnecting = false; this.outbox.length = 0; this._ping = null; this.onReconnecting?.(false); });
     room.onLeave?.((code) => { this.closed = true; this.onClose?.(code); if (!this.ready) this._reject(new Error(`left before the match started (code ${code})`)); });
   }
 
@@ -129,6 +135,7 @@ export class NetSim {
   /** once per rendered frame: send inputs, blend remote players, fade the correction error */
   update(dt) {
     if (!this.ready) return;
+    if (this.reconnecting) { this.outbox.length = 0; this.err.x *= 0.9; this.err.z *= 0.9; this._interpolate(); return; }          // connection is down: keep drawing, send nothing
     if (this.outbox.length) {
       const msg = this.outbox.splice(0).map(packCmd);
       if (this.lagMs > 0) setTimeout(() => this.room.send('c', msg), this.lagMs / 2); else this.room.send('c', msg);
@@ -208,5 +215,7 @@ export class NetSim {
   drainEvents() { return this.evq.splice(0); }
   aliveCount() { let n = 0; for (const f of this.fighters) if (f.alive && !f.npc) n++; return n; }
   leave() { try { this.room.leave(); } catch { /* already closed */ } }
+  /** close the connection WITHOUT telling the server we are leaving (tests, and what a dead wifi looks like): the client reconnects by itself */
+  drop() { try { this.room.leave(false); } catch { /* already closed */ } }
   dispose() { this.leave(); this.predictor?.dispose(); }
 }

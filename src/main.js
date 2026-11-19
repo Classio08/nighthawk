@@ -492,6 +492,7 @@ async function beginOnline() {
       onLobby: (m) => { $('lobbytxt').textContent = `${m.n} player${m.n === 1 ? '' : 's'} in the lobby · starting in ${m.left} s`; } });
     if (joining !== ticket) { net.dispose(); return; }
     started = true; await newMatch(net);
+    net.onReconnecting = (on) => { if (G?.net === net && !G.over) hud.message(on ? 'CONNECTION LOST - RECONNECTING...' : 'RECONNECTED', on ? '#ffb347' : '#7dff9a', on ? 12 : 1.5); };
     net.onClose = () => { if (G?.net === net && !G.over) { G.over = true; hud.message('DISCONNECTED FROM SERVER', '#ff4d4d', 4); setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); showOv('start', true); }, 2500); } };
     showOv('lobby', false); showOv('pause', false); paused = false;
     if (!AUTOSTART) input.lock();

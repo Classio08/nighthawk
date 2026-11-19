@@ -229,5 +229,84 @@ A.leave(); await sleep(500);
   check('ability: the blast went off and B is not hurt by his own charge', B3.drainEvents().some((e) => e.t === 'explosion' && e.w === 'dash') && fB.hp >= fB.maxHp * 0.99);
   dA.stop(); dB.stop(); clearInterval(prot3); B3.leave(); A3.leave(); await sleep(300);
 }
+
+// ---- 6. hardening (a fourth server): /health and /metrics, rate limits and kicks, junk messages, oversized payloads, the room cap, and a dropped connection that comes back
+{
+  const PORT4 = PORT + 3, URL4 = `ws://localhost:${PORT4}`, HTTP4 = `http://localhost:${PORT4}`;
+  const { Client } = await import('@colyseus/sdk');
+  const server4 = createServer({ lobbySecs: 1, total: 4, loot: false, vehicles: false, maxRooms: 2, reconnectSecs: 3 });
+  await server4.listen(PORT4);
+  const st = MatchRoom.stats;
+  // health + metrics
+  const h = await (await fetch(`${HTTP4}/health`)).json();
+  check('health: /health answers ok with uptime and counts only', h.ok === true && typeof h.uptimeSecs === 'number' && !('tick' in h), JSON.stringify(h));
+  process.env.METRICS_TOKEN = 's3cret';
+  const noTok = await fetch(`${HTTP4}/metrics`), badTok = await fetch(`${HTTP4}/metrics`, { headers: { authorization: 'Bearer nope' } }), okTok = await fetch(`${HTTP4}/metrics`, { headers: { authorization: 'Bearer s3cret' } });
+  check('metrics: refused without the token (401), refused with a wrong one, allowed with the right one', noTok.status === 401 && badTok.status === 401 && okTok.status === 200, `${noTok.status}/${badTok.status}/${okTok.status}`);
+  const prom = await (await fetch(`${HTTP4}/metrics?format=prom&token=s3cret`)).text();
+  check('metrics: ?format=prom gives Prometheus text', prom.includes('# TYPE nighthawk_rooms gauge') && prom.includes('nighthawk_humans'));
+  delete process.env.METRICS_TOKEN;
+
+  // junk and floods, while still in the lobby
+  const raw = await new Client(URL4).joinOrCreate('match', { name: 'Mallory', operator: 'roms' });
+  let kickCode = null; raw.onLeave((c) => { kickCode = c; }); raw.reconnection.enabled = false;
+  const bad0 = st.badMessages, drop0 = st.dropped, kick0 = st.kicks;
+  raw.send('definitely-not-a-message', { a: 1 }); raw.send('c', 'not an array'); raw.send('c', [[1, 2, 3]]); raw.send('ping', 'x'); await sleep(150);
+  check('junk: an unknown message type is counted, and malformed input / ping payloads change nothing', st.badMessages === bad0 + 1 && st.kicks === kick0, `bad ${st.badMessages - bad0}`);
+  for (let i = 0; i < 700; i++) raw.send('c', [[i, 0, 0, 0, 0, 0, 0, 0]]);
+  await sleep(500);
+  check('flood: 700 input messages at once: the excess is dropped, the connection is kicked once, the rest of the flood is ignored', st.dropped - drop0 >= 100 && st.kicks === kick0 + 1 && kickCode !== null, `dropped ${st.dropped - drop0}, kicks ${st.kicks - kick0}, close code ${kickCode}`);
+  await sleep(300);
+  const lobbyLeft = [...MatchRoom.instances].reduce((n, r) => n + r.lobby.size, 0);
+  check('flood: the kicked client is gone from the lobby', lobbyLeft === 0, `lobby size ${lobbyLeft}`);
+
+  // oversized payload: the transport refuses anything bigger than 4 KB
+  const big = await new Client(URL4).joinOrCreate('match', { name: 'Bigmouth', operator: 'roms' });
+  let bigGone = false; big.reconnection.enabled = false; big.onLeave(() => { bigGone = true; });
+  big.send('c', new Array(6000).fill(7)); await sleep(500);
+  check('payload: a 6000-number message (over 4 KB) gets the connection closed', bigGone, `left=${bigGone}`);
+  await sleep(200);
+
+  // a real match: two NetSim players
+  const [P, Q] = await Promise.all([NetSim.join(URL4, { name: 'Roms', operator: 'roms' }), NetSim.join(URL4, { name: 'Shadow', operator: 'shadow' })]);
+  const room4 = [...MatchRoom.instances].find((r) => r.sim && r.sim.fighters.some((f) => f.human && f.op.id === 'roms')), sim4 = room4.sim;
+  const prot4 = setInterval(() => { for (const f of sim4.humans) if (f.alive) f.hp = f.maxHp; }, 40);
+  const fP0 = sim4.fighters[P.myId];
+  const walkYaw = [0, Math.PI / 2, Math.PI, -Math.PI / 2].find((y) => sim4.nav.segmentClear(fP0.x, fP0.z, fP0.x - Math.sin(y) * 14, fP0.z - Math.cos(y) * 14)) ?? 0;     // a direction with 14 m of open ground
+  let walking = false; const dP = drive(P, () => (walking ? { yaw: walkYaw, forward: 1 } : { yaw: walkYaw })), dQ = drive(Q, () => ({}));
+  await sleep(800);
+  const met = await (await fetch(`${HTTP4}/metrics`)).json();
+  check('metrics: a running match shows up (rooms, humans, tick timings)', met.rooms.playing >= 1 && met.players.humans >= 2 && met.tick.samples > 30 && met.tick.avg < 8, `rooms ${JSON.stringify(met.rooms)} tick avg ${met.tick.avg} ms p99 ${met.tick.p99} ms`);
+
+  // the room cap: the running match is locked, so a new player creates room 2 (ok), a third room is refused
+  const room2c = await new Client(URL4).joinOrCreate('match', { name: 'Second', operator: 'roms' }); await sleep(100);
+  await room2c.leave();
+  const fp = [...MatchRoom.instances].find((r) => !r.sim); const refused0 = st.refused;
+  // fill room 2 with a locked fake so the next player needs room 3
+  MatchRoom.cfg.maxRooms = 1;
+  let busy = null; try { await new Client(URL4).joinOrCreate('match', { name: 'Late', operator: 'roms' }); } catch (e) { busy = e; }
+  MatchRoom.cfg.maxRooms = 2;
+  check('room cap: with the cap reached a new match is refused with a clear message', busy && /busy/i.test(String(busy.message ?? busy)) && st.refused === refused0 + 1, String(busy?.message ?? busy).slice(0, 80));
+  void fp;
+
+  // a dropped connection that comes back within the window
+  const fP = sim4.fighters[P.myId], qP = room4.q.get(fP.id);
+  let signalled = []; P.onReconnecting = (on) => signalled.push(on);
+  const snaps0 = P.stats.snaps, rec0 = st.reconnects;
+  let sawClient = false, sawServer = false; const poll = setInterval(() => { if (P.reconnecting) sawClient = true; if (qP.offline) sawServer = true; }, 4);
+  P.drop(); await sleep(2600); clearInterval(poll);
+  check('reconnect: the drop is noticed on both sides (client shows RECONNECTING, server keeps the fighter standing and marks it offline)', sawClient && sawServer && fP.human && sim4.humans.includes(fP) && fP.alive, `client saw=${sawClient} server saw=${sawServer}`);
+  check('reconnect: the client is back inside the window, the server counted it, nothing was botified', P.reconnecting === false && qP.offline === false && st.reconnects === rec0 + 1 && fP.human && signalled[0] === true && signalled.at(-1) === false, `reconnects +${st.reconnects - rec0} signals ${JSON.stringify(signalled)}`);
+  const x0 = fP.x, z0 = fP.z; walking = true; await sleep(1300); walking = false;
+  check('reconnect: snapshots flow again and the player walks on (inputs are accepted after the gap)', P.stats.snaps > snaps0 + 40 && Math.hypot(fP.x - x0, fP.z - z0) > 2, `snaps +${P.stats.snaps - snaps0}, moved ${Math.hypot(fP.x - x0, fP.z - z0).toFixed(1)} m`);
+
+  // a drop that does NOT come back: after the window the fighter is handed to a bot
+  const fQ = sim4.fighters[Q.myId], failed0 = st.reconnectsFailed;
+  Q.room.reconnection.enabled = false; Q.drop(); await sleep(1200);
+  check('reconnect window: one second after a drop the fighter is still a human (standing, vulnerable, but not lost)', fQ.human && room4.q.get(fQ.id)?.offline === true);
+  await sleep(2800);
+  check('reconnect window: after 3 s with no return, a bot takes over and the failure is counted', !fQ.human && !!fQ.brain && st.reconnectsFailed === failed0 + 1, `human=${fQ.human} failed +${st.reconnectsFailed - failed0}`);
+  dP.stop(); dQ.stop(); clearInterval(prot4); P.leave(); Q.leave(); await sleep(300);
+}
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll netcode checks passed');
 process.exit(failed ? 1 : 0);

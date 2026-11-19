@@ -42,9 +42,23 @@ Checked in November 2026. Rules change, so re-check before you submit.
 - Our build today: about 1.85 MB gzipped for the game plus about 0.1 MB for the multiplayer code, loaded only when someone presses PLAY ONLINE.
 - Both portals add their own SDK (ads, loading events). That is a later milestone (see ROADMAP "Monetise").
 
+## C2. Running it safely (Stage 12)
+
+| What | Detail |
+|---|---|
+| **Health check** | `GET /health` -> `{"ok":true,"uptimeSecs":..,"rooms":..,"players":..}`. No player data. Point an uptime monitor (UptimeRobot, Cloudflare health check, Docker `HEALTHCHECK`) at `https://play.yourdomain.com/health`. |
+| **Metrics** | `GET /metrics` (JSON) or `GET /metrics?format=prom` (Prometheus text): rooms, humans, bots, tick time avg / p99 / max, slow ticks, joins, rate-limit drops, kicks, reconnects, refused rooms, memory. Set `METRICS_TOKEN=somesecret` and it needs `Authorization: Bearer somesecret` (or `?token=`). **Always set it on a public server.** |
+| **What to watch** | `tick.p99` should stay under 8 ms (a tick is 16.7 ms); if it creeps up, you hold too many matches per core (`MAX_ROOMS`). `kicks` or `rateLimited` jumping means somebody is flooding. `reconnectsFailed` high means bad networks or a too-short `RECONNECT_SECS`. |
+| **Message limits** | Per player: 400 input messages/s (burst 120; a 240 Hz monitor sends 240), 4 pings/s, 5 unknown messages/s. Excess is dropped; 120 dropped in a row = the connection is closed (code 4003). Any single WebSocket message over 4 KB closes the connection (a real input batch is under 1 KB). Every input is also clamped by `sanitizeCmd`. |
+| **Room cap** | `MAX_ROOMS=40` (default). When reached, new players get `server busy - try again in a minute` instead of everybody lagging. One match is about 5.5% of one core (`node scripts/bench-sim.mjs`), so 40 rooms is about two cores: size it to your VPS. |
+| **Per-IP limits** | Not in the game server on purpose: put them in the reverse proxy. With Caddy install the rate-limit plugin, with nginx use `limit_req_zone` / `limit_conn_zone` on the WebSocket route (for example 10 new connections per minute per IP). Cloudflare in front of the VPS gives basic DDoS protection too. |
+| **Env vars** | `PORT`, `LOBBY_SECS`, `MATCH_SIZE`, `VEHICLES=0`, `LOOT=0`, `DIFFICULTY=easy/normal/hard/brutal`, `MAX_ROOMS`, `RECONNECT_SECS`, `METRICS_TOKEN`. |
+
+Quick look from the VPS: `curl -s localhost:2567/health` and `curl -s -H "Authorization: Bearer $METRICS_TOKEN" localhost:2567/metrics | head`.
+
 ## D. Things that will bite you
 
 - **Time zone / clock**: none; the game uses tick counts, not wall-clock time.
 - **One server process = a few hundred players at most** on one core in theory; we have not load-tested with real players. Before launch: run `node scripts/bench-sim.mjs` on the VPS and watch CPU with `docker stats` during a few matches.
-- A player who closes the tab is replaced by a bot instantly, so nobody is stuck waiting.
+- A player whose connection drops (wifi blip, laptop lid, page refresh does NOT count: that is a new page) has **12 seconds** to come back: the game client reconnects by itself and the fighter stands still meanwhile. After that a bot takes over. Someone who leaves on purpose (menu, closing the tab politely) is replaced by a bot at once. `RECONNECT_SECS=20` changes the window.
 - The server never trusts the browser: it only reads keys/aim (`src/sim/cmd.js: sanitizeCmd`). Cheats like "give me 999 health" or "teleport" do nothing. Aimbots are still possible (any shooter has them); rate-limiting and server-side checks come later.
