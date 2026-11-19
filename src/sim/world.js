@@ -23,6 +23,7 @@ import { BotBrain } from './bot.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
+import { materialForMapKind, materialForPropKind, surfaceImpact, classifyHitZone, hitZoneMultiplier, blastImpulse, hitPushImpulse } from './physics-correlation.js';
 import { createMission } from './missions.js';
 import { MANTLE, findLedge, mantlePos } from './mantle.js';
 
@@ -33,6 +34,7 @@ const EYE_C = 0.2;              // ...and when crouching (eyes about 1.1 m above
 const FALL_SAFE = 12, FALL_DMG = 7;       // landing faster than 12 m/s (a ~3.3 m drop) hurts: 7 HP per extra m/s. A normal jump lands at 8.2 m/s, so jumping is always free.
 const BASE_SPEED = 7;
 const JUMP = 8.2;
+const JUMP_BUFFER = 0.15, COYOTE_TIME = 0.12;
 // SLIDE: press C while sprinting. You keep your momentum (a bit more than a sprint), it bleeds off to a crouch walk, you stay low (crouch hitbox, steady aim) and can shoot. Jump cancels it.
 export const SLIDE = { T: 0.85, BOOST: 1.25, CD: 0.9, MIN_SPEED: 5, BLOCKED: 0.35 };
 const REGEN_DELAY = 6, REGEN_RATE = 5, REGEN_CAP = 0.65;
@@ -53,6 +55,8 @@ export class Fighter {
     this.alive = true; this.kills = 0; this.veh = null; this.seat = -1;
     this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.vy = 0; this.grounded = false; this.speedH = 0; this.moveX = 0; this.moveZ = 0;
+    this.jumpBufferT = 0; this.coyoteT = 0; this.recoilPitch = 0; this.recoilYaw = 0;
+    this.hitPushX = 0; this.hitPushZ = 0; this.hitPushT = 0; this.limpT = 0;
     this.ads = false; this.sprinting = false; this.crouch = false;
     this.slideT = 0; this.slideVx = 0; this.slideVz = 0; this.slideCd = 0;                   // sprint-slide (SLIDE)
     this.mantleT = 0; this.mFrom = null; this.mTo = null;                                   // ledge pull-up (mantle.js)
@@ -87,7 +91,8 @@ export class Fighter {
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
       nades: this.nades, sn: this.smokes, nadeT: this.nadeT, mlT: this.meleeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH,
-      sl: [this.slideT, this.slideVx, this.slideVz, this.slideCd], ml: this.mantleT > 0 ? [this.mantleT, this.mFrom.x, this.mFrom.y, this.mFrom.z, this.mTo.x, this.mTo.y, this.mTo.z] : 0 };
+      sl: [this.slideT, this.slideVx, this.slideVz, this.slideCd], rp: this.recoilPitch, ry: this.recoilYaw,
+      jp: this.jumpBufferT, cy: this.coyoteT, hp: [this.hitPushX, this.hitPushZ, this.hitPushT, this.limpT], ml: this.mantleT > 0 ? [this.mantleT, this.mFrom.x, this.mFrom.y, this.mFrom.z, this.mTo.x, this.mTo.y, this.mTo.z] : 0 };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
@@ -97,6 +102,8 @@ export class Fighter {
     this.crouch = !!s.cr;
     if (s.air) { this.air = s.air[0]; this.airT = s.air[1]; this.avx = s.air[2]; this.avz = s.air[3]; this.jumpPrev = !!s.air[4]; }
     if (s.sl) { this.slideT = s.sl[0]; this.slideVx = s.sl[1]; this.slideVz = s.sl[2]; this.slideCd = s.sl[3]; }
+    this.recoilPitch = s.rp ?? 0; this.recoilYaw = s.ry ?? 0; this.jumpBufferT = s.jp ?? 0; this.coyoteT = s.cy ?? 0;
+    if (s.hp) { this.hitPushX = s.hp[0]; this.hitPushZ = s.hp[1]; this.hitPushT = s.hp[2]; this.limpT = s.hp[3]; }
     if (s.ml) { this.mantleT = s.ml[0]; this.mFrom = { x: s.ml[1], y: s.ml[2], z: s.ml[3] }; this.mTo = { x: s.ml[4], y: s.ml[5], z: s.ml[6] }; } else { this.mantleT = 0; this.mFrom = this.mTo = null; }
     if (s.ab) { this.abCd = s.ab[0]; this.abT = s.ab[1]; this.dashT = s.ab[2]; this.dashVx = s.ab[3]; this.dashVz = s.ab[4]; this.stunT = s.ab[5]; }
     this.nades = s.nades; if (s.sn !== undefined) this.smokes = s.sn; this.nadeT = s.nadeT; if (s.mlT !== undefined) this.meleeT = s.mlT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
@@ -117,6 +124,7 @@ export class Simulation {
     this.hist = new Array(HIST).fill(null); this.humans = []; this.player = null;
     this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.smokes = [];      // thrown grenades / smoke clouds in the world
     this.propByCol = new Map();     // collider handle -> crate / barrel (things bullets can break)
+    this.surfaceByCol = new Map(); // collider handle -> physical material for bullet / impact response
     this.destroyed = [];            // ids of broken props (replicated to browsers in every snapshot)
     this.colMap = new Map();        // collider handle -> Fighter
     this.solid = new Set();         // collider handles of ground, buildings, crates
@@ -141,10 +149,10 @@ export class Simulation {
     this.world = new RAPIER.World({ x: 0, y: GRAV, z: 0 });
     this.world.timestep = 1 / 60;
     const ground = this.world.createCollider(RAPIER.ColliderDesc.cuboid(300, 0.5, 300).setTranslation(0, -0.5, 0));
-    this.solid.add(ground.handle);
+    this.solid.add(ground.handle); this.surfaceByCol.set(ground.handle, materialForMapKind('ground'));
     for (const b of this.map.boxes) {
       const c = this.world.createCollider(RAPIER.ColliderDesc.cuboid(b.w / 2, b.h / 2, b.d / 2).setTranslation(b.x, b.y, b.z));
-      this.solid.add(c.handle);
+      this.solid.add(c.handle); this.surfaceByCol.set(c.handle, materialForMapKind(b.kind));
       if (b.kind !== 'edge') {
         const ob = new YUKA.GameEntity();
         ob.position.set(b.x, 0, b.z); ob.boundingRadius = Math.hypot(b.w, b.d) / 2 + 0.6;
@@ -275,10 +283,10 @@ export class Simulation {
   _addCrate(x, y, z) {
     // online: crates are fixed (so every browser's prediction sees exactly the same world); offline: they fly around
     const body = this.world.createRigidBody((this.opts.propsFixed ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic()).setTranslation(x, y, z));
-    const col = this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.6, 0.6, 0.6).setRestitution(0.1).setFriction(0.8).setDensity(0.6), body);
+    const col = this.world.createCollider(RAPIER.ColliderDesc.cuboid(0.6, 0.6, 0.6).setRestitution(0.3).setFriction(0.7).setDensity(11.6), body);
     this.solid.add(col.handle);
     const c = { id: this.crates.length, kind: 'crate', body, col, hp: CRATE_HP, maxHp: CRATE_HP, dead: false, above: null };
-    this.crates.push(c); this.propByCol.set(col.handle, c);
+    this.crates.push(c); this.propByCol.set(col.handle, c); this.surfaceByCol.set(col.handle, materialForPropKind(c.kind));
     return c;
   }
 
@@ -306,7 +314,7 @@ export class Simulation {
     const col = this.world.createCollider(RAPIER.ColliderDesc.cylinder(0.55, 0.42), body);
     this.solid.add(col.handle);
     const b = { id: 100 + this.barrels.length, kind: 'barrel', x, y: 0.55, z, body, col, hp: BARREL_HP, maxHp: BARREL_HP, dead: false, fuse: -1, owner: null };
-    this.barrels.push(b); this.propByCol.set(col.handle, b);
+    this.barrels.push(b); this.propByCol.set(col.handle, b); this.surfaceByCol.set(col.handle, materialForPropKind(b.kind));
     return b;
   }
 
