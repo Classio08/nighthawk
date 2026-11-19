@@ -58,6 +58,11 @@ const SOUNDS = {
   lose:      [0.8, 0, 200, .02, .3, .7, 2, 1, -2, 0, -80, .2, 0, 0, 0, 0, 0, .6, .1],
 };
 
+/** Clamp a material occlusion coefficient before it reaches the sound bus. */
+export function soundOcclusionGain(value) {
+  return Number.isFinite(value) ? Math.max(0.04, Math.min(1, value)) : 1;
+}
+
 class Audio {
   constructor() { this.ok = false; this.z = null; this.cache = new Map(); this.lx = 0; this.lz = 0; this.lyaw = 0; this.active = 0; this.volume = 0.5; }
 
@@ -92,7 +97,7 @@ class Audio {
     if (!this.ok || this.active > 22) return;
     const def = SOUNDS[name]; if (!def) return;
     let vol = (o.vol ?? 1), pan = 0;
-    const occlusion = Number.isFinite(o.occlusion) ? Math.max(0.04, Math.min(1, o.occlusion)) : 1;
+    const occlusion = soundOcclusionGain(o.occlusion);
     vol *= occlusion;
     if (o.x !== undefined) {
       const dx = o.x - this.lx, dz = o.z - this.lz, d = Math.hypot(dx, dz), maxD = o.maxD ?? 110;
