@@ -187,3 +187,16 @@ The owner uses Claude Code and ChatGPT in parallel. Always:
 - Keep PRs small and reviewable; do not merge without owner permission.
 - Reconcile changes if main advances; do not overwrite Claude's commits.
 - Report exact files, commits, test results, performance measurements and known limitations.
+
+## 14. Current implementation contribution (draft PR #20)
+
+The first implementation slice is being developed on branch `feature/dust-lantern-first-playable`, draft PR https://github.com/Classio08/nighthawk/pull/20. Do not treat it as merged or overwrite it.
+
+Current implementation in that branch:
+- Root `CLAUDE.md` points Claude Code to this note and the handoff.
+- Offline-only `DustLanternMission` with seeded site selection, three clues, two-clue gate, rescue interaction, nav-grid escort following and extraction hold.
+- Mission guards are placed around the selected site. The shrinking zone and battle-royale contracts are disabled in operation mode.
+- New `MissionView`, mission HUD/minimap, interaction prompts and a dedicated menu button.
+- Unit tests cover deterministic setup, clues, rescue, extraction, separation and defender elimination.
+
+Known limitations: no online mission snapshots, no damageable/interactive captive AI, no dialogue, no alternate extraction route, no persistent mission rewards, and no real account backend. The branch must pass CI and be reviewed/playtested before being considered a playable release. The mission is an early vertical slice, not the full vision.
