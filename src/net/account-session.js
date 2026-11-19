@@ -41,6 +41,18 @@ export async function createGuestSession(serverUrl, { fetchImpl = globalThis.fet
   return response.account ?? null;
 }
 
+export async function ensureGuestSession(serverUrl, { fetchImpl = globalThis.fetch, storage } = {}) {
+  const current = readToken(storage);
+  if (current) {
+    try { return await getAccount(serverUrl, { fetchImpl, storage }); }
+    catch (error) {
+      if (error.status !== 401) throw error;
+      try { storageOrNull(storage)?.removeItem(STORAGE_KEY); } catch { /* ignore disabled storage */ }
+    }
+  }
+  return createGuestSession(serverUrl, { fetchImpl, storage });
+}
+
 export async function createRoomTicket(serverUrl, { fetchImpl = globalThis.fetch, storage } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('Fetch is unavailable');
   const base = accountApiBase(serverUrl);
