@@ -22,12 +22,12 @@ Rule: every milestone ends with something you can open in a browser and play. St
 | Map | Greybox | Kavari Basin: Basin Yard, Dry River, Relay Ridge, Forward Outpost, Extraction Pad with minimap labels; still blocks, no real art |
 | Operators | Abilities built | Eight operators selectable; all eight active abilities (Q) work, server-validated, bots use them; art and passives still to do |
 | Bots | Navigation + difficulty built | A* routes round buildings, four difficulty levels (easy/normal/hard/brutal); smoke grenades and a training range still to do |
-| Server safety | Hardened | Rate limits, kicks, payload and room caps, reconnect window, health + metrics; still to do: load test with real players, per-IP limits in the proxy, rejoin after a page refresh |
+| Server safety | Hardened | Rate limits, kicks, payload and room caps, reconnect window, health + metrics; still to do: soak test and a load test with real players, per-IP limits in the proxy, rejoin after a page refresh |
 | Settings | Built | Sensitivity, FOV, volume, graphics, difficulty, key rebinding, saved in the browser; accessibility options still to do |
 | Movement | Crouch + fall damage built | C crouch, fall damage; slide, mantle/vault and melee still to do |
 | Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
 | Monetisation | Not implemented | Platform adapters and policy review required |
-| Production deployment | Pending | Deploy and test with players on separate networks; load tests outstanding |
+| Production deployment | Pending | Deploy and test with players on separate networks; localhost load test done (`npm run load`, `docs/DEPLOY.md` C3), VPS and real-network tests outstanding |
 | Missions | First offline operation built | Operation DUST LANTERN: seeded rescue/recovery/extraction with clues, escort, alert ladder and debrief (offline only; online mission state needs a versioned snapshot and server validation first) |
 | Automated quality | Built | 216 unit tests, smoke checks, server netcode test (retried up to 3x, it is timing-sensitive), 17 browser scripts, production build in `npm run check`; CI workflow merged |
 | Persistent accounts/progression | Not implemented | Guest profile is local only; no cross-device account, mission ledger or server-backed economy |

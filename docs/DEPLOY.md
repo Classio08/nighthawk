@@ -56,6 +56,22 @@ Checked in November 2026. Rules change, so re-check before you submit.
 
 Quick look from the VPS: `curl -s localhost:2567/health` and `curl -s -H "Authorization: Bearer $METRICS_TOKEN" localhost:2567/metrics | head`.
 
+## C3. What a server costs (measured, 19 Nov 2026)
+
+`npm run load` (`scripts/load-test.mjs [humans] [seconds] [rooms]`) starts the real server and joins N real network clients (the same `NetSim` code the browser uses, 40 ms artificial lag, random walking, shooting, jumping, grenades and melee) and reports server tick time, memory and the bytes each player receives and sends, counted on the client's WebSocket.
+
+Result on this 2-core, 8 GB sandbox, with the **clients running in the same process as the server** (so the server was sharing the CPU with 16 to 32 client predictors, which makes these numbers pessimistic for the server):
+
+| Run | Server tick avg / p99 (budget 16.7 ms) | Memory (rss) | Per player download | Whole server |
+|---|---|---|---|---|
+| 1 room, 16 humans + bots, 25 s | 0.87 ms / 1.9 ms | 458 MB | 37.9 KB/s (21 messages/s) | 607 KB/s = 2.1 GB per hour |
+| 2 rooms, 32 humans + bots, 30 s | 0.60 ms / 1.1 ms | 499 MB | 38.5 KB/s | 1.2 MB/s = 4.2 GB per hour |
+
+What this does and does not tell you:
+- **CPU is not the problem**: a full 16-player match with bots uses about 1 ms of a 16.7 ms tick, so one small VPS core should carry several rooms. Rare single ticks of 65 to 70 ms were seen once per run (probably match start or garbage collection); the 2 s worst-case p99 stayed under 15 ms. A 2-hour soak is still to do.
+- **Bandwidth is the bill**: about 38 KB/s per player is roughly 137 MB per player-hour (upload is only about 1.4 KB/s). A 16-player match for an hour is about 2 GB out. A plan with 1 TB of outbound traffic a month covers roughly 500 full-match hours. Ways to cut it later: send nearby fighters at 20 Hz and far ones at 10 Hz, quantise positions harder, and skip unchanged fighters (delta snapshots).
+- **Not measured**: real players on real networks (loss, jitter), browsers on the other end, many matches starting at once, a server on a VPS instead of localhost. Those are still on the list; this is the localhost ceiling, not a promise.
+
 ## D. Things that will bite you
 
 - **Time zone / clock**: none; the game uses tick counts, not wall-clock time.

@@ -212,7 +212,7 @@ Rules in `src/sim/melee.js` (graphics-free). There is **no knife model yet**: th
 ## What to look at next (open items)
 
 1. **Put the server on a VPS** and play a real match with a friend on another network (`docs/DEPLOY.md`). Everything so far was tested on one machine with fake lag.
-2. **Load test** with 16 real humans, and measure network bytes per player.
+2. **Load test**: done on localhost (`npm run load`, numbers in `docs/DEPLOY.md` C3: about 1 ms server tick and 38 KB/s per player for a 16-player match). Still to do: the same on a real VPS with players on other networks, and a 2-hour soak. Bandwidth (about 2 GB per hour per full match) is the cost to reduce first.
 3. Roadmap milestone 2: one real handcrafted arena, real weapon models and sounds from CC0 packs (`ASSETS.md`). (Loot, health, armor: Stage 8. Abilities, crouch, fall damage: Stage 9.)
 4. Vehicle polish: engine sound mix, a respawn timer for wrecks, tyre tracks, a horn.
 5. Portal pass: cut the main bundle (about 5 MB, 1.9 MB gzipped) so the first load stays under the Poki target of 8 MB.
