@@ -7,7 +7,7 @@ export function normalizeStick(dx, dy, radius = 1) {
   const y = clamp(dy / radius, -1, 1);
   const length = Math.hypot(x, y);
   const scale = length > 1 ? 1 / length : 1;
-  return { forward: -y * scale, strafe: x * scale };
+  return { forward: y === 0 ? 0 : -y * scale, strafe: x === 0 ? 0 : x * scale };
 }
 
 export function detectTouchMode(search = globalThis.location?.search ?? '', capabilities = {}) {
