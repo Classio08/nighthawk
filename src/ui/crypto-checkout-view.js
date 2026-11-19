@@ -2,7 +2,8 @@
 // It is deliberately separate from play-money credits: crypto checkout is a direct token transfer for cosmetics only.
 import { ensureGuestSession, getAccount, getStoreCatalog } from '../net/account-session.js';
 import {
-  checkoutCosmetic, fetchCryptoCheckoutConfig, formatTokenUnits, pendingCryptoPayments, retryCryptoConfirmation,
+  checkoutCosmetic, discoverWalletProviders, fetchCryptoCheckoutConfig, formatTokenUnits,
+  pendingCryptoPayments, retryCryptoConfirmation, subscribeWalletProviders,
 } from '../net/crypto-checkout.js';
 
 const el = (tag, text, cls) => {
@@ -25,14 +26,21 @@ export function mountCryptoCheckout(container, serverUrl, {
   let busy = false;
   let account = null;
   let config = null;
+  let walletProviders = [];
+  let selectedWalletId = '';
+  let disposed = false;
   container.replaceChildren();
 
   const heading = el('h2', 'CRYPTO COSMETIC CHECKOUT');
   const status = el('p', 'LOADING MERCHANT CONFIGURATION…', 'nh-crypto-status');
   const note = el('p', 'ERC-20 MERCHANT PAYMENT · COSMETIC ENTITLEMENT ONLY · NO CUSTODY OR NFT MINT', 'nh-crypto-note');
+  const walletChoice = el('select', undefined, 'nh-crypto-wallet-select');
+  walletChoice.setAttribute('aria-label', 'Choose a crypto wallet');
+  walletChoice.hidden = true;
+  walletChoice.addEventListener('change', () => { selectedWalletId = walletChoice.value; });
   const list = el('div', undefined, 'nh-crypto-grid');
   const pending = el('div', undefined, 'nh-crypto-pending');
-  container.append(heading, status, note, list, pending);
+  container.append(heading, status, note, walletChoice, list, pending);
 
   const action = (label, handler, disabled = false) => {
     const button = el('button', label, 'nh-economy-action');
@@ -50,6 +58,35 @@ export function mountCryptoCheckout(container, serverUrl, {
   function redrawDisabled() {
     for (const button of container.querySelectorAll('button')) button.disabled = busy || button.dataset.locked === 'true';
   }
+
+
+  function renderWalletChoices(choices) {
+    walletProviders = choices;
+    if (!walletProviders.some((wallet) => wallet.id === selectedWalletId)) {
+      selectedWalletId = walletProviders[0]?.id ?? '';
+    }
+    walletChoice.replaceChildren();
+    for (const wallet of walletProviders) {
+      const option = el('option', wallet.name);
+      option.value = wallet.id;
+      walletChoice.appendChild(option);
+    }
+    walletChoice.value = selectedWalletId;
+    walletChoice.hidden = walletProviders.length < 2;
+  }
+
+  async function refreshWalletChoices() {
+    if (provider) {
+      renderWalletChoices([{ id: 'provided-wallet', name: 'Connected wallet', provider, legacy: false }]);
+      return;
+    }
+    const choices = await discoverWalletProviders({ windowObject: globalThis.window, globalObject: globalThis });
+    if (!disposed) renderWalletChoices(choices);
+  }
+
+  const unsubscribeWallets = subscribeWalletProviders((choices) => {
+    if (!disposed && !provider) renderWalletChoices(choices);
+  });
 
   async function refreshPending() {
     pending.replaceChildren();
@@ -78,6 +115,7 @@ export function mountCryptoCheckout(container, serverUrl, {
   async function refresh() {
     status.textContent = 'CHECKING THE SERVER’S CRYPTO PAYMENT GATE…';
     config = await fetchCryptoCheckoutConfig(serverUrl, { fetchImpl });
+    await refreshWalletChoices();
     if (config.enabled !== true) {
       status.textContent = `CRYPTO CHECKOUT UNAVAILABLE · ${config.reason ?? 'DISABLED'}`;
       list.replaceChildren();
@@ -86,7 +124,9 @@ export function mountCryptoCheckout(container, serverUrl, {
     await ensureGuestSession(serverUrl, { fetchImpl, storage: walletStorage });
     account = await getAccount(serverUrl, { fetchImpl, storage: walletStorage });
     const cosmetics = await getStoreCatalog(serverUrl, { fetchImpl, storage: walletStorage });
-    status.textContent = `MERCHANT CHECKOUT · ${config.tokenSymbol} ON CHAIN ${config.chainId} · GUEST ${account.displayName}`;
+    status.textContent = walletProviders.length
+      ? `MERCHANT CHECKOUT · ${config.tokenSymbol} ON CHAIN ${config.chainId} · GUEST ${account.displayName}`
+      : 'MERCHANT CHECKOUT IS CONFIGURED, BUT NO COMPATIBLE BROWSER WALLET WAS DETECTED';
     list.replaceChildren();
 
     const enabledItems = config.catalog ?? [];
@@ -101,7 +141,9 @@ export function mountCryptoCheckout(container, serverUrl, {
       card.appendChild(el('small', 'Your wallet will show the recipient, token and exact amount before you confirm.'));
       card.appendChild(action(owned ? 'OWNED' : 'PAY WITH WALLET', async () => {
         status.textContent = 'OPENING YOUR WALLET…';
-        const result = await checkoutCosmetic(serverUrl, item.id, { provider, fetchImpl, storage: walletStorage, pendingStorage: storage });
+        const selected = walletProviders.find((wallet) => wallet.id === selectedWalletId);
+        if (!selected?.provider) throw new Error('Choose an installed browser wallet before paying.');
+        const result = await checkoutCosmetic(serverUrl, item.id, { provider: selected.provider, fetchImpl, storage: walletStorage, pendingStorage: storage });
         if (result.pending) {
           status.textContent = `TRANSFER SUBMITTED · WAITING FOR ${result.confirmationsRequired} CONFIRMATIONS`;
           await refreshPending();
@@ -110,12 +152,12 @@ export function mountCryptoCheckout(container, serverUrl, {
           account = result.account;
           await refresh();
         }
-      }, owned));
+      }, owned || walletProviders.length === 0));
       list.appendChild(card);
     }
     await refreshPending();
   }
 
   refresh().catch((error) => { status.textContent = error.message; });
-  return { refresh, close: () => container.replaceChildren(), get account() { return account; }, get config() { return config; } };
+  return { refresh, close: () => { disposed = true; unsubscribeWallets(); container.replaceChildren(); }, get account() { return account; }, get config() { return config; }, get wallets() { return walletProviders.map(({ id, name, rdns, legacy }) => ({ id, name, rdns, legacy })); } };
 }
