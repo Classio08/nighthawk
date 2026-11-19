@@ -21,6 +21,7 @@ import { rayCapsule } from './geom.js';
 import { idleCmd } from './cmd.js';
 import { BotBrain } from './bot.js';
 import { FactionIntelligence } from './faction-intel.js';
+import { BlackSiteRound } from './black-site.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
@@ -120,12 +121,17 @@ export class Simulation {
     this.loot = new LootSystem(this);      // starting items come from the seed (loot.js); only a loot match (opts.loot) has any
     this.strikes = [];              // mortar barrages in progress
     this.factionIntel = new FactionIntelligence(this);
+    this.blackSite = null;
   }
 
   static async create(opts = {}) {
     await initPhysics();
     const s = new Simulation(opts);
     s._build();
+    if (opts.mode === 'black-site' && !opts.predictor) {
+      s.blackSite = new BlackSiteRound(s, opts.blackSiteRole ?? 'operative');
+      s.contracts.off = true;
+    }
     return s;
   }
 
@@ -727,7 +733,7 @@ export class Simulation {
     if (cmd.smoke) this.throwGrenade(p, this._aimDir(p, 0), 15, true);
     if (cmd.melee) this.melee(p);
     if (cmd.mortar) this.callMortarFromView(p);
-    if (cmd.use && !this.mission?.interact(p, dt)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
+    if (cmd.use && !this.mission?.interact(p, dt) && !this.blackSite?.interact(p)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
     p.nadeT = Math.max(0, p.nadeT - dt); p.meleeT = Math.max(0, p.meleeT - dt);
     this.tickHeal(p, dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
@@ -769,7 +775,7 @@ export class Simulation {
    */
   step(dt, input) {
     this.time += dt;
-    if (!this.opts.predictor && !this.mission && this.time >= this.zoneStart) this.zone.update(dt);        // no zone in an operation; with a drop-in the circle waits until everybody had time to land
+    if (!this.opts.predictor && !this.mission && !this.blackSite && this.time >= this.zoneStart) this.zone.update(dt);        // no zone in an operation; with a drop-in the circle waits until everybody had time to land
 
     let cmds = input;
     if (input && typeof input.yaw === 'number') cmds = this.player ? { [this.player.id]: input } : {};
@@ -791,7 +797,7 @@ export class Simulation {
       const cap = this.opts.loot ? 0.3 : REGEN_CAP;          // in a loot match medkits are how you heal (you only walk it off up to 30%)
       if (f.noHurtT > REGEN_DELAY && f.hp < f.maxHp * cap) f.hp = Math.min(f.maxHp * cap, f.hp + REGEN_RATE * dt);
       // the zone hurts
-      if (!this.mission && this.zone.outside(f.x, f.z) > 0) {
+      if (!this.mission && !this.blackSite && this.zone.outside(f.x, f.z) > 0) {
         f.zoneAcc += this.zone.dps * dt;
         if (f.zoneAcc >= 1) { const a = f.zoneAcc; f.zoneAcc = 0; this.damage(f, a, null, { cause: 'zone', x: f.x, y: f.y, z: f.z }); }
       }
@@ -805,8 +811,9 @@ export class Simulation {
     if (!this.opts.predictor) {
       this.factionIntel.update(dt);
       this.mission?.update(dt);
+      this.blackSite?.update(dt);
       this._stepBarrels(dt); this._stepStrikes(dt);
-      if (!this.mission) this.contracts.update(dt);
+      if (!this.mission && !this.blackSite) this.contracts.update(dt);
       this.loot.update();
     }
     for (let i = this.grenades.length - 1; i >= 0; i--) {
