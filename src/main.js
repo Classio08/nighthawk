@@ -239,6 +239,7 @@ function handleEvents() {
           }
           $('meetingreason').textContent = 'A body was discovered. Identify the suspected infiltrator or skip.';
           showOv('meeting', true);
+          if (document.pointerLockElement) document.exitPointerLock();
         } else if (e.phase === 'ejected') hud.message(e.wasSaboteur ? 'INFILTRATOR EXPOSED' : 'OPERATIVE EXILED · VERIFY YOUR EVIDENCE', e.wasSaboteur ? '#5be37a' : '#ffad55', 2.5);
         else if (e.phase === 'no-majority') hud.message('NO MAJORITY · OPERATION RESUMES', '#cbd5e1', 2);
         break;
@@ -374,6 +375,12 @@ function handleEvents() {
 
 function handleInput(dt) {
   const { sim } = G, p = sim.player;
+  if (sim.blackSite?.stage === 'meeting') {
+    // Keep the round clock alive for voting, but suspend the operator's movement and combat input.
+    Object.assign(cmd, { forward: 0, strafe: 0, jump: false, sprint: false, fire: false, ads: false, reload: false, slot: 0, grenade: false, smoke: false, melee: false, mortar: false, use: false, heal: false, ability: false });
+    input.dx = 0; input.dy = 0; input.wheel = 0; input.fire = false; input.ads = false; input.releaseTouch(); input.endFrame();
+    return;
+  }
   if (!p.alive) { input.dx = 0; input.dy = 0; input.endFrame(); return; }
   const w = WEAPONS[p.cur];
   const sens = 1 - 0.5 * G.adsK * (1 - w.adsFov / 100);                      // aim slower while zoomed
@@ -591,7 +598,10 @@ $('blacksitebtn').addEventListener('click', beginBlackSite);
 
 input.onLockChange = (locked) => {
   if (!started || !G || G.over || AUTOSTART) return;
-  if (!locked) { paused = true; showOv('pause', true); } else { paused = false; showOv('pause', false); }
+  if (!locked) {
+    if (G.sim.blackSite?.stage === 'meeting') { paused = false; return; }
+    paused = true; showOv('pause', true);
+  } else { paused = false; showOv('pause', false); }
 };
 $('playbtn').addEventListener('click', beginPlay);
 
@@ -668,6 +678,7 @@ $('meetingvote').addEventListener('click', () => {
   const value = $('meetingtarget').value;
   G?.sim?.blackSite?.vote(G.sim.player.id, value === '' ? null : Number(value));
   showOv('meeting', false);
+  if (!AUTOSTART && G?.sim?.blackSite?.stage !== 'meeting' && !G?.over) input.lock();
 });
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);
