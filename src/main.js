@@ -27,7 +27,7 @@ import { ContractsView } from './render/contracts-view.js';
 import { settings, QUALITY } from './settings.js';
 import { PlaneView } from './render/plane-view.js';
 import { SmokeView } from './render/smoke-view.js';
-import { loadProfile, saveProfile, resetProfile, recordMatch, MatchTracker, skinUnlocked, levelInfo, SKIN_UNLOCK } from './profile.js';
+import { loadProfile, saveProfile, resetProfile, recordMatch, MatchTracker, skinUnlocked, levelInfo, rankName, SKIN_UNLOCK } from './profile.js';
 import { renderProfile, renderGain } from './ui/profile-view.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { thirdPersonCameraPosition } from './render/camera.js';
@@ -41,6 +41,8 @@ import { VoicePlayer } from './fx/voice.js';
 import { detectSameOriginServer } from './net/server-url.js';
 import { buildDebrief } from './campaign/debrief.js';
 import { loadProgress, saveProgress, recordRun } from './campaign/progress.js';
+import { kpiCards, opCards, economyView, renderKpis, renderOps, renderEconomy } from './ui/dashboard.js';
+import { fetchStatus, connectWallet, loadSession, saveSession, clearSession, fetchMe, claimFaucet, selfExclude } from './ui/wallet-client.js';
 
 const STEP = 1 / 60;
 const $ = (id) => document.getElementById(id);
@@ -48,8 +50,9 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const params = new URLSearchParams(location.search);
 const AUTOSTART = params.has('autostart');
-const DEFAULT_SERVER = import.meta.env?.VITE_SERVER_URL ?? (['localhost', '127.0.0.1'].includes(location.hostname) ? `ws://${location.hostname}:2567` : '');
-const ONLINE_URL = params.get('online') || DEFAULT_SERVER;        // ?online=ws://host:2567 overrides
+// Which game server? 1) ?online=ws://host:2567 or the VITE_SERVER_URL build setting, 2) the server that served THIS page (npm run host, any port), 3) ws://localhost:2567 when developing on this machine.
+const EXPLICIT_SERVER = params.get('online') || import.meta.env?.VITE_SERVER_URL || '';
+const LOCAL_SERVER = ['localhost', '127.0.0.1'].includes(location.hostname) ? `ws://${location.hostname}:2567` : '';
 const FAKE_LAG = +(params.get('lag') ?? 0);                         // ?lag=120 simulates 120 ms of round-trip lag (for testing)          // used by the automatic browser test: skips the click-to-play screen
 
 /* weapon skin: picked on the start screen, remembered in the browser, ?skin=magma overrides (for testing) */
@@ -350,7 +353,7 @@ function handleEvents() {
           try {                                                  // the campaign layer must never be able to break the end screen
             const stats = { ...sim.mission.stats(!!e.won), headshots: tracker.headshots, damage: tracker.damage };
             debrief = buildDebrief(sim.mission.id, stats, campaign);
-            if (debrief) { campaign = recordRun(campaign, debrief, stats.elapsed); saveProgress(campaign); }
+            if (debrief) { campaign = recordRun(campaign, debrief, stats.elapsed); saveProgress(campaign); refreshDashboard(); }
           } catch (err) { console.warn('campaign debrief failed', err); }
           if (e.won) { audio.play('win'); setTimeout(() => { hud.showEnd(result); hud.showDebrief(debrief); showSnap(result); }, 900); }
           else { audio.play('lose'); setTimeout(() => { hud.showEnd(result, G.killer); hud.showDebrief(debrief); showSnap(result); }, 1200); }
@@ -603,9 +606,10 @@ $('playbtn').addEventListener('click', beginPlay);
 
 /* ---- online: lobby -> match ---- */
 let joining = null;
-async function beginOnline() {
+let lastOnline = null;                                 // how the last online match was joined (so PLAY AGAIN can repeat a normal one; a STAKED match is never re-joined automatically)
+async function beginOnline(opts = {}) {
   audio.unlock();
-  const serverUrl = ONLINE_URL || await detectSameOriginServer();        // hosted by the game server itself (npm run host)? then the server is this page's origin
+  const serverUrl = EXPLICIT_SERVER || await detectSameOriginServer() || LOCAL_SERVER;        // hosted by the game server itself (npm run host)? then the server is this page's origin, on whatever port
   if (!serverUrl) { $('onlinemsg').textContent = 'No game server set (use ?online=ws://host:2567)'; return; }
   const name = ($('namebox').value || 'Operator').trim().slice(0, 16);
   OPERATOR = OPERATOR_IDS.has($('operatorbox').value) ? $('operatorbox').value : 'roms';
@@ -614,10 +618,10 @@ async function beginOnline() {
   const ticket = joining = {};                         // so CANCEL can abandon this attempt
   try {
     const { NetSim } = await import('./net/netsim.js');          // the multiplayer code is only downloaded when you go online
-    const net = await NetSim.join(serverUrl, { name, operator: OPERATOR, skin: SKIN, lag: FAKE_LAG,
+    const net = await NetSim.join(serverUrl, { name, operator: OPERATOR, skin: SKIN, lag: FAKE_LAG, room: opts.room, extra: opts.extra,
       onLobby: (m) => { $('lobbytxt').textContent = `${m.n} player${m.n === 1 ? '' : 's'} in the lobby · starting in ${m.left} s`; } });
     if (joining !== ticket) { net.dispose(); return; }
-    started = true; await newMatch(net);
+    started = true; lastOnline = { room: opts.room ?? 'match' }; await newMatch(net);
     net.onReconnecting = (on) => { if (G?.net === net && !G.over) hud.message(on ? 'CONNECTION LOST - RECONNECTING...' : 'RECONNECTED', on ? '#ffb347' : '#7dff9a', on ? 12 : 1.5); };
     net.onClose = () => { if (G?.net === net && !G.over) { G.over = true; hud.message('DISCONNECTED FROM SERVER', '#ff4d4d', 4); setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); showOv('start', true); }, 2500); } };
     showOv('lobby', false); showOv('pause', false); paused = false;
@@ -628,7 +632,7 @@ async function beginOnline() {
     $('onlinemsg').textContent = `Could not join a match: ${err?.message ?? err}`;
   }
 }
-$('onlinebtn').addEventListener('click', beginOnline);
+$('onlinebtn').addEventListener('click', () => beginOnline());
 $('lobbycancel').addEventListener('click', () => { joining = null; showOv('lobby', false); showOv('start', true); });
 try { $('namebox').value = localStorage.getItem('nh_name') ?? ''; OPERATOR = OPERATOR_IDS.has(localStorage.getItem('nh_operator')) ? localStorage.getItem('nh_operator') : OPERATOR; } catch { /* ignore */ }
 $('operatorbox').value = OPERATOR;
@@ -663,7 +667,43 @@ function renderSkins() {
 function refreshProfileUi() {
   renderProfile($('profile'), profile, () => { profile = resetProfile(); refreshProfileUi(); });
   renderSkins();
+  refreshDashboard();
 }
+/* ---- start-screen dashboard: tabs, KPI cards, operation cards, economy panel ---- */
+function refreshDashboard() {
+  const level = levelInfo(profile.xp).level;
+  renderKpis(document, $('dashkpis'), kpiCards({ progress: campaign, level, rank: rankName(level) }));
+  renderOps(document, $('dashops'), opCards(campaign), { 'dust-lantern': $('operationbtn'), 'signal-blackout': $('operation2btn') });
+}
+const eco = { status: undefined, session: null, me: null, busy: false, note: '', base: '' };
+async function ecoCall(fn) { eco.busy = true; eco.note = ''; drawEconomy(); try { await fn(); } catch (e) { eco.note = String(e?.message ?? e).slice(0, 160); if (e?.status === 401) { clearSession(); eco.session = null; eco.me = null; } } eco.busy = false; drawEconomy(); }
+function drawEconomy() {
+  renderEconomy(document, $('dasheco'), economyView(eco.status), { session: eco.session, me: eco.me, busy: eco.busy || eco.status === undefined, note: eco.note }, {
+    connect: () => ecoCall(async () => { const s = await connectWallet({ ethereum: window.ethereum, base: eco.base }); eco.session = s; saveSession(s); eco.me = await fetchMe(eco.base, s.token); }),
+    faucet: () => ecoCall(async () => { eco.me = await claimFaucet(eco.base, eco.session.token); }),
+    exclude: () => ecoCall(async () => { eco.me = await selfExclude(eco.base, eco.session.token, 7); eco.note = 'Self-exclusion set for 7 days: staked play is blocked until it ends.'; }),
+    staked: (stake) => { if (eco.session) beginOnline({ room: 'staked', extra: { wallet: eco.session.token, stake } }); },
+  });
+}
+async function loadEconomy() {
+  eco.status = undefined; drawEconomy();
+  const ws = await detectSameOriginServer();                    // only a server that serves this very page: no cross-site calls from the menu
+  eco.base = ws ? location.origin : '';
+  eco.status = ws ? await fetchStatus(eco.base) : null;
+  eco.session = eco.status && eco.status.mode !== 'off' ? loadSession() : null; eco.me = null;
+  drawEconomy();
+  if (eco.session) { try { eco.me = await fetchMe(eco.base, eco.session.token); } catch { clearSession(); eco.session = null; } drawEconomy(); }
+}
+{
+  const tabs = [...document.querySelectorAll('#dashtabs .dtab')], panels = [...document.querySelectorAll('#start .dpanel')];
+  let ecoLoaded = false;
+  for (const t of tabs) t.addEventListener('click', () => {
+    for (const x of tabs) { const on = x === t; x.classList.toggle('on', on); x.setAttribute('aria-selected', String(on)); }
+    for (const p of panels) p.classList.toggle('on', p.dataset.panel === t.dataset.tab);
+    if (t.dataset.tab === 'economy' && !ecoLoaded) { ecoLoaded = true; loadEconomy(); }
+  });
+}
+$('navplay').addEventListener('click', () => $('playbtn').click());          // PLAY SOLO from any menu tab
 refreshProfileUi();
 { const gt = $('goretoggle'); gt.checked = settings.gore; gt.addEventListener('change', () => settings.setGore(gt.checked)); settings.onChange(() => { gt.checked = settings.gore; }); }
 const settingsMenu = initSettingsMenu($('settings'), input, () => settingsMenu.close());
@@ -673,7 +713,11 @@ addEventListener('keydown', (e) => { if (e.code === 'Escape' && settingsMenu.isO
 $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);
-  if (G?.net) { const url = ONLINE_URL; G.net.dispose(); G.net = null; if (url) { await beginOnline(); return; } }
+  if (G?.net) {
+    const again = lastOnline; G.net.dispose(); G.net = null;
+    if (again?.room === 'staked') { showOv('start', true); return; }          // never re-stake play money without being asked
+    if (again) { await beginOnline(); return; }
+  }
   const operation = G?.sim?.mission?.id ?? false;                 // play the same operation again
   await newMatch(null, operation); paused = false; if (!AUTOSTART) input.lock();
 });

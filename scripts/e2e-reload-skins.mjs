@@ -29,22 +29,23 @@ for (const skin of ['gold', 'damascus', 'magma', 'carbon', 'reactive']) {
 check('all five skin shaders compiled without a single console error', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 // reloads
-const page = await open('?autostart&bots=1&seed=4&skin=magma&vehicles=0');
+const page = await open('?autostart&bots=1&seed=4&skin=magma&vehicles=0&loot=0');
 await wait(1200);
 const res = await page.evaluate(async () => {
   const n = window.__nh, p = n.sim.player, st = p.weapons[p.cur];
   const out = {};
   const w = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (fn, ms = 40000) => { const t0 = performance.now(); while (!fn() && performance.now() - t0 < ms) await w(40); };      // wait on SIM state, not the wall clock: software rendering in CI runs the sim slower than real time
   const active = () => n.G.mags.items.filter((i) => i.on).length;
   const before = active();
   st.ammo = 9; n.cmd.reload = true; await w(300);
   out.tactical = { reloadEmpty: p.reloadEmpty, tot: p.reloadTot, busy: p.reloadT > 0 };
-  await w(p.reloadTot * 1000 + 500);
+  await until(() => p.reloadT <= 0); await w(100);
   out.afterTactical = { ammo: st.ammo, mags: active() - before };
   const mid = active();
   st.ammo = 0; n.cmd.reload = true; await w(300);
   out.empty = { reloadEmpty: p.reloadEmpty, tot: p.reloadTot, busy: p.reloadT > 0 };
-  await w(p.reloadTot * 1000 + 500);
+  await until(() => p.reloadT <= 0); await w(100);
   out.afterEmpty = { ammo: st.ammo, mags: n.G.mags.items.filter((i) => i.on && i.age < p.reloadTot + 1).length };   // young mags only: the ones from the tactical reload may already have timed out, which made this a timing test
   return out;
 });

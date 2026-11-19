@@ -24,6 +24,7 @@ No `cloudflared`? Try `npm run host -- --tunnel=ssh` (uses `ssh` and the free lo
 `MATCH_SIZE` (default 8 here), `LOBBY_SECS` (15), `DIFFICULTY` (`easy|normal|hard`), `MAX_ROOMS` (4 here), `PORT`. Example (PowerShell): `$env:MATCH_SIZE=6; npm run host`.
 
 ## What is verified and what is not
+- PLAY ONLINE picks the server in this order: `?online=ws://host:port` or the `VITE_SERVER_URL` build setting, then **the server that served the page** (so `npm run host -- --port=3000` works), then `ws://localhost:2567` when developing on the same machine. (Before 19 Nov 2026 the localhost default came first, so a host on another port was missed.)
 - Verified by script in the sandbox: the server serves `index.html`, hashed assets (cached for a year), the voice mp3s, `/health`; path traversal and dotfiles return 404; the same-origin detection logic is unit tested (`tests/static-serve.test.js`).
 - NOT verified: the tunnel itself (my sandbox cannot reach Cloudflare or localhost.run), real latency from a friend's phone, and mobile touch controls over the tunnel. First real friend session is the test. Report what you see.
 - A quick tunnel has no uptime promise and is rate limited; it is for tests, not for a public launch.

@@ -72,3 +72,20 @@ See the end of `docs/FREE_FRIEND_TEST.md` and the menu: the dashboard shows the 
 ## Testing it
 
 `npm test` (economy unit tests), `npm run server:test` (includes `server/test/economy.mjs` and `economy-off.mjs`), contracts: `contracts/test/evm-test.mjs` (instructions inside; needs extra dev tools, not part of `npm run check`).
+
+## Menu (ECONOMY tab) - prototype
+
+The start screen has an ECONOMY tab (`src/ui/dashboard.js`, `src/ui/wallet-client.js`). It reads `/economy/status` from the server that served the page and shows exactly what that says:
+
+| Server says | The tab shows | Buttons |
+|---|---|---|
+| no game server on this page (static build) | NO GAME SERVER ON THIS PAGE | none |
+| `off` (the shipped default) | ECONOMY CLOSED | none |
+| `sandbox` | SANDBOX, PLAY MONEY ONLY, plus a "not yet tried with a real wallet" note | CONNECT WALLET; after sign-in: CLAIM FREE PLAY MONEY, STAKED QUICK PLAY (PLAY MONEY), SELF-EXCLUDE 7 DAYS |
+| `live` | LIVE (LICENSED), plus the statement that no real-value rail is built | CONNECT WALLET only (no faucet, no staking UI) |
+
+Wallet sign-in only asks the wallet for an account, the chain id and a signature of a server-built message (`personal_sign`). The client never sees a seed phrase or private key and never sends a transaction. The session token lives in `sessionStorage` (gone when the tab closes).
+
+Verified: unit tests with fake wallets (`tests/wallet-client.test.js`, `tests/dashboard.test.js`) and `scripts/e2e-dashboard.mjs` (headless Chrome against a real server; the wallet is a stub that makes genuine secp256k1 signatures from a throwaway key): closed by default, sandbox sign-in, faucet, balance, the stake locking in the lobby and refunding after a dropped connection (after the server's 12 s reconnect window), self-exclusion. **Not verified:** a real MetaMask or other wallet app, a real chain, a phone.
+
+PLAY AGAIN after a staked match returns to the menu; it never re-stakes by itself.

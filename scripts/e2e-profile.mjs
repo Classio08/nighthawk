@@ -17,12 +17,13 @@ await page.waitForSelector('#profile summary', { timeout: 30000 });
 check('profile summary starts at LV 1 RECRUIT', (await page.$eval('#profile summary', (e) => e.textContent)).includes('LV 1') && (await page.$eval('#profile summary', (e) => e.textContent)).includes('RECRUIT'));
 const locked0 = await page.$$eval('.skin.lock', (a) => a.map((b) => b.textContent));
 check('all 5 weapon skins are locked at level 1 (shown as LV n)', locked0.length === 5 && locked0.every((t) => /^LV \d+$/.test(t)), JSON.stringify(locked0));
+await page.click('.dtab[data-tab=loadout]'); await wait(100);      // skins live in the LOADOUT tab of the menu
 await page.click('.skin.lock'); await wait(100);
 check('clicking a locked skin changes nothing (STOCK stays selected)', (await page.$eval('.skin.on', (b) => b.dataset.skin)) === '');
 check('nothing is saved before the first match', (await stored(page)) === null);
 
 /* ---- 2. play a match and die: XP is paid, stats saved ---- */
-await page.click('#playbtn'); await page.waitForFunction(() => window.__nh && window.__nh.sim && window.__nh.sim.player, { timeout: 30000 });
+await page.click('.dtab[data-tab=home]'); await page.click('#playbtn'); await page.waitForFunction(() => window.__nh && window.__nh.sim && window.__nh.sim.player, { timeout: 30000 });
 await page.waitForFunction(() => window.__nh.sim.time > 1.5, { timeout: 30000 });      // let the match actually run for a moment (slow software GL on a cold start)
 await page.evaluate(() => {
   const { sim } = window.__nh, me = sim.player, bot = sim.fighters.find((f) => !f.npc && !f.human && f.alive && f.id !== me.id);
@@ -55,6 +56,7 @@ const sum2 = await page.$eval('#profile summary', (e) => e.textContent);
 const lv = +/LV (\d+)/.exec(sum2)[1];
 check('a hand-edited save is accepted only where valid (huge XP -> high level, junk fields -> 0)', lv >= 15 && (await page.$$eval('#profile .pstats b', (b) => b[0].textContent)) === '0', sum2);
 check('with that level every skin is unlocked', (await page.$$eval('.skin.lock', (a) => a.length)) === 0);
+await page.click('.dtab[data-tab=loadout]'); await wait(100);
 await page.click('.skin[data-skin="gold"]'); await wait(100);
 check('picking GOLD sticks', (await page.$eval('.skin.on', (b) => b.dataset.skin)) === 'gold' && (await page.evaluate(() => localStorage.getItem('nh_skin'))) === 'gold');
 

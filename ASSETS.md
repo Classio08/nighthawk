@@ -54,6 +54,14 @@ The owner states that he made all of the audio below and that everything in the 
 
 One thing to confirm before a public release: if any of the voice lines were produced with a third-party text-to-speech or AI-voice service, check that service's terms allow commercial use. The files themselves are logged as the owner's.
 
+## Owner-supplied key art (logged 19 Nov 2026)
+
+| Asset | Where it is | In the game? |
+|---|---|---|
+| Key art: four operators walking through dust at sunset, a relay tower on the ridge (1920x1280 JPEG, 190 KB as supplied). Resized to 1600x1067, quality 70 (141 KB). | `public/art/kavari-key-art.jpg`; the supplied original stays with the owner. | Yes: background of the start-screen dashboard (`index.html`, `.dash-art`). |
+
+The owner supplied this image and states it is his. How it was produced (photography, illustration, or an image-generation tool, and under which terms) is not recorded here. Before a store listing or any public release, write the source and terms next to this entry; if an AI image service made it, check that service's commercial-use terms.
+
 ## Sounds that are code
 
 | Item | Where | Note |
