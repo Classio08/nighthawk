@@ -16,6 +16,8 @@ export class ContractsView {
     this.discGeo = new THREE.CircleGeometry(1, 48);
     this.wallGeo = new THREE.CylinderGeometry(1, 1, 7, 56, 1, true); this.wallGeo.translate(0, 3.5, 0);
     this.diaGeo = new THREE.OctahedronGeometry(0.55);
+    this.uplinkPoleGeo = new THREE.CylinderGeometry(0.12, 0.18, 4.2, 8);
+    this.uplinkArmGeo = new THREE.BoxGeometry(1.8, 0.12, 0.12);
     this.shellGeo = new THREE.SphereGeometry(0.22, 8, 6);
   }
 
@@ -38,6 +40,14 @@ export class ContractsView {
       const fill = new THREE.Mesh(this.discGeo, basic(0x5be37a, 0.3)); fill.rotation.x = -Math.PI / 2; fill.position.y = 0.09; fill.scale.setScalar(0.01); g.add(fill);
       const beam = new THREE.Mesh(this.beamGeo, basic(0x5be37a, 0.2, true)); g.add(beam);
       g.userData = { ring, wall, fill, beam };
+    } else if (c.type === 'uplink') {
+      const pole = new THREE.Mesh(this.uplinkPoleGeo, lam(0x8b969d)); pole.position.y = 2.1; g.add(pole);
+      const arm = new THREE.Mesh(this.uplinkArmGeo, lam(0x53d9ff)); arm.position.y = 3.55; g.add(arm);
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.12), lam(0x243c4b)); panel.position.set(0, 2.8, 0.22); g.add(panel);
+      const ring = new THREE.Mesh(this.ringGeo, basic(0x53d9ff, 0.95)); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.1; ring.scale.setScalar(c.r); g.add(ring);
+      const fill = new THREE.Mesh(this.discGeo, basic(0x53d9ff, 0.3)); fill.rotation.x = -Math.PI / 2; fill.position.y = 0.09; fill.scale.setScalar(0.01); g.add(fill);
+      const beam = new THREE.Mesh(this.beamGeo, basic(0x53d9ff, 0.18, true)); g.add(beam);
+      g.userData = { pole, arm, panel, ring, fill, beam };
     } else {
       const d = new THREE.Mesh(this.diaGeo, new THREE.MeshBasicMaterial({ color: 0xff3b3b, fog: false, depthTest: false, transparent: true })); d.renderOrder = 999; g.add(d);
       const beam = new THREE.Mesh(this.beamGeo, basic(0xff3b3b, 0.22, true)); g.add(beam);
@@ -76,6 +86,16 @@ export class ContractsView {
         const col = c.who === -2 ? 0xff9a2a : c.who >= 0 ? (c.who === myId ? 0x5be37a : 0xff4d4d) : 0xffffff;
         for (const m of [u.ring, u.wall, u.fill, u.beam]) m.material.color.setHex(col);
         u.fill.scale.setScalar(Math.max(0.01, c.r * Math.sqrt(c.prog)));
+      } else if (c.type === 'uplink') {
+        g.position.set(c.x, 0, c.z);
+        const base = c.stage === 1 ? 0xffcf4d : 0x53d9ff;
+        const col = c.who === -2 ? 0xff9a2a : c.who >= 0 && c.who !== myId ? 0xff4d4d : base;
+        for (const m of [u.arm, u.ring, u.fill, u.beam]) m.material.color.setHex(col);
+        u.panel.material.color.setHex(c.stage === 1 ? 0x5b4930 : 0x243c4b);
+        u.ring.material.opacity = 0.7 + 0.25 * Math.sin(now * 5);
+        u.fill.scale.setScalar(Math.max(0.01, c.r * Math.sqrt(c.prog)));
+        u.pole.rotation.y = Math.sin(now * 0.7) * 0.04;
+        u.beam.visible = Math.hypot(c.x - camX, c.z - camZ) > 14;
       } else {
         g.position.set(c.x, 0, c.z);
         u.d.position.y = 3.1 + Math.sin(now * 3) * 0.25; u.d.rotation.y = now * 2;

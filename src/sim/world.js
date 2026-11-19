@@ -218,6 +218,39 @@ export class Simulation {
     }
   }
 
+  /** Existing garrison guards redeploy to a live relay objective without spawning new fighters. */
+  alertGarrison(point, urgency = 1) {
+    const guards = this.fighters.filter((f) => f.alive && f.npc && f.brain?.p.guard);
+    if (!guards.length) return;
+    const radius = urgency >= 2 ? 5 : 8;
+    const seed = ((this.seed | 0) * 8191 + Math.round(point.x * 31 + point.z * 17) + 1931 + urgency * 101) | 0;
+    const routeRng = makeRng(seed);
+    const route = Array.from({ length: 4 }, (_, i) => {
+      const a = i * Math.PI / 2;
+      return findFreeSpot(this.map, routeRng, point.x + Math.cos(a) * radius, point.z + Math.sin(a) * radius, 3.5, 2);
+    });
+    guards.forEach((f, i) => {
+      const b = f.brain;
+      if (!b.alertHome) b.alertHome = { post: b.post, leash: b.leash, patrolRoute: b.patrolRoute, patrolIndex: b.patrolIndex };
+      b.post = { x: point.x, z: point.z };
+      b.leash = urgency >= 2 ? 11 : 18;
+      b.patrolRoute = route;
+      b.patrolIndex = i % route.length;
+      b.radioIn({ x: point.x, z: point.z }, (urgency >= 2 ? 0.12 : 0.25) + i * 0.08);
+    });
+  }
+
+  /** Return redeployed guards to their original outpost and patrol route. */
+  restoreGarrison() {
+    for (const f of this.fighters) {
+      const b = f.brain;
+      if (!f.npc || !b?.alertHome) continue;
+      b.post = b.alertHome.post; b.leash = b.alertHome.leash;
+      b.patrolRoute = b.alertHome.patrolRoute; b.patrolIndex = b.alertHome.patrolIndex;
+      b.alertHome = null;
+    }
+  }
+
   _addCrate(x, y, z) {
     // online: crates are fixed (so every browser's prediction sees exactly the same world); offline: they fly around
     const body = this.world.createRigidBody((this.opts.propsFixed ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic()).setTranslation(x, y, z));
