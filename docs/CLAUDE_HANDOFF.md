@@ -95,3 +95,11 @@ Dependent branch: `feature/physics-shrapnel-correlation`, based on Claude's `fea
 - Still open: true ballistic projectile travel with replicated/server flight-time decisions, physical shrapnel debris, alive-character articulated physics (alive fighters remain kinematic capsules), bleeding/bandages, detailed water-volume effects, persistent wall blood decals, doors/glass/cover physical interactions, full acoustic occlusion/reverb for player audio, and haptics.
 - Tests were added/extended as specifications, but the owner explicitly asked not to run tests/builds yet. Do not claim these branches passed CI or were playtested.
 - Integration order: review/merge the foundation branch only when the owner approves; then review this dependent extension. No merge has been performed.
+
+## Acoustic response extension — 19 November 2026
+
+The physics correlation child branch now shares material attenuation with both NPC hearing and player audio:
+- NPCs hear gunshots/explosions through a maximum of two solid material surfaces, attenuated by each material's sound coefficient. Weather still limits hearing. Repeated reports are throttled to approximately 8 Hz per NPC.
+- Player-heard remote gunshots and explosions use the full 3D source/listener distance for sound-travel delay (distance / 343) and material path attenuation for volume.
+- Audio attenuation is presentation-only. Server hit registration, weapon fire cadence and explosion timing are not delayed. This is volume reduction, not frequency-dependent low-pass filtering, indoor reverb or reflections.
+- soundOcclusionGain() in src/fx/audio.js clamps invalid gains safely; the unit specification lives in tests/audio-occlusion.test.js and has not been run.
