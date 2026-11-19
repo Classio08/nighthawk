@@ -8,6 +8,8 @@ export const PERSONALITIES = {
   survivor:  { label: 'Survivor', greed: 0.75, drive: 0.6,  aggr: 0.35, caution: 0.95, camper: 0.35, curiosity: 0.3, social: 0.5, tact: 0.4, skillBonus: 0,     weapons: ['ar'] },
   brawler:   { label: 'Brawler', greed: 0.45, drive: 0.55,   aggr: 0.75, caution: 0.35, camper: 0.05, curiosity: 0.6, social: 0.4, tact: 0.5, skillBonus: 0,     weapons: ['ar', 'lmg', 'shotgun'] },
   // NPC third faction: defends a post, never leaves it (see Simulation guards)
+  // the named elite (VIPER, stealth.js): a guard-type brain that is drawn to the freshest garrison contact instead of holding a post
+  hunter:    { label: 'Hunter', greed: 0, drive: 0,    aggr: 0.95, caution: 0.15, camper: 0,   curiosity: 0.1, social: 0.1, tact: 0.4, skillBonus: 0.12,  weapons: ['ar'],             guard: true, hunter: true },
   guard:     { label: 'Guard', greed: 0, drive: 0,     aggr: 0.8,  caution: 0.3,  camper: 0,    curiosity: 0.1, social: 0.1, tact: 0.2, skillBonus: 0.1,   weapons: ['smg'],            guard: true },
 };
 export const PERSONALITY_IDS = ['rusher', 'sniper', 'tactician', 'survivor', 'brawler'];

@@ -3,6 +3,7 @@ import { MissionAlertDirector } from './mission-alert.js';
 // This director is deliberately not enabled in online rooms until its state has a versioned server snapshot.
 import { makeRng } from './rng.js';
 import { findFreeSpot } from './map.js';
+import { stealthTag } from './stealth.js';
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -44,7 +45,8 @@ export class DustLanternMission {
   }
 
   // ---- what the HUD, minimap, event feed and debrief need (every mission offers these, so the UI never reads mission-specific fields) ----
-  hudInfo(p) {
+  hudInfo(p) { const info = this._hudInfo(p), tag = stealthTag(this.sim); return tag ? { ...info, detail: `${info.detail} · ${tag}` } : info; }
+  _hudInfo(p) {
     const stage = this.stage;
     const nearClue = stage === 'recon' && this.clues.some((clue) => !clue.found && distance(p, clue) < 3.4);
     const nearCaptive = stage === 'recover' && distance(p, this.captive) < 3.5;
@@ -202,7 +204,7 @@ export class SignalBlackoutMission {
   get doneCount() { return this.nodes.reduce((n, node) => n + (node.done ? 1 : 0), 0); }
   get foundCount() { return this.doneCount; }
   get objectivesDone() { return this.doneCount; }
-  stats(won) { return { won: !!won, elapsed: this.elapsed, alertMax: this.alert.maxIndex, found: this.doneCount, total: 3, taskFails: this.taskFails, traceLeft: this.trace, kills: this.sim.player?.kills ?? 0 }; }
+  stats(won) { return { won: !!won, elapsed: this.elapsed, alertMax: this.alert.maxIndex, found: this.doneCount, total: 3, taskFails: this.taskFails, traceLeft: this.trace, viper: this.sim.stealth?.viperStatus() ?? 'none', spotted: this.sim.stealth?.spotted ?? 0, kills: this.sim.player?.kills ?? 0 }; }
   get trace() { return Math.max(0, TRACE_T - this.elapsed); }
   get objective() {
     if (this.stage === 'tasks') return `JAM THE RELAY NODES (${this.doneCount}/3)`;
@@ -212,7 +214,8 @@ export class SignalBlackoutMission {
   }
   static fmt(t) { const s = Math.ceil(t); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
-  hudInfo(p) {
+  hudInfo(p) { const info = this._hudInfo(p), tag = stealthTag(this.sim); return tag ? { ...info, detail: `${info.detail} · ${tag}` } : info; }
+  _hudInfo(p) {
     const near = this.stage === 'tasks' ? this.nodes.find((n) => !n.done && distance(p, n) < TASK.RANGE) : null;
     const a = this.active;
     const detail = this.stage === 'tasks'

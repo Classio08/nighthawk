@@ -42,6 +42,10 @@ export function buildDebrief(missionId, s, progress = null) {
   const rows = [['TIME', mmss(s.elapsed)], ['KILLS', String(Math.trunc(fin(s.kills)))], ['HEADSHOTS', String(Math.trunc(fin(s.headshots)))], ['DAMAGE DEALT', String(Math.round(fin(s.damage)))],
     ['PEAK ALERT', ALERT_LEVELS[lvl(s.alertMax)].toUpperCase()], [missionId === 'signal-blackout' ? 'RELAYS JAMMED' : 'CLUES FOUND', `${Math.trunc(fin(s.found))}/${Math.trunc(fin(s.total))}`]];
   if (missionId === 'signal-blackout') { rows.push(['JAMS INTERRUPTED', String(Math.trunc(fin(s.taskFails)))]); if (won) rows.push(['TRACE LEFT', mmss(s.traceLeft)]); }
+  if (missionId === 'signal-blackout') {                                       // the stealth layer's two stories (stealth.js), shown only when they happened
+    if (s.viper === 'down' || s.viper === 'loose') rows.push(['VIPER', s.viper === 'down' ? 'DOWN' : 'STILL HUNTING']);
+    if (fin(s.spotted) > 0) rows.push(['SEARCHLIGHT HITS', String(Math.trunc(fin(s.spotted)))]);
+  }
   const prev = progress?.missions?.[missionId];
   const idx = MISSION_ORDER.indexOf(missionId), next = won && idx >= 0 && idx < MISSION_ORDER.length - 1 ? MISSION_ORDER[idx + 1] : null;
   return {

@@ -23,7 +23,8 @@ A short chain of operations that share the same map and cast, each one playable 
 
 Each mission ends with a one-screen debrief card (it already exists) carrying a line of story. Writing, not tech, is the cost.
 
-## 3. Factions and villains (planned)
+## 3. Factions and villains (one named hunter built as a prototype; the rest planned)
+- **VIPER, the hunter-killer (PROTOTYPE, built)**: a named elite (240 HP, armour, assault rifle) KRG sends in once the garrison reaches full ALERT in SIGNAL BLACKOUT. He follows only what the garrison already knows (a guard's own sighting) plus his own eyes, and is not fooled by a stolen uniform from far away. His recorded taunt from the owner's voice pack plays on arrival. Rules, numbers and limits: `docs/STEALTH.md`. The other named villains below are still planned.
 - **Kavari Recovery Group (KRG)**: the contractor behind the "recovery contract" framing. Professional, well funded, deniable. The garrison guards already stand in for them.
 - **The Broker**: a faceless buyer who sells the unit's movements. Never fights; appears as voice, forged documents and an offer.
 - **Salt Road Crew**: smugglers who run buggies and bikes across the dry river. Hostile to KRG, not friendly to the unit. Useful as a third force in battle royale contracts.
@@ -37,14 +38,14 @@ The eight operators already have a role. "More roles" can mean two different thi
 
 Passive traits per operator (small, never pay-to-win) are also planned: for example Roms carries one more magazine, Douglas heals a little faster. These would touch authoritative state and need tests and netcode work.
 
-## 5. Spy and stealth play (planned)
-A stealth layer is mostly built already: the garrison has a vision cone, hearing, a last-seen memory and the alert ladder (routine, uneasy, searching, alert, crisis). Missing pieces: a **disguise** (a stolen uniform that lowers suspicion at range), **silent takedown** from behind (melee already kills from behind), **distractions** (throw an object to make noise) and **hiding** (a locker or tall grass). Each is a small, separate, testable feature.
+## 5. Spy and stealth play (disguise built as a prototype; the rest planned)
+A stealth layer is mostly built already: the garrison has a vision cone, hearing, a last-seen memory and the alert ladder (routine, uneasy, searching, alert, crisis). **Built (prototype, `docs/STEALTH.md`)**: a **disguise**: press E over a downed garrison guard for about 45 s of cover that guards respect at range (close guards, VIPER and full ALERT see through it; shooting, striking, throwing, being hit or running past a guard tears it off). Still missing: **silent takedown** from behind (melee already kills from behind), **distractions** (throw an object to make noise) and **hiding** (a locker or tall grass). Each is a small, separate, testable feature.
 
-## 6. Set pieces (planned)
+## 6. Set pieces (night extraction built as a prototype; the rest planned)
 Written as reusable beats a mission can use:
 - **The convoy ambush**: mine the road, take the lead vehicle, hold the crossing.
 - **The vault**: a timed door; the longer you take, the more guards arrive.
-- **Night extraction under searchlights**: light sweeps force you to move between cover.
+- **Night extraction under searchlights (PROTOTYPE, built, SIGNAL BLACKOUT only)**: two lamps sweep the approach to the pad; about a second in a light radios your position to the garrison. Crouching, smoke, the Shadow cloak and a stolen uniform help. Beam visuals are untuned. See `docs/STEALTH.md`.
 - **The sandstorm**: weather already exists; a storm that cuts sight and sound for both sides for a minute.
 - **Rooftop relay**: a task on a roof that needs a mantle to reach (mantle is built).
 - **The empty village**: a hold-position scene where nothing happens until it does.

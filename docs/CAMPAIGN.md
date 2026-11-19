@@ -33,3 +33,6 @@ The pack's endings granted stat boosts (cloak, damage...). Those were **dropped 
 * Not online: mission state still has no versioned server snapshot protocol (see `docs/PROJECT_DIRECTION_AND_CHAT_NOTES.md`).
 * Progress is local to one browser; clearing site data resets it. No server-side campaign save.
 * No cutscenes or voiced briefing playback per operation yet; the briefing text is data waiting for the dashboard UI.
+
+## Stealth rows in the SIGNAL BLACKOUT debrief
+When the stealth layer (`docs/STEALTH.md`) did something, the debrief card adds `VIPER: DOWN / STILL HUNTING` and `SEARCHLIGHT HITS: n`. They are information only: the score, grade and ending still come from the alert ladder, time, headshots and interrupted jams.

@@ -34,6 +34,8 @@ import { thirdPersonCameraPosition } from './render/camera.js';
 import { ABILITIES } from './sim/abilities.js';
 import { FrameMetrics } from './perf/frame-metrics.js';
 import { createMissionView } from './render/mission-view.js';
+import { StealthView } from './render/stealth-view.js';
+import { stealthMessage } from './sim/stealth.js';
 import { snapshotLines, composeCard } from './ui/snapshot.js';
 import { ViewMotion } from './render/headbob.js';
 import { BarkDirector, operationVoiceIds } from './fx/bark-director.js';
@@ -109,6 +111,7 @@ async function newMatch(online = null, operation = false) {          // `operati
   const sview = new SmokeView(scene, sim);
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
   const mview = sim.mission ? createMissionView(scene, sim) : null;
+  const stview = sim.stealth?.lightsEnabled ? new StealthView(scene, sim) : null;      // the searchlight towers and beams (SIGNAL BLACKOUT)
   const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
   const views = new Map();
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
@@ -118,7 +121,7 @@ async function newMatch(online = null, operation = false) {          // `operati
   playerView.label.visible = false;
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.melee = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, pview, sview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
+  G = { sim, net: online, scene, world, pview, sview, mview, stview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0, vm: new ViewMotion(), vmo: { y: 0, roll: 0, pitch: 0, fov: 0 }, barks: sim.mission ? new BarkDirector() : null };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd(); $('snapwrap').style.display = 'none'; voice.stop();
@@ -230,7 +233,8 @@ function handleEvents() {
       }
       case 'propHit': break;
       case 'mission': {                                        // the operation decides what each of its events says
-        const msg = sim.mission?.eventMessage?.(e);
+        const msg = sim.mission?.eventMessage?.(e) ?? stealthMessage(e);
+        if (e.phase === 'viper') { const vf = sim.fighters.find((x) => x.id === e.id); if (vf && !views.has(vf.id)) views.set(vf.id, new FighterView(vf, G.scene)); }     // the hunter arrives mid-operation: give him a body
         if (msg) { hud.message(msg.text, msg.color, msg.secs); audio.play(msg.sfx, msg.at ? { x: msg.at.x, z: msg.at.z, maxD: 120, vol: 0.9 } : { vol: 0.9 }); }
         break;
       }
@@ -543,6 +547,7 @@ function frame(now) {
     G.vview.update(dt, p.id, G.particles);
     G.lview?.update(dt, camera.position);
     G.mview?.update(dt, p);
+    G.stview?.update();
     {                                                   // engine hum: pitch follows speed, only while somebody is in the nearest vehicle
       let nearest = null, nd = 40;
       for (const v of sim.vehicles.list) if (!v.dead && v.driver >= 0) { const d = Math.hypot(v.x - camera.position.x, v.z - camera.position.z); if (d < nd) { nd = d; nearest = v; } }

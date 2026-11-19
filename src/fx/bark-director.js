@@ -23,7 +23,7 @@ export const RULES = {
   onKill: { prio: 1, cd: 7 }, onHeadshot: { prio: 2, cd: 7 }, onMultiKill: { prio: 3, cd: 10 },
   onLowHP: { prio: 3, cd: 20 }, onHeal: { prio: 1, cd: 15 }, onReload: { prio: 0, cd: 40 },
   onContact: { prio: 2, cd: 20 }, onSpotted: { prio: 3, cd: 25 }, onEnemyTaunt: { prio: 3, cd: 90 },
-  onMortar: { prio: 4, cd: 12 },
+  onMortar: { prio: 4, cd: 12 }, onStealth: { prio: 2, cd: 40 },
   onHackStart: { prio: 3, cd: 0 }, onHackHalf: { prio: 3, cd: 0 }, onHackComplete: { prio: 4, cd: 0 },
   onGhostHot: { prio: 3, cd: 0 }, onHostageFound: { prio: 4, cd: 0 },
   onMissionComplete: { prio: 5, cd: 0 }, onMissionFailed: { prio: 5, cd: 0 },
@@ -86,6 +86,9 @@ export class BarkDirector {
       case 'task': return this.say('onHackStart', t);
       case 'taskdone': return e.count === 2 ? this.say('onHackHalf', t) : null;
       case 'unlocked': return this.say('onHackComplete', t);
+      case 'viper': return this.say('onEnemyTaunt', t, 'onEnemyTaunt_viper');         // the named hunter introduces himself in the owner's recording
+      case 'disguise': return e.on ? this.say('onStealth', t) : null;
+      case 'spotlit': return this.say('onSpotted', t);
       case 'taskfail': return e.reason === 'hit' ? this.say('onSpotted', t) : null;
       case 'identified': return this.say('onGhostHot', t, 'onGhostHot_echo');          // "Close. Very close."
       case 'rescued': return this.say('onHostageFound', t, 'onHostageFound_amara');    // "You came. I knew you would."

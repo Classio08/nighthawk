@@ -24,6 +24,7 @@ import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
 import { createMission } from './missions.js';
+import { MissionStealth } from './stealth.js';
 import { MANTLE, findLedge, mantlePos } from './mantle.js';
 
 export const GRAV = -22;
@@ -63,6 +64,7 @@ export class Fighter {
     this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;       // loot: armor points left, medkits carried, seconds left of the medkit being used
     this.abCd = 0; this.abT = 0; this.dashT = 0; this.dashVx = 0; this.dashVz = 0; this.dashHit = []; this.stunT = 0;   // operator ability: cooldown left, effect time left, dash, stunned
     this.noHurtT = 0; this.zoneAcc = 0;
+    this.disguiseT = 0; this.uniformTaken = false;                                         // stolen guard uniform: seconds of cover left / this guard's body already stripped (stealth.js)
     this.air = 0; this.airT = 0; this.avx = 0; this.avz = 0; this.jumpPrev = false;      // drop-in (drop.js): 0 on foot, 1 in the plane, 2 free fall, 3 parachute
     this.brain = null; this.rb = null; this.col = null;
   }
@@ -126,6 +128,7 @@ export class Simulation {
     this.contracts = new Contracts(this);
     this.mission = createMission(opts.mission, this);
     if (this.mission) this.contracts.off = true;
+    this.stealth = this.mission ? new MissionStealth(this) : null;        // disguise / VIPER / searchlights (stealth.js): offline operations only
     this.loot = new LootSystem(this);      // starting items come from the seed (loot.js); only a loot match (opts.loot) has any
     this.strikes = [];              // mortar barrages in progress
   }
@@ -774,7 +777,7 @@ export class Simulation {
     if (cmd.smoke) this.throwGrenade(p, this._aimDir(p, 0), 15, true);
     if (cmd.melee && !busy) this.melee(p);
     if (cmd.mortar) this.callMortarFromView(p);
-    if (cmd.use && !this.mission?.interact(p)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
+    if (cmd.use && !this.stealth?.takeUniform(p) && !this.mission?.interact(p)) this.vehicles.enter(p);  // E: a body within arm's reach first (stealth.js), then the mission's own interaction, otherwise enter/exit a vehicle
     p.nadeT = Math.max(0, p.nadeT - dt); p.meleeT = Math.max(0, p.meleeT - dt);
     this.tickHeal(p, dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0 && !busy, !!cmd.reload);
@@ -851,6 +854,7 @@ export class Simulation {
 
     if (!this.opts.predictor) {
       this.mission?.update(dt);
+      this.stealth?.update(dt);
       this._stepBarrels(dt); this._stepStrikes(dt);
       if (!this.mission) this.contracts.update(dt);
       this.loot.update();

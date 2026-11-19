@@ -46,6 +46,7 @@ Rule: every milestone ends with something you can open in a browser and play. St
 - **Stage 17:** melee strike (`B`; a kill from behind, bots use it at point blank, solo and online).
 - **Stage 18:** draw-call cut (measured 284-618 -> 160-234 per view with 16 fighters and loot; same look), suppression effect for near-miss bullets (client-only), `src/sim` purity guard test, `scripts/e2e-perf.mjs` budget check.
 - **Operation DUST LANTERN** (ChatGPT, merged and browser-tested): offline rescue mission with an alert director.
+- **Stage 22** (Claude, prototype): mission stealth layer: uniform disguise, VIPER hunter, extraction searchlights (`docs/STEALTH.md`). Sim unit-tested and checked in Chrome; feel, balance and visuals are not tuned.
 - **Stage 19** (Claude): slide, ledge mantle and first-person view motion; mission registry and Operation SIGNAL BLACKOUT; end-of-match snapshot card. Details in `docs/MASTER_SYSTEMS.md` (Stage 19), `docs/MISSION_SIGNAL_BLACKOUT.md`, `docs/RESEARCH_NOTES.md`.
 - **Frame-time telemetry:** `window.__nhPerf()` gives rolling p50/p95/p99.
 - **Mission objective extension:** two-stage relay uplink; secure the relay alone, then hold it alone for upload. Existing garrison guards redeploy without spawning extra fighters.

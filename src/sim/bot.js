@@ -8,6 +8,7 @@ import { WEAPONS, SLOT_ORDER } from './weapons.js';
 import { WEAPON_RANK } from './loot.js';
 import { findCover, findPerch, insideAnyBox, MAP_HALF } from './map.js';
 import { searchWaypoint } from './guard-doctrine.js';
+import { disguiseFools } from './disguise.js';
 import { PERSONALITIES } from './personality.js';
 import { diffOf } from './difficulty.js';
 import { botAir } from './drop.js';
@@ -126,6 +127,7 @@ export class BotBrain {
       const d = Math.hypot(o.x - f.x, o.z - f.z);
       if (d > 65) continue;
       if (isCloaked(o) && d > ABILITIES.shadow.cloakRange) continue;        // Shadow's Cloak: only seen from up close
+      if (this.p.guard && disguiseFools(f, o, d, sim.mission?.alert?.level)) continue;   // a stolen uniform: garrison guards ignore you until they get close (disguise.js)
       if (!sim.canSee(f, o, 65, this.fov)) continue;
       // Threat-aware target selection: do not tunnel on the nearest body.
       // Facing + firing means this opponent is an immediate threat; low-health

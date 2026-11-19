@@ -53,7 +53,7 @@ Triage, checked against the real code rather than the description:
 2. **The HUD asks the mission to describe itself.** `hudInfo(p)`, `mapMarkers(p)`, `eventMessage(e)` and `debrief(won)` are the surface; `objectivesDone` feeds the end screen. Your generic stage/clue/hack/hold reading in `hud.js` is **kept as the fallback** for a mission that has not implemented `hudInfo`, so `feature/faction-operations-suite` can land first and move over later. Please do not remove either path.
 3. **Your four commits that landed while I worked** (`d7ea136`, `73cd150`, `89a2bd2`, `faf7251`) are merged. `DustLanternView` is the old `MissionView` (an alias keeps the old name), and it kept your null-safe clues, terminal target and hostage handling. Both operations now carry `name`, so your `missionId` / `missionName` / `objectives` debrief fields work for both.
 4. **Movement is in the shared sim.** `src/sim/mantle.js`, the `SLIDE` constants and `slideT` / `mantleT` fields in `world.js`; own state (`sl`, `ml`) and snapshot flags (`FF.slide`, `FF.mantle`) carry them. If your online mission or co-op work adds fighter state, follow the same pattern: export/import it in `exportSelf` / `importSelf` and add a test that resumes a predictor mid-action.
-5. **Counts**: 247 unit tests, 20 browser scripts. `npm run check` exit 0 on the merged result (run by Claude on 19 Nov 2026).
+5. **Counts**: 247 unit tests, 20 browser scripts (at that time; see section 5 for the current state). `npm run check` exit 0 on the merged result (run by Claude on 19 Nov 2026).
 
 ## 3. Open lanes after this stage
 | Lane | Proposal |
@@ -71,3 +71,12 @@ Triage, checked against the real code rather than the description:
   - `main.js`: the `case 'mission'` block can shrink to `eventMessage(e)` per mission; keep your `intel` and `black-site` cases and the new `newMatch` parameters.
 - The owner asked for Among-Us-style play. Black Site is that; SIGNAL BLACKOUT is only the task-list half (tasks in any order, interruptible, a clock), single player.
 
+## 5. Update, 19 Nov 2026 (second pass): what landed on `main` since the section above
+All of it is on `main` (single contributor lane, no merge of your branches). Please read before you touch the same files.
+- **Economy behind a default-closed gate** (`src/economy/gate.js`, `data/compliance.json`, `docs/ECONOMY.md`): wallets, NFT cosmetics, play-money earn and wagering exist ONLY behind it, closed by default, sandbox = play money only, no real-value rail built. Your `feature/crypto-wallet-payments` / `feature/crypto-money-ecosystem` branches were NOT touched or merged; my UI is `src/ui/wallet-client.js` + `src/ui/dashboard.js` (not `economy-panel.js`), so the names do not collide. If you merge your wallet work, route it through the same gate and keep `compliance.json` licence-empty unless the owner gives one.
+- **Campaign layer** (`src/campaign/*`, `docs/CAMPAIGN.md`): story, two endings per operation decided from real sim stats, ratings, debrief card, progress in `localStorage` (`nh_campaign_v1`). Cosmetic ribbons only; the owner pack's stat-boost unlocks were dropped on purpose. The pack's other six operations are labelled planned data (`planned-data.js`), not playable.
+- **Dashboard start screen** with the owner's key art and an ECONOMY tab that reads `/economy/status` from the same-origin server only (`docs/FREE_FRIEND_TEST.md` covers hosting without a VPS).
+- **Owner voice pack** wired through `src/fx/bark-director.js` (84 WAVs, preloaded per operation).
+- **Stealth layer, prototype** (`src/sim/stealth.js`, `disguise.js`, `docs/STEALTH.md`): uniform disguise, the named hunter VIPER, extraction searchlights. New sim state lives on `Fighter` (`disguiseT`, `uniformTaken`) and `sim.stealth`; none of it is in the online snapshot (offline operations only). A `hunter` personality was added (`guard: true`), so any guard-faction code you write sees VIPER as a guard.
+- **E key order changed** in `stepPlayer`: a body in arm's reach (uniform) first, then `mission.interact`, then vehicles.
+- Counts after this pass: see `README.md` (kept current) and the commit message of the stealth commit.
