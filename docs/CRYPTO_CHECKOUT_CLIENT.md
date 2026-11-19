@@ -22,8 +22,15 @@ This branch is a dependent UI/client contribution to `feature/crypto-wallet-paym
 - If the network is unknown to the wallet, the user must add it through the wallet's own trusted network interface. This module does not silently add RPC endpoints.
 - A transaction hash awaiting confirmations can be checked again after reload. The pending hash and intent id are only stored in sessionStorage, not a secret.
 - The default server gate remains closed. This branch does not modify `data/compliance.json`, live licence scope, token contract, chain, treasury or price configuration.
-- This is an injected-wallet adapter. WalletConnect and native app deep-link support are separate future adapters; no claim is made that every mobile wallet injects `window.ethereum`.
+- This supports browser-injected wallets that announce through EIP-6963 and older single-provider `window.ethereum` wallets. It does not add WalletConnect, QR pairing or native mobile deep links; those require a separate adapter and project configuration.
 
 ## Mounting
 
 Mount `mountCryptoCheckout(container, serverUrl)` inside the existing Economy/Quartermaster panel after the backend branch is integrated. It is not wired into the main menu here, to avoid competing with Claude's dashboard changes.
+
+
+## Multi-wallet discovery
+- The browser listens for the EIP-6963 `eip6963:announceProvider` event for the page lifetime, then sends `eip6963:requestProvider` to collect providers that announced before the checkout view loaded.
+- Provider UUIDv4 values are deduplicated. The UI displays the wallet's announced name as text; it does not render an extension-supplied SVG icon or persist wallet identity across sessions.
+- The selected EIP-1193 provider is still checked for the quoted chain and active account immediately before `eth_sendTransaction`.
+- If no EIP-6963 provider responds, a single legacy `window.ethereum` provider is available as a compatibility fallback.
