@@ -20,6 +20,7 @@ import { moveVector } from '../input/move.js';
 import { rayCapsule } from './geom.js';
 import { idleCmd } from './cmd.js';
 import { BotBrain } from './bot.js';
+import { FactionIntelligence } from './faction-intel.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
@@ -118,6 +119,7 @@ export class Simulation {
     if (this.mission) this.contracts.off = true;
     this.loot = new LootSystem(this);      // starting items come from the seed (loot.js); only a loot match (opts.loot) has any
     this.strikes = [];              // mortar barrages in progress
+    this.factionIntel = new FactionIntelligence(this);
   }
 
   static async create(opts = {}) {
@@ -801,6 +803,7 @@ export class Simulation {
     this.world.step();
 
     if (!this.opts.predictor) {
+      this.factionIntel.update(dt);
       this.mission?.update(dt);
       this._stepBarrels(dt); this._stepStrikes(dt);
       if (!this.mission) this.contracts.update(dt);
