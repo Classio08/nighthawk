@@ -165,9 +165,16 @@ function handleEvents() {
         if (e.by === p.id) { viewmodel.guns[p.cur].userData.muzzle.getWorldPosition(tmp); }
         else { const v = views.get(e.by); if (v) v.muzzleWorld(tmp); else tmp.set(e.ox, e.oy, e.oz); }
         tracers.add(tmp.x, tmp.y, tmp.z, e.ex, e.ey, e.ez, e.by === p.id ? 0xfff2b0 : 0xffc27a);
-        if (e.hit === 'world') {
-          decals.hole(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz);
-          particles.sparks(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz, 5); particles.dust(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz, 3);
+        if (e.hit === 'world' || e.penetrated) {
+          const sx = e.surfaceX ?? e.ex, sy = e.surfaceY ?? e.ey, sz = e.surfaceZ ?? e.ez;
+          decals.hole(sx, sy, sz, e.nx ?? 0, e.ny ?? 1, e.nz ?? 0);
+          if (e.impact === 'spark' || e.material === 'metal' || e.material === 'armor') particles.sparks(sx, sy, sz, e.nx ?? 0, e.ny ?? 1, e.nz ?? 0, 9);
+          else if (e.impact === 'splinter') particles.dust(sx, sy, sz, e.nx ?? 0, e.ny ?? 1, e.nz ?? 0, 8);
+          else if (e.impact === 'shatter') { particles.sparks(sx, sy, sz, e.nx ?? 0, e.ny ?? 1, e.nz ?? 0, 12); particles.dust(sx, sy, sz, e.nx ?? 0, e.ny ?? 1, e.nz ?? 0, 6); }
+          else particles.dust(sx, sy, sz, e.nx ?? 0, e.ny ?? 1, e.nz ?? 0, 5);
+        }
+        if (Number.isFinite(e.ricochetEndX)) {
+          tracers.add(e.surfaceX ?? e.ex, e.surfaceY ?? e.ey, e.surfaceZ ?? e.ez, e.ricochetEndX, e.ricochetEndY, e.ricochetEndZ, 0xffe0a0);
         }
         if (e.by !== p.id && p.alive) {                                  // a bullet cracked past my head: shake, dark edges, whizz (client-only, changes nothing in the sim)
           const k = suppression(e.ox, e.oy, e.oz, e.ex, e.ey, e.ez, p.x, p.eyeY, p.z);
@@ -177,7 +184,7 @@ function handleEvents() {
       }
       case 'hit': {
         const t = sim.fighters[e.target];
-        blood(e.x, e.y, e.z, e.dx, e.dy, e.dz, e.killed ? 18 : e.head ? 12 : 8, e.cause === 'explosion' ? 1.6 : 1);
+        blood(e.x, e.y, e.z, e.dx, e.dy, e.dz, e.killed ? 18 : e.zone === 'head' ? 12 : e.zone === 'leg' ? 6 : 8, e.cause === 'explosion' ? 1.6 : 1);
         const v = views.get(e.target); if (v) v.flash();
         if (e.arm > 0 && (e.target === p.id || e.by === p.id)) audio.play('armor', { vol: e.target === p.id ? 0.7 : 0.45 });
         if (e.target === p.id) {
@@ -187,6 +194,13 @@ function handleEvents() {
         } else {
           audio.play('hurt', { x: t.x, z: t.z, vol: 0.55, maxD: 40 });
           if (e.by === p.id) { hud.hitmarker(e.killed, e.head); audio.play(e.killed ? 'kill' : e.head ? 'headshot' : 'hit', { vol: 0.9 }); }
+        }
+        break;
+      }
+      case 'landing': {
+        if (e.hard) {
+          particles.dust(e.x, 0.04, e.z, 0, 1, 0, Math.min(18, 5 + Math.round(e.impact)));
+          if (e.by === p.id) camfx.add(clamp(0.12 + (e.impact - 8) * 0.025, 0.12, 0.55));
         }
         break;
       }
