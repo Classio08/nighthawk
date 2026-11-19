@@ -27,9 +27,9 @@ export function mountCryptoCheckout(container, serverUrl, {
   let config = null;
   container.replaceChildren();
 
-  const heading = el('h2', 'ON-CHAIN COSMETIC STORE');
+  const heading = el('h2', 'CRYPTO COSMETIC CHECKOUT');
   const status = el('p', 'LOADING MERCHANT CONFIGURATION…', 'nh-crypto-status');
-  const note = el('p', 'COSMETIC PURCHASES ONLY · DIRECT WALLET TRANSFER · NO CUSTODY', 'nh-crypto-note');
+  const note = el('p', 'ERC-20 MERCHANT PAYMENT · COSMETIC ENTITLEMENT ONLY · NO CUSTODY OR NFT MINT', 'nh-crypto-note');
   const list = el('div', undefined, 'nh-crypto-grid');
   const pending = el('div', undefined, 'nh-crypto-pending');
   container.append(heading, status, note, list, pending);
