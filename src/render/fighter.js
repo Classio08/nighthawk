@@ -38,7 +38,7 @@ export class FighterView {
 
     // fake blob shadow
     const sh = new THREE.Mesh(new THREE.CircleGeometry(0.62, 12), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
-    sh.rotation.x = -Math.PI / 2; sh.position.y = 0.03; this.root.add(sh);
+    sh.rotation.x = -Math.PI / 2; sh.position.y = 0.03; this.root.add(sh); this.shadow = sh;
 
     // name + health label
     this.canvas = document.createElement('canvas'); this.canvas.width = 256; this.canvas.height = 64;
@@ -47,6 +47,16 @@ export class FighterView {
     this.label.scale.set(1.6, 0.4, 1); this.label.position.y = 2.25; this.root.add(this.label);
     this.lastHpDrawn = -1; this._drawLabel(1);
 
+    // parachute canopy (drop-in): a striped dome on four lines, shown while f.air === 3
+    this.chute = new THREE.Group(); this.chute.position.y = 3.35; this.root.add(this.chute); this.chute.visible = false;
+    const cm = new THREE.MeshLambertMaterial({ color: new THREE.Color(f.color).lerp(new THREE.Color(0xffffff), 0.35), side: THREE.DoubleSide });
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1.9, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), cm); dome.scale.y = 0.65; this.chute.add(dome);
+    const lineM = new THREE.LineBasicMaterial({ color: 0xd8d8d8 }); this.mats.push(cm);
+    for (const [x, z] of [[1.7, 0.7], [-1.7, 0.7], [1.7, -0.7], [-1.7, -0.7]]) {
+      const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, 0.05, z), new THREE.Vector3(Math.sign(x) * 0.18, -1.95, 0)]);
+      this.chute.add(new THREE.Line(g, lineM));
+    }
+    this.root.rotation.order = 'YXZ';
     this.phase = 0; this.hurtT = 0; this.visible = true; this.init = false; this.sx = f.x; this.sy = f.y; this.sz = f.z; this.stepSign = 1;
     this.muzzleV = new THREE.Vector3(); this.fade = 1; this.glow = '';
   }
@@ -68,13 +78,17 @@ export class FighterView {
 
   /** @param distToCam metres from the camera (labels only show for close fighters) */
   update(dt, distToCam) {
-    const f = this.f;
+    const f = this.f, air = f.air ?? 0;
+    if (air === 1) { this.root.visible = false; return; }                // still inside the plane
+    this.root.visible = this.visible;
+    this.chute.visible = air === 3; this.shadow.visible = !air;
     // the simulation ticks at 60 Hz; ease towards it so 120/144 Hz screens still look smooth
     const k = this.init ? 1 - Math.exp(-28 * dt) : 1; this.init = true;
     if (k >= 1 || Math.hypot(f.x - this.sx, f.z - this.sz) > 4) { this.sx = f.x; this.sy = f.y; this.sz = f.z; }
     else { this.sx += (f.x - this.sx) * k; this.sy += (f.y - this.sy) * k; this.sz += (f.z - this.sz) * k; }
     this.root.position.set(this.sx, this.sy - 0.9, this.sz);
     this.root.rotation.y = f.yaw;
+    this.root.rotation.x = air === 2 ? -1.1 : 0;                         // free fall: belly towards the ground
     const sp = Math.min(1.3, f.speedH / 6);
     this.phase += f.speedH * dt * 1.35;
     const sgn = Math.sin(this.phase) >= 0 ? 1 : -1; this.stepped = sgn !== this.stepSign && f.grounded && f.speedH > 2; this.stepSign = sgn;

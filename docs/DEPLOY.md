@@ -52,7 +52,7 @@ Checked in November 2026. Rules change, so re-check before you submit.
 | **Message limits** | Per player: 400 input messages/s (burst 120; a 240 Hz monitor sends 240), 4 pings/s, 5 unknown messages/s. Excess is dropped; 120 dropped in a row = the connection is closed (code 4003). Any single WebSocket message over 4 KB closes the connection (a real input batch is under 1 KB). Every input is also clamped by `sanitizeCmd`. |
 | **Room cap** | `MAX_ROOMS=40` (default). When reached, new players get `server busy - try again in a minute` instead of everybody lagging. One match is about 5.5% of one core (`node scripts/bench-sim.mjs`), so 40 rooms is about two cores: size it to your VPS. |
 | **Per-IP limits** | Not in the game server on purpose: put them in the reverse proxy. With Caddy install the rate-limit plugin, with nginx use `limit_req_zone` / `limit_conn_zone` on the WebSocket route (for example 10 new connections per minute per IP). Cloudflare in front of the VPS gives basic DDoS protection too. |
-| **Env vars** | `PORT`, `LOBBY_SECS`, `MATCH_SIZE`, `VEHICLES=0`, `LOOT=0`, `DIFFICULTY=easy/normal/hard/brutal`, `MAX_ROOMS`, `RECONNECT_SECS`, `METRICS_TOKEN`. |
+| **Env vars** | `PORT`, `LOBBY_SECS`, `MATCH_SIZE`, `VEHICLES=0`, `LOOT=0`, `DROP=0` (skip the parachute drop), `DIFFICULTY=easy/normal/hard/brutal`, `MAX_ROOMS`, `RECONNECT_SECS`, `METRICS_TOKEN`. |
 
 Quick look from the VPS: `curl -s localhost:2567/health` and `curl -s -H "Authorization: Bearer $METRICS_TOKEN" localhost:2567/metrics | head`.
 

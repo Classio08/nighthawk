@@ -15,11 +15,12 @@ import { VehicleSystem } from './vehicles.js';
 import { activeAbility, tickAbility, useAbility, STUN_MOVE } from './abilities.js';
 import { NavGrid } from './nav.js';
 import { pickWeather } from './weather.js';
-import { Zone } from './zone.js';
+import { Zone, DROP_START_RADIUS } from './zone.js';
 import { moveVector } from '../input/move.js';
 import { rayCapsule } from './geom.js';
 import { idleCmd } from './cmd.js';
 import { BotBrain } from './bot.js';
+import { startDrop, stepAir } from './drop.js';
 
 export const GRAV = -22;
 export const OPERATORS = operatorData.operators;
@@ -54,6 +55,7 @@ export class Fighter {
     this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;       // loot: armor points left, medkits carried, seconds left of the medkit being used
     this.abCd = 0; this.abT = 0; this.dashT = 0; this.dashVx = 0; this.dashVz = 0; this.dashHit = []; this.stunT = 0;   // operator ability: cooldown left, effect time left, dash, stunned
     this.noHurtT = 0; this.zoneAcc = 0;
+    this.air = 0; this.airT = 0; this.avx = 0; this.avz = 0; this.jumpPrev = false;      // drop-in (drop.js): 0 on foot, 1 in the plane, 2 free fall, 3 parachute
     this.brain = null; this.rb = null; this.col = null;
   }
   get eyeY() { return this.y + (this.crouch ? EYE_C : EYE); }
@@ -74,7 +76,7 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
@@ -82,6 +84,7 @@ export class Fighter {
     this.fireT = s.fireT; this.reloadT = s.reloadT; this.reloadTot = s.rt ?? 1; this.reloadEmpty = !!s.re; this.switchT = s.switchT; this.bloom = s.bloom; this.wasFiring = !!s.wf;
     if (s.hv !== undefined) { SLOT_ORDER.forEach((k, i) => { this.weapons[k].have = !!(s.hv & (1 << i)); }); this.armor = s.ar; this.armorLv = s.al; this.meds = s.md; this.healT = s.hl; }
     this.crouch = !!s.cr;
+    if (s.air) { this.air = s.air[0]; this.airT = s.air[1]; this.avx = s.air[2]; this.avz = s.air[3]; this.jumpPrev = !!s.air[4]; }
     if (s.ab) { this.abCd = s.ab[0]; this.abT = s.ab[1]; this.dashT = s.ab[2]; this.dashVx = s.ab[3]; this.dashVz = s.ab[4]; this.stunT = s.ab[5]; }
     this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
@@ -171,8 +174,10 @@ export class Simulation {
     this.squads = [];
     if (this.opts.squads !== false) this._makeSquads(this.fighters.filter((f) => f.brain));
     this._makeGuards(this.opts.guards ?? 4);
-    this.zone = new Zone(this.rng);
+    this.zone = new Zone(this.rng, this.opts.drop ? DROP_START_RADIUS : undefined);
     this.vehicles = new VehicleSystem(this);      // buggies + bikes (vehicles.js): needs the world, the map and the props to exist
+    this.plane = null; this.zoneStart = 0;
+    if (this.opts.drop) startDrop(this);          // everybody starts in the plane (drop.js); off in unit tests, on in the real game
   }
 
   /** ~60% of the bots fight in radio squads of 2-3 who start next to each other (see squad.js) */
@@ -590,7 +595,7 @@ export class Simulation {
   }
 
   damage(target, amount, source, info = {}) {
-    if (!target.alive || amount <= 0) return;
+    if (!target.alive || amount <= 0 || target.air) return;                                        // nobody can hurt you in the plane or under a parachute
     if (ARMORED.has(info.cause) || info.cause === 'melee') { const T = activeAbility(target); if (T?.takeMul) amount *= T.takeMul; }       // Overclock / Bulwark
     let soaked = 0;
     if (target.armor > 0 && !info.head && !info.pierce && ARMORED.has(info.cause)) {           // armor soaks body hits and blasts until it is used up
@@ -669,6 +674,7 @@ export class Simulation {
     f.grounded = this.cc.computedGrounded();
     if (!wasGrounded && f.grounded && vyIn < -FALL_SAFE && !this.opts.predictor && f.alive) {        // a hard landing hurts (server / solo sim only; armor does not help)
       f.vy = -1; this.damage(f, (-vyIn - FALL_SAFE) * FALL_DMG, null, { cause: 'fall', x: f.x, y: f.y - 0.5, z: f.z });
+      if (!f.alive) return;                                      // the fall killed you: the body is gone, there is nothing left to move
     }
     const t = f.rb.translation();
     const nx = t.x + m.x, ny = t.y + m.y, nz = t.z + m.z;
@@ -687,6 +693,7 @@ export class Simulation {
   stepPlayer(p, cmd, dt) {
     p.yaw = cmd.yaw; p.pitch = clamp(cmd.pitch, -1.5, 1.5);
     p.lagTicks = cmd.vt > 0 ? clamp(this.tick - cmd.vt, 0, MAX_LAG_TICKS) : 0;
+    if (p.air) { stepAir(this, p, cmd, dt); return; }                                  // plane / free fall / parachute: its own physics, no shooting
     if (p.veh) { this._stepSeated(p, cmd, dt); return; }
     const w = WEAPONS[p.cur];
     p.crouch = !!cmd.crouch;                                                      // C (hold): lower, slower, steadier, harder to hit; no sprint or jump while crouched
@@ -704,6 +711,7 @@ export class Simulation {
     if (p.healT > 0) sp *= 0.55;
     const { x: mx, z: mz } = moveVector(p.yaw, cmd.forward, cmd.strafe); // the one shared (and unit-tested) movement maths
     this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump && !p.crouch);
+    if (!p.alive) return;                                                 // (a lethal landing ends the turn)
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
     if (cmd.mortar) this.callMortarFromView(p);
@@ -746,7 +754,7 @@ export class Simulation {
    */
   step(dt, input) {
     this.time += dt;
-    if (!this.opts.predictor) this.zone.update(dt);
+    if (!this.opts.predictor && this.time >= this.zoneStart) this.zone.update(dt);        // with a drop-in the circle waits until everybody had time to land
 
     let cmds = input;
     if (input && typeof input.yaw === 'number') cmds = this.player ? { [this.player.id]: input } : {};

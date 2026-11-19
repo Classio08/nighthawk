@@ -24,6 +24,7 @@ import { VehiclesView } from './render/vehicles-view.js';
 import { LootView } from './render/loot-view.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings, QUALITY } from './settings.js';
+import { PlaneView } from './render/plane-view.js';
 import { loadProfile, saveProfile, resetProfile, recordMatch, MatchTracker, skinUnlocked, levelInfo, SKIN_UNLOCK } from './profile.js';
 import { renderProfile, renderGain } from './ui/profile-view.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
@@ -41,6 +42,8 @@ const ONLINE_URL = params.get('online') || DEFAULT_SERVER;        // ?online=ws:
 const FAKE_LAG = +(params.get('lag') ?? 0);                         // ?lag=120 simulates 120 ms of round-trip lag (for testing)          // used by the automatic browser test: skips the click-to-play screen
 
 /* weapon skin: picked on the start screen, remembered in the browser, ?skin=magma overrides (for testing) */
+/* drop-in: every match starts in the plane. ?drop=0 skips it (for testing); automated browsers skip it unless ?drop=1 */
+const DROP_ON = params.has('drop') ? params.get('drop') !== '0' : !navigator.webdriver;
 let SKIN = null;
 let profile = loadProfile();                         // guest profile (stats, XP, badges) saved in this browser
 const tracker = new MatchTracker();                  // my damage / headshots / weapon kills for the current match
@@ -80,12 +83,13 @@ function disposeScene(scene) {
 async function newMatch(online = null) {
   if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
+  const sim = online ?? await Simulation.create({ seed, bots: +(params.get('bots') ?? 15), operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
   particles.onBloodLand = (x, z) => { if (settings.gore) decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4); };
   const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim), vview = new VehiclesView(scene, sim), lview = sim.loot ? new LootView(scene, sim) : null;
+  const pview = sim.plane ? new PlaneView(scene, sim.plane) : null;
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
   const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
   const views = new Map();
@@ -96,14 +100,14 @@ async function newMatch(online = null) {
   playerView.label.visible = false;
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
+  G = { sim, net: online, scene, world, pview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
   viewmodel.root.visible = !thirdPerson;
   tracker.reset();
-  window.__nh = { G, sim, cmd, input, hud, camera, audio, net: online };     // handles for the automatic browser test
+  window.__nh = { G, sim, cmd, input, hud, camera, audio, viewmodel, net: online };     // handles for the automatic browser test
   return G;
 }
 
@@ -257,6 +261,9 @@ function handleEvents() {
       }
       case 'stun': if (e.target === p.id) { hud.message('EMP - YOU ARE STUNNED', '#7df9ff', 1.6); audio.play('stunned', { vol: 0.9 }); camfx.add(0.7); } break;
       case 'shell': G.cview.shell(e.x, e.z, e.eta ?? 1); audio.play('whistle', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); break;
+      case 'eject': if (e.by === p.id) { audio.play('wind', { vol: 1.2 }); camfx.add(0.3); hud.message('FREE FALL', '#ffcf4d', 1.4); } break;
+      case 'chute': if (e.by === p.id) { audio.play('chute', { vol: 1 }); camfx.add(0.45); } else audio.play('chute', { x: e.x, z: e.z, maxD: 90, vol: 0.6 }); break;
+      case 'land': if (e.by === p.id) { audio.play('thud', { vol: 1 }); hud.message('TOUCHDOWN: LOOT UP', '#5be37a', 2.2); } else audio.play('thud', { x: e.x, z: e.z, maxD: 60, vol: 0.7 }); break;
       case 'explosion': {
         particles.explosion(e.x, e.y, e.z, e.r);
         decals.holes.add(e.x, 0.03, e.z, 0, 1, 0, 3.6);
@@ -376,7 +383,7 @@ function updateCamera(dt, alpha) {
       G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
       camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
     }
-    const targetFov = driving ? settings.fov + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(settings.fov + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0), w.adsFov * settings.fov / 78, G.adsK);
+    const targetFov = driving ? settings.fov + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(settings.fov + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0) + (p.air === 2 ? 16 : 0), w.adsFov * settings.fov / 78, G.adsK);
     G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
   } else {
     // death cam: slowly orbit the ragdoll
@@ -422,7 +429,7 @@ function frame(now) {
   audio.setListener(camera.position.x, camera.position.z, cmd.yaw);
   const moving = p.speedH > 1.2;
   if (p.alive) {
-    viewmodel.root.visible = !thirdPerson && !(p.veh && p.seat === 0);          // no gun in your hands while driving or in third-person
+    viewmodel.root.visible = !thirdPerson && !(p.veh && p.seat === 0) && !p.air;     // no gun in your hands while driving, in third-person, or in the air
     viewmodel.update(dt, {
       weapon: p.cur, adsTime: w.adsTime, ads: p.ads, sprint: p.sprinting && p.speedH > 3, grounded: p.grounded, speed: p.speedH,
       lookYaw: G.lookYaw || 0, lookPitch: G.lookPitch || 0,
@@ -438,6 +445,8 @@ function frame(now) {
   G.playerView.setVisible(showBody);
   if (showBody) { G.playerView.update(dt, 0); G.playerView.label.visible = false; }
 
+  if (G.pview) G.pview.update(G.net ? G.net.planeT() : sim.time);   // the plane (offline: the sim clock; online: the server clock)
+  if (p.air === 2) { G.windT -= dt; if (G.windT <= 0) { G.windT = 0.32; audio.play('wind', { vol: 0.5 + Math.min(0.7, -p.vy / 70) }); } camfx.add(0.004); }
   // fighters, ragdolls, effects
   for (const v of G.views.values()) {
     v.update(dt, Math.hypot(v.f.x - camera.position.x, v.f.z - camera.position.z));

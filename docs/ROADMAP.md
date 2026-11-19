@@ -16,6 +16,7 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 | Environment art | Prototype only | Procedural sand canvas + Lambert world materials; no selected PBR set integrated |
 | FPP/TPP | Prototype built | V toggles first/third person (collision-safe boom camera); vehicle chase camera takes over while driving; online fairness tests still to do (camera never changes aim origin or hit rules) |
 | Profiles/progression | Guest profile built | XP, levels 1-50, ranks, career stats, 14 badges, skins unlocked by level, saved in the browser; no accounts, cross-device sync or server-signed results yet |
+| Drop-in | Built first pass | Everyone starts in a transport plane; Space to jump, free fall, parachute, bots pick landing spots, zone waits for the landing; works solo and online (prediction + server-validated) |
 | Vehicles | Built first pass | Buggies + bikes, E to enter, roadkill, bots drive, server-authoritative with prediction; unit, netcode and browser tests |
 | Loot and inventory | Built first pass | Guns, ammo, armor LV1-3, medkits, death drops, airdrop crates, hot-zone loot at named places; server-authoritative pickups |
 | Map | Greybox | Kavari Basin: Basin Yard, Dry River, Relay Ridge, Forward Outpost, Extraction Pad with minimap labels; still blocks, no real art |

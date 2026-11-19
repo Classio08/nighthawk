@@ -10,6 +10,7 @@ import { findCover, findPerch, insideAnyBox, MAP_HALF } from './map.js';
 import { searchWaypoint } from './guard-doctrine.js';
 import { PERSONALITIES } from './personality.js';
 import { diffOf } from './difficulty.js';
+import { botAir } from './drop.js';
 import { botUseAbility, activeAbility, isCloaked, ABILITIES } from './abilities.js';
 
 const BASE_SPEED = 7;
@@ -118,7 +119,7 @@ export class BotBrain {
     const { sim, f } = this;
     let best = null, bs = 1e9;
     for (const o of sim.fighters) {
-      if (o === f || !o.alive) continue;
+      if (o === f || !o.alive || o.air) continue;                          // (nobody shoots at a parachute)
       if (f.squad && f.squad.allies(f, o)) continue;                       // squad-mates are friends (until the circle gets small)
       if (this.p.guard && o.npc) continue;                                 // guards do not shoot each other
       const d = Math.hypot(o.x - f.x, o.z - f.z);
@@ -338,6 +339,7 @@ export class BotBrain {
     const { sim, f } = this;
     const zone = sim.zone;
     this.noVehT = Math.max(0, (this.noVehT ?? 0) - dt);
+    if (f.air) { botAir(sim, f, this, dt); return; }                                  // in the plane / falling / under a parachute (drop.js)
     if (f.veh) { f.crouch = false; this._drive(dt); return; }                       // sitting in a vehicle: a different kind of thinking
     sim.tickHeal(f, dt); this.lootScanT -= dt;
     if (sim.opts.loot) { this.mainT -= dt; if (this.mainT <= 0) { this.mainT = 1; this._refreshMain(); } }

@@ -59,6 +59,12 @@ See `DEPLOY.md` for the step-by-step. Latency reality: a Johannesburg server giv
 | Max lag-comp rewind | 30 ticks (500 ms) |
 | Players per match | 16 (humans + bots) |
 
+## The drop-in over the network (Stage 14)
+- The `welcome` message carries `drop: true`; the browser's predictor then builds the same transport plane (`makePlane(seed)`), so the plane is never sent. `NetSim.planeT()` (the estimated server clock) places the plane model.
+- Your own `air` state (0 foot, 1 plane, 2 free fall, 3 parachute), `airT` and the air velocity are part of the private self-state; everyone else's air state rides bits 9-10 of the fighter flags (`FF.airShift`). Jumping is the normal `jump` command flag (a fresh press), so no new message exists.
+- The server validates everything: it ejects a passenger who never jumps, ignores damage on anyone airborne and starts the zone clock only after the last possible landing (`zoneStart`). Prediction ignores other fighters' bodies in the air, so the client and server stay within about 2 m during a dive (checked at 80 ms lag in `server/test/match.mjs`, section 6).
+- `DROP=0` on the server (or `createServer({ drop: false })`) skips the plane.
+
 ## Loot over the network (Stage 8)
 - Same seed => same 120 starting items in every browser, so they are never sent. Snapshots carry `lt = { g: [ids of starting items taken], d: [[id, type, sub, x, z, qty, qty2], ...] }` (dropped items in full) **only when something changed**, plus a refresh every 120 ticks.
 - The server alone decides who takes what (a predicting browser never picks anything up). Your own guns, armor, medkits and heal timer travel in your private self-state (`hv`, `ar`, `al`, `md`, `hl`), so reconciliation rebuilds them exactly.

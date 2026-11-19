@@ -121,12 +121,12 @@ export class MatchRoom extends Room {
     }
     const seed = (Math.random() * 1e9) | 0;
     MatchRoom.stats.matchesStarted++;
-    this.sim = await Simulation.create({ seed, bots: Math.max(0, this.cfg.total - humans.length), humans, propsFixed: true, difficulty: this.cfg.difficulty, ...(this.cfg.vehicles === false ? { vehicles: false } : {}), ...(this.cfg.loot === false ? {} : { loot: true }) });
+    this.sim = await Simulation.create({ seed, bots: Math.max(0, this.cfg.total - humans.length), humans, propsFixed: true, difficulty: this.cfg.difficulty, ...(this.cfg.vehicles === false ? { vehicles: false } : {}), ...(this.cfg.loot === false ? {} : { loot: true }), ...(this.cfg.drop ? { drop: true } : {}) });
     const roster = packRoster(this.sim);
     for (const f of this.sim.humans) {
       this.byClient.set(f.sessionId, f);
       this.q.set(f.id, { cmds: [], last: null, ack: 0, started: false, repeats: 0 });
-      this.lobby.get(f.sessionId)?.client.send('welcome', { id: f.id, seed, mapSeed: this.sim.opts.mapSeed ?? 7, weather: this.sim.weather.id, vehicles: this.cfg.vehicles === false ? false : true, loot: this.cfg.loot === false ? false : true, tick: this.sim.tick, roster, self: f.exportSelf() });
+      this.lobby.get(f.sessionId)?.client.send('welcome', { id: f.id, seed, mapSeed: this.sim.opts.mapSeed ?? 7, weather: this.sim.weather.id, vehicles: this.cfg.vehicles === false ? false : true, loot: this.cfg.loot === false ? false : true, drop: !!this.cfg.drop, tick: this.sim.tick, roster, self: f.exportSelf() });
     }
     this.last = performance.now(); this.acc = 0;
     this.setSimulationInterval(() => this._pump(), 8);

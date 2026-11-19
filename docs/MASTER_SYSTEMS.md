@@ -20,8 +20,9 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 11 | Settings menu (sensitivity, FOV, volume, graphics, difficulty, gore, key rebinding), saved in the browser | built | `src/settings.js`, `src/ui/settings-menu.js`, `src/input/input.js` | `tests/settings.test.js`, `scripts/e2e-settings.mjs` |
 | 12 | Server hardening: rate limits, kicks, payload cap, room cap, reconnect window, /health + /metrics | built | `server/src/limits.js`, `server/src/MatchRoom.js`, `server/src/index.js`, `src/net/netsim.js` | `tests/limits.test.js`, section 6 of `server/test/match.mjs` |
 | 13 | Guest profile: XP, levels and ranks, career stats, 14 badges, weapon skins unlocked by level (cosmetic only), saved in the browser | built | `src/profile.js`, `src/ui/profile-view.js`, `src/main.js` | `tests/profile.test.js`, `scripts/e2e-profile.mjs` |
+| 14 | Parachute drop-in: everyone starts in a transport plane, jumps (Space), free-falls (W dives), parachute opens at 60 m, bots choose landing spots, zone waits for the landing; solo + online + prediction | built | `src/sim/drop.js`, `src/sim/world.js`, `src/sim/bot.js`, `src/render/plane-view.js`, `src/render/fighter.js`, `src/ui/hud.js`, `src/net/protocol.js`, `src/net/netsim.js`, `server/src/MatchRoom.js` | `tests/drop.test.js`, `scripts/e2e-drop.mjs`, `scripts/e2e-online-drop.mjs`, `server/test/match.mjs` section 6 |
 
-Run everything: `npm test` (164 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (184 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
@@ -165,6 +166,20 @@ Everything lives in `src/profile.js` (pure logic, unit-tested in Node) and `src/
 - **How stats are collected**: `MatchTracker` listens to the same sim events solo and online (`hit`, `kill`), counting only the local player's hits and kills (self damage and suicides are ignored). The `end` event (placement, kills, time, won) closes the match once (`G.recorded`), `recordMatch` returns the new profile plus a `gain` report (XP parts, level-up, new badges, new skins), the profile is saved and the cards redraw. Quitting mid-match records nothing.
 - **Safety**: every field is validated on load (`sanitizeProfile`): numbers are clamped, wins cannot exceed matches, weapon keys must look like `[a-z0-9_-]{1,16}` (no prototype keys, max 16), history keeps 10 entries, storage errors (private mode, quota) never break the game. RESET PROFILE needs a second click.
 - **Honest limits**: the save is client-trusted, which is fine for cosmetics. Anything with real value (leaderboards, a shop, ranked) needs server-side accounts with server-signed results. Cross-device sync, account linking and weapon mastery tiers are still to do.
+
+## Stage 14: the parachute drop-in
+
+The rules live in `src/sim/drop.js` (graphics-free and deterministic, so the browser's solo game, the server and the client predictor agree). Off in unit tests, on in the real game.
+
+- **The plane** flies one straight line across the map (seeded direction, up to 25 m off-centre, 230 m up, 18 m/s, about 14 s over the map). Its position is a pure function of the seed and how long a fighter has been aboard (`f.airT`), so nothing but the fighter's own state is synced. Server, solo game and predictor all build the same plane from `makePlane(seed)`.
+- **Four air states** (`f.air`): 0 on foot, 1 in the plane, 2 free fall, 3 parachute. **Space** jumps; a player who never jumps is thrown out 20 m inside the far edge (`Te`), so nobody is carried off the map. **W** dives (26 m/s horizontal), no input drifts (9 m/s). A second **Space** opens the canopy early (not in the first 0.8 s); it opens by itself below 60 m. Under the canopy you steer at 11 m/s and sink at 6.5 m/s, well under the 12 m/s fall-damage threshold, so a normal landing is harmless.
+- **Rules while airborne**: cannot be hurt (`damage()` ignores `target.air`), cannot shoot or loot, bots do not target you and contracts ignore you. Air movement uses the same character controller but ignores other fighters' bodies (stacked fighters in the plane used to shove each other and desync the predictor).
+- **Zone**: the opening circle covers the whole square map in drop matches (`DROP_START_RADIUS` 165; the corners are 163 m from the centre), and the zone clock only starts at `zoneStart = plane.Te + 14 s`, once the last possible jumper has landed. The HUD timer counts down to that moment. (A browser test caught the original bug: landing near a corner hurt you before the zone had even started.)
+- **Bots** pick a landing spot from their goal (loot, contract, hot zone), dive while far away, glide when near and steer onto it. Squad members jump right after their leader and land together.
+- **Network**: `exportSelf/importSelf` carry `air`, `airT` and the air velocity; other players' state rides two spare bits of the fighter flags (`FF.airShift` = 9, bits 9-10), so snapshots did not grow. The `welcome` message says `drop: true` and the predictor builds the same plane. `DROP=0` on the server (or `createServer({ drop: false })`) turns it off. `NetSim.planeT()` is the server clock the plane model follows.
+- **Client**: `src/render/plane-view.js` (low-poly transport plane), a striped canopy and a belly-down free-fall pose on `FighterView`, a wider field of view in free fall, wind / chute / thud sounds, an `#air` prompt (PRESS SPACE TO JUMP with the exit countdown, FREE FALL altitude, PARACHUTE altitude) and the plane's flight line plus marker on the minimap.
+- **URL switches**: `?drop=0` skips the drop (handy for testing), `?drop=1` forces it. Automated browsers (`navigator.webdriver`) default to **no drop** so the older browser scripts keep working; the drop has its own two (`e2e-drop.mjs`, `e2e-online-drop.mjs`).
+- **Found while building it**: a lethal fall crashed the physics ("unreachable" inside Rapier) because `_kill` removes the rigid body and the movement code touched it afterwards; both movement paths now stop as soon as the fighter dies, with a regression test.
 
 ## What to look at next (open items)
 

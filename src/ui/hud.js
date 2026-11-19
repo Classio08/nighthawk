@@ -13,7 +13,7 @@ export class Hud {
       alive: $('alive'), kills: $('kills'), zone: $('zone'), fps: $('fpsn'), ping: $('pingn'), feed: $('feed'), slots: $('slots'), msg: $('msg'),
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
       vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
-      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'),
+      cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'), air: $('air'),
       abil: $('abil'), abname: $('abname'), abbar: $('abbar'), abtxt: $('abtxt'), arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'),
     };
     this.mctx = this.el.mini.getContext('2d');
@@ -82,8 +82,9 @@ export class Hud {
     const e = this.el, w = WEAPONS[p.cur], st = p.weapons[p.cur];
     e.alive.textContent = sim.aliveCount(); e.kills.textContent = p.kills;
     const z = sim.zone;
-    const outside = z.outside(p.x, p.z) > 0;
-    const t = Math.max(0, Math.ceil(z.timeLeft));
+    const outside = !p.air && z.outside(p.x, p.z) > 0;                                 // (no zone warning while you are still in the plane or on a parachute)
+    const clock = sim.planeT ? sim.planeT() : sim.time, pre = sim.zoneStart > 0 ? Math.max(0, sim.zoneStart - clock) : 0;      // drop-in: the zone's clock only starts once everybody has had time to land
+    const t = Math.max(0, Math.ceil(z.timeLeft + pre));
     e.zone.textContent = z.done ? 'FINAL ZONE' : z.shrinking ? `ZONE CLOSING  ${fmt(t)}` : `NEXT ZONE  ${fmt(t)}`;
     e.zone.classList.toggle('warn', z.shrinking || outside);
     e.hpbar.style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
@@ -119,6 +120,7 @@ export class Hud {
     this.drawAbility(p);
     this.drawContracts(sim, p);
     this.drawVehicle(sim, p);
+    this.drawAir(sim, p);
     this.drawMini(dt, sim, p);
   }
 
@@ -168,6 +170,15 @@ export class Hud {
     if (html !== this.vehHtml) { this.vehHtml = html; this.el.veh.innerHTML = html; this.el.veh.style.display = html ? 'block' : 'none'; }
   }
 
+  /** big prompts while you are in the plane / falling / under the parachute */
+  drawAir(sim, p) {
+    let html = '';
+    if (p.air === 1 && sim.plane) html = `<b>PRESS SPACE TO JUMP</b><span>the plane leaves the map in ${Math.max(0, Math.ceil(sim.plane.Te - p.airT))} s</span><i>look around with the mouse · loot is at the named places on the map</i>`;
+    else if (p.air === 2) html = `<b>FREE FALL</b><span>${Math.round(p.y)} m · hold W to dive · SPACE opens the parachute (it opens by itself at 60 m)</span>`;
+    else if (p.air === 3) html = `<b>PARACHUTE</b><span>${Math.round(p.y)} m · steer with WASD · land near loot, away from the crowd</span>`;
+    if (html !== this.airHtml) { this.airHtml = html; this.el.air.innerHTML = html; this.el.air.style.display = html ? 'block' : 'none'; }
+  }
+
   /** the little list under the zone timer: what is on the map, how far, how far along */
   drawContracts(sim, p) {
     const list = sim.contracts?.list ?? [], parts = [];
@@ -195,6 +206,11 @@ export class Hud {
     g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
     g.lineWidth = 1.5; g.strokeStyle = '#fff'; g.beginPath(); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283); g.stroke();
     if (!z.done && z.nextR < z.radius - 0.5) { g.strokeStyle = '#4aa3ff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(S / 2 + z.nextX * k, S / 2 + z.nextZ * k, z.nextR * k, 0, 6.283); g.stroke(); g.setLineDash([]); }
+    if (sim.plane && (p.air === 1 || sim.time < sim.plane.T)) {   // the plane's flight line and where it is now
+      const pl = sim.plane, t = p.air === 1 ? p.airT : sim.time, a = { x: pl.x0, z: pl.z0 }, b = { x: pl.x0 + pl.dx * pl.len, z: pl.z0 + pl.dz * pl.len };
+      g.save(); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(S / 2 + a.x * k, S / 2 + a.z * k); g.lineTo(S / 2 + b.x * k, S / 2 + b.z * k); g.stroke(); g.restore();
+      if (t < pl.T) { const q = { x: pl.x0 + pl.dx * pl.speed * t, z: pl.z0 + pl.dz * pl.speed * t }; g.save(); g.translate(S / 2 + q.x * k, S / 2 + q.z * k); g.rotate(Math.atan2(pl.dz, pl.dx) + Math.PI / 2); g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(0, -6); g.lineTo(5, 5); g.lineTo(0, 2.5); g.lineTo(-5, 5); g.closePath(); g.fill(); g.restore(); }
+    }
     for (const v of sim.vehicles?.list ?? []) {              // vehicles on the map
       if (v.dead) continue; const x = S / 2 + v.x * k, y = S / 2 + v.z * k;
       g.fillStyle = v.driver >= 0 ? '#ff8a4d' : '#5fd6ff'; g.fillRect(x - 2, y - 2, 4, 4);

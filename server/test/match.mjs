@@ -308,5 +308,35 @@ A.leave(); await sleep(500);
   check('reconnect window: after 3 s with no return, a bot takes over and the failure is counted', !fQ.human && !!fQ.brain && st.reconnectsFailed === failed0 + 1, `human=${fQ.human} failed +${st.reconnectsFailed - failed0}`);
   dP.stop(); dQ.stop(); clearInterval(prot4); P.leave(); Q.leave(); await sleep(300);
 }
+// ---- 6. the parachute drop-in over the network (a fifth server, drop on): same plane on server and clients, the jump is validated and predicted, the others see you fall, the landing agrees
+{
+  const PORT5 = PORT + 4, URL5 = `ws://localhost:${PORT5}`;
+  const server5 = createServer({ lobbySecs: 1, total: 4, loot: false, vehicles: false, drop: true });
+  await server5.listen(PORT5);
+  const [A5, B5] = await Promise.all([NetSim.join(URL5, { name: 'Roms', operator: 'roms', lag: 80 }), NetSim.join(URL5, { name: 'Shadow', operator: 'shadow', lag: 0 })]);
+  const room5 = [...MatchRoom.instances].find((r) => r.sim && r.sim.opts.drop), sim5 = room5.sim;
+  const fA = sim5.fighters[A5.myId], fB = sim5.fighters[B5.myId];
+  check('drop: the welcome says the drop is on and both browsers build the very same plane as the server', A5.welcome.drop === true && !!A5.plane && JSON.stringify(A5.plane) === JSON.stringify(sim5.plane) && JSON.stringify(B5.plane) === JSON.stringify(sim5.plane));
+  check('drop: everyone starts aboard (server and both clients agree, air = 1)', fA.air === 1 && fB.air === 1 && A5.me.air === 1 && B5.me.air === 1, `server ${fA.air}/${fB.air} clients ${A5.me.air}/${B5.me.air}`);
+  const prot5 = setInterval(() => { for (const h of sim5.humans) if (h.alive) h.hp = Math.max(h.hp, h.maxHp * 0.99); }, 40);
+  let jumpA = false, diveA = false;
+  const dA = drive(A5, () => ({ jump: jumpA, forward: diveA ? 1 : 0, yaw: sim5.plane.yaw })), dB = drive(B5, () => ({ yaw: sim5.plane.yaw }));
+  await sleep(700);
+  check('drop: the server zone clock has not started while everyone is still in the air', sim5.zone.t === 0 && sim5.zone.timeLeft > 20);
+  // A jumps (a fresh key press), B stays in the plane
+  jumpA = true; await sleep(120); jumpA = false; await sleep(500);
+  check('drop: the server threw A out of the plane (air = 2) and A\'s predicted state agrees', fA.air === 2 && A5.me.air === 2, `server ${fA.air} client ${A5.me.air}`);
+  const seenB = B5.fighters[A5.myId];
+  check('drop: B sees A in free fall (the flag rides the snapshot) while B is still aboard', seenB.air === 2 && B5.me.air === 1, `B sees A air=${seenB.air}, B air=${B5.me.air}`);
+  check('drop: A cannot be hurt while falling (a shot is ignored)', (() => { const hp = fA.hp; sim5.damage(fA, 40, fB, { cause: 'bullet', w: 'ar' }); return fA.hp === hp; })());
+  diveA = true; await sleep(1500);
+  check('drop: A keeps falling at speed and the client prediction stays glued to the server', A5.me.vy < -20 && Math.hypot(A5.me.x - fA.x, A5.me.z - fA.z) < 2.5 && Math.abs(A5.me.y - fA.y) < 6, `vy=${A5.me.vy.toFixed(1)} gap=${Math.hypot(A5.me.x - fA.x, A5.me.z - fA.z).toFixed(2)} dy=${(A5.me.y - fA.y).toFixed(1)}`);
+  const t0 = performance.now(); while (fA.air !== 0 && performance.now() - t0 < 25000) await sleep(100);
+  await sleep(300);
+  check('drop: A opened the chute by itself, came down and landed on the server', fA.air === 0 && fA.alive && fA.y < 3, `air=${fA.air} y=${fA.y.toFixed(2)}`);
+  check('drop: landing is harmless on both sides and A\'s client ends up on the same spot', fA.hp >= fA.maxHp * 0.98 && A5.me.air === 0 && Math.hypot(A5.me.x - fA.x, A5.me.z - fA.z) < 1.0, `hp=${Math.round(fA.hp)} client air=${A5.me.air} gap=${Math.hypot(A5.me.x - fA.x, A5.me.z - fA.z).toFixed(2)}`);
+  check('drop: B, who never jumped, is thrown out by the server before the plane leaves the map', await (async () => { const t1 = performance.now(); while (fB.air === 1 && performance.now() - t1 < 25000) await sleep(100); return fB.air !== 1 && Math.abs(fB.x) < 400 && Math.abs(fB.z) < 400; })());
+  dA.stop(); dB.stop(); clearInterval(prot5); B5.leave(); A5.leave(); await sleep(300);
+}
 console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll netcode checks passed');
 process.exit(failed ? 1 : 0);

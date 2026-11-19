@@ -1,5 +1,8 @@
 // The shrinking safe zone (PUBG-style). Pure maths: no physics, no graphics.
-import { START_RADIUS } from './map.js';
+import { START_RADIUS, MAP_HALF } from './map.js';
+
+/** with the parachute drop-in you can land anywhere, so the opening circle has to cover the whole square map (its corners are 163 m from the centre) */
+export const DROP_START_RADIUS = 165;
 
 // wait = seconds the circle stays still, shrink = seconds it takes to close, radius = size after shrinking, dps = damage/s outside
 export const ZONE_PHASES = [
@@ -27,7 +30,8 @@ export class Zone {
     if (!p) { this.done = true; this.nextX = this.cx; this.nextZ = this.cz; this.nextR = this.radius; return; }
     const room = Math.max(0, this.radius - p.radius) * 0.85; // new circle always stays inside the old one
     const a = this.rng() * Math.PI * 2, d = Math.sqrt(this.rng()) * room;
-    this.nextX = this.cx + Math.cos(a) * d; this.nextZ = this.cz + Math.sin(a) * d; this.nextR = p.radius;
+    const lim = MAP_HALF - 20;       // (only matters for the huge opening circle of a drop-in match: the next circle's centre stays on the map)
+    this.nextX = Math.max(-lim, Math.min(lim, this.cx + Math.cos(a) * d)); this.nextZ = Math.max(-lim, Math.min(lim, this.cz + Math.sin(a) * d)); this.nextR = p.radius;
   }
 
   get dps() { return ZONE_PHASES[Math.min(this.phase, ZONE_PHASES.length - 1)].dps; }

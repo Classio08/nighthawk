@@ -32,7 +32,7 @@ export class Contracts {
       this._spawn(CONTRACT_TYPES[this.n < 3 ? this.n : Math.floor(this.rng() * CONTRACT_TYPES.length)]); this.n++;
       this.nextAt = t + 30 + this.rng() * 14;
     }
-    const people = sim.fighters.filter((f) => f.alive && !f.npc);
+    const people = sim.fighters.filter((f) => f.alive && !f.npc && !f.air);
     for (const c of this.list) {
       if (c.state === 'done') continue;
       c.age += dt;

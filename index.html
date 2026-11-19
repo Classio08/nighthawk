@@ -63,6 +63,8 @@
   #slots{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:5px}
   #slots div{padding:4px 8px;font-size:11px;letter-spacing:1px;opacity:.55}
   #slots div.on{opacity:1;border-color:var(--accent);color:var(--accent)}
+  #air{position:absolute;left:50%;top:30%;transform:translateX(-50%);display:none;text-align:center;letter-spacing:3px;text-shadow:0 2px 6px #000;pointer-events:none}
+  #air b{display:block;font-size:30px;color:var(--accent);letter-spacing:6px}#air span{display:block;font-size:13px;opacity:.9;margin-top:4px}#air i{display:block;font-style:normal;font-size:12px;opacity:.7;margin-top:8px}
   #ct{position:absolute;left:50%;top:48px;transform:translateX(-50%);display:none;font-size:12px;letter-spacing:1px;text-align:center;line-height:1.5;padding:3px 12px;background:var(--panel);border-radius:4px}
   #veh{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);display:none;font-size:13px;letter-spacing:2px;text-align:center;line-height:1.5;padding:5px 14px;background:var(--panel);border-radius:4px;border:1px solid rgba(255,255,255,.12)}
   #veh small{font-size:10px;opacity:.7;letter-spacing:1px}
@@ -132,6 +134,7 @@
   </div>
   <div id="zone" class="box">ZONE</div>
   <div id="ct"></div>
+  <div id="air"></div>
   <div id="veh"></div>
   <div id="fps"><span id="fpsn">0</span> fps<span id="pingn"></span></div>
   <div id="feed"></div>
@@ -148,7 +151,7 @@
   <h1>NIGHTHAWK</h1>
   <p>16 fighters · one shrinking zone · last one standing</p>
   <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim &nbsp;<small style="opacity:.6">(rebind in SETTINGS)</small><br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E enter / exit buggy &amp; bike</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
-  <p style="font-size:12px;opacity:.7">You land with a pistol: <b>loot guns, armor and medkits</b> (walk over them) &middot; grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
+  <p style="font-size:12px;opacity:.7"><b>Every match starts in the plane:</b> press <b>Space</b> to jump, hold <b>W</b> to dive, the parachute opens by itself at 60 m (Space opens it early) &middot; you land with a pistol: <b>loot guns, armor and medkits</b> (walk over them) &middot; grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <button class="btn" id="startsettings">SETTINGS</button>

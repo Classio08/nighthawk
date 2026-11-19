@@ -35,6 +35,6 @@ export function createServer(cfg = {}) {
 // run directly: `npm run server`
 if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? 2567);
-  await createServer({ lobbySecs: Number(process.env.LOBBY_SECS ?? 15), total: Number(process.env.MATCH_SIZE ?? 16), vehicles: process.env.VEHICLES !== '0', loot: process.env.LOOT !== '0', difficulty: process.env.DIFFICULTY ?? 'normal', maxRooms: Number(process.env.MAX_ROOMS ?? 40), reconnectSecs: Number(process.env.RECONNECT_SECS ?? 12) }).listen(port);
+  await createServer({ lobbySecs: Number(process.env.LOBBY_SECS ?? 15), total: Number(process.env.MATCH_SIZE ?? 16), vehicles: process.env.VEHICLES !== '0', loot: process.env.LOOT !== '0', drop: process.env.DROP !== '0', difficulty: process.env.DIFFICULTY ?? 'normal', maxRooms: Number(process.env.MAX_ROOMS ?? 40), reconnectSecs: Number(process.env.RECONNECT_SECS ?? 12) }).listen(port);
   console.log(`NIGHTHAWK server listening on ws://localhost:${port}  (lobby ${process.env.LOBBY_SECS ?? 15}s)`);
 }

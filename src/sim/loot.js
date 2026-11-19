@@ -94,7 +94,7 @@ export class LootSystem {
     if (!this.sim.opts.loot || this.sim.opts.predictor) return;
     if (this.gridRev !== this.rev) this._grid();
     for (const f of this.sim.fighters) {
-      if (!f.alive || f.veh) continue;
+      if (!f.alive || f.veh || f.air) continue;
       const cx = Math.floor(f.x / CELL), cz = Math.floor(f.z / CELL);
       for (let ix = cx - 1; ix <= cx + 1; ix++) for (let iz = cz - 1; iz <= cz + 1; iz++) {
         const cell = this.cells.get((ix + 512) * 1024 + (iz + 512)); if (!cell) continue;

@@ -25,12 +25,12 @@ class RemoteFighter {
     this.alive = true; this.kills = 0; this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.speedH = 0; this.grounded = true; this.ads = false; this.sprinting = false; this.cur = r.weapon; this.reloadT = 0;
     this.weapons = {}; this.nades = 0; this.fireT = 0; this.switchT = 0; this.bloom = 0;
-    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false; this.crouch = false;      // operator ability tells (flags from the snapshot)
+    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false; this.crouch = false; this.air = 0; this.airT = 0;      // operator ability tells (flags from the snapshot)
   }
   get eyeY() { return this.y + (this.crouch ? 0.2 : 0.72); }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit', 'crouch'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit', 'crouch', 'air', 'airT'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -91,7 +91,7 @@ export class NetSim {
     this.welcome = w; this.myId = w.id;
     // the predictor: SAME seed and map => identical walls and crates, but only my fighter, no bots and no zone damage
     const me = w.roster[w.id];
-    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true, weather: w.weather, ...(w.vehicles === false ? { vehicles: false } : {}), ...(w.loot ? { loot: true } : {}) });
+    this.predictor = await Simulation.create({ seed: w.seed, mapSeed: w.mapSeed, bots: 0, humans: [{ operator: me.op, name: me.name, skin: me.skin }], propsFixed: true, predictor: true, weather: w.weather, ...(w.vehicles === false ? { vehicles: false } : {}), ...(w.loot ? { loot: true } : {}), ...(w.drop ? { drop: true } : {}) });
     this.weather = this.predictor.weather; this.vehicles = this.predictor.vehicles; this.loot = this.predictor.loot;      // same vehicles as the server (same seed); their state comes from snapshots
     const pl = this.predictor.player; pl.rngKey = w.id; pl.yaw = w.self.yaw;
     pl.importSelf(w.self); this.predictor.world.propagateModifiedBodyPositionsToColliders();
@@ -104,6 +104,11 @@ export class NetSim {
     for (const m of this.inbox.splice(0)) this._onSnap(m);
     this._resolve(this);
   }
+
+  /** the transport plane of the drop-in (same seed => same flight path as the server's) and how long it has been flying on the server clock */
+  get plane() { return this.predictor?.plane ?? null; }
+  get zoneStart() { return this.predictor?.zoneStart ?? 0; }
+  planeT() { return Math.max(0, this.estTick() * STEP); }
 
   /* ---------- clock: which server tick is "now"? ---------- */
   estTick() { return this.now() * TICKS_PER_MS + (this.clockOff ?? 0); }
