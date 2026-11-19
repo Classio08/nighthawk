@@ -92,6 +92,8 @@ class Audio {
     if (!this.ok || this.active > 22) return;
     const def = SOUNDS[name]; if (!def) return;
     let vol = (o.vol ?? 1), pan = 0;
+    const occlusion = Number.isFinite(o.occlusion) ? Math.max(0.04, Math.min(1, o.occlusion)) : 1;
+    vol *= occlusion;
     if (o.x !== undefined) {
       const dx = o.x - this.lx, dz = o.z - this.lz, d = Math.hypot(dx, dz), maxD = o.maxD ?? 110;
       if (d > maxD) return;
