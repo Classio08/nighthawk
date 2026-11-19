@@ -7,9 +7,12 @@ export class Input {
     this.canvas = canvas;
     this.keys = new Set();
     this.pressed = new Set();   // keys pressed this frame (edge triggered)
-    this.dx = 0; this.dy = 0;   // accumulated mouse movement
-    this.fire = false;          // left mouse held
-    this.ads = false;           // right mouse held (aim down sights)
+    this.dx = 0; this.dy = 0;   // accumulated mouse + touch-look movement
+    this.mouseFire = false;    // left mouse held
+    this.mouseAds = false;     // right mouse held (aim down sights)
+    this.touchMove = { forward: 0, strafe: 0, sprint: false };
+    this.touchActions = new Set();
+    this.touchPressed = new Set();
     this.wheel = 0;             // wheel ticks since last frame (weapon cycle)
     this.locked = false;
     this.lockFailed = false;    // browser refused pointer-lock -> arrow keys + click-to-fire still work
@@ -23,7 +26,7 @@ export class Input {
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
-    addEventListener('blur', () => { this.keys.clear(); this.fire = false; this.ads = false; });
+    addEventListener('blur', () => { this.keys.clear(); this.fire = false; this.ads = false; this.releaseTouch(); });
 
     document.addEventListener('mousemove', (e) => {
       if (this.locked) { this.dx += e.movementX; this.dy += e.movementY; }
@@ -54,11 +57,46 @@ export class Input {
     } catch { this.lockFailed = true; }
   }
 
+  get fire() { return this.mouseFire || this.touchActions.has('fire'); }
+  set fire(value) { this.mouseFire = !!value; }
+  get ads() { return this.mouseAds || this.touchActions.has('ads'); }
+  set ads(value) { this.mouseAds = !!value; }
+
   down(code) { return this.keys.has(code); }
   wasPressed(code) { return this.pressed.has(code); }
-  /** held / pressed by ACTION (the key comes from the player's bindings); Shift counts on both sides */
-  act(id) { const k = settings.key(id); return this.keys.has(k) || (k === 'ShiftLeft' && this.keys.has('ShiftRight')); }
-  actPressed(id) { const k = settings.key(id); return this.pressed.has(k) || (k === 'ShiftLeft' && this.pressed.has('ShiftRight')); }
+  /** held / pressed by ACTION (keyboard binding or virtual control); Shift counts on both sides */
+  act(id) { const k = settings.key(id); return this.touchActions.has(id) || this.keys.has(k) || (k === 'ShiftLeft' && this.keys.has('ShiftRight')); }
+  actPressed(id) { const k = settings.key(id); return this.touchPressed.has(id) || this.pressed.has(k) || (k === 'ShiftLeft' && this.pressed.has('ShiftRight')); }
+
+  /** Feed normalized virtual-stick axes into the same command path used by keyboard input. */
+  setTouchMove(forward = 0, strafe = 0, sprint = false) {
+    let f = Number.isFinite(forward) ? Math.max(-1, Math.min(1, forward)) : 0;
+    let s = Number.isFinite(strafe) ? Math.max(-1, Math.min(1, strafe)) : 0;
+    const length = Math.hypot(f, s);
+    if (length > 1) { f /= length; s /= length; }
+    this.touchMove.forward = f; this.touchMove.strafe = s; this.touchMove.sprint = !!sprint;
+  }
+
+  /** Touch look is converted to the same accumulated pixel deltas used by the mouse. */
+  addTouchLook(dx, dy, scale = 1.3) {
+    if (Number.isFinite(dx)) this.dx += dx * scale;
+    if (Number.isFinite(dy)) this.dy += dy * scale;
+  }
+
+  /** Hold an existing game action through the virtual controls; edge presses are consumed by endFrame(). */
+  setTouchAction(id, down) {
+    if (!id) return;
+    if (down) {
+      if (!this.touchActions.has(id)) this.touchPressed.add(id);
+      this.touchActions.add(id);
+    } else this.touchActions.delete(id);
+  }
+
+  releaseTouch() {
+    this.touchMove.forward = 0; this.touchMove.strafe = 0; this.touchMove.sprint = false;
+    this.touchActions.clear(); this.touchPressed.clear();
+    this.dx = 0; this.dy = 0;
+  }
 
   // look deltas in radians for this frame (mouse + arrow-key backup). `sens` < 1 while aiming down sights.
   readLook(dt, sens = 1) {
@@ -73,11 +111,16 @@ export class Input {
   }
 
   readMove() {
+    let forward = (this.act('forward') ? 1 : 0) - (this.act('back') ? 1 : 0) + this.touchMove.forward;
+    let strafe = (this.act('right') ? 1 : 0) - (this.act('left') ? 1 : 0) + this.touchMove.strafe;
+    forward = Math.max(-1, Math.min(1, forward));
+    strafe = Math.max(-1, Math.min(1, strafe));
+    const length = Math.hypot(forward, strafe);
+    if (length > 1) { forward /= length; strafe /= length; }
     return {
-      forward: (this.act('forward') ? 1 : 0) - (this.act('back') ? 1 : 0),
-      strafe: (this.act('right') ? 1 : 0) - (this.act('left') ? 1 : 0),
+      forward, strafe,
       jump: this.act('jump'),
-      sprint: this.act('sprint'),
+      sprint: this.act('sprint') || this.touchMove.sprint,
       crouch: this.act('crouch'),
     };
   }
@@ -89,5 +132,5 @@ export class Input {
   }
   takeWheel() { const w = this.wheel; this.wheel = 0; return w; }
 
-  endFrame() { this.pressed.clear(); }
+  endFrame() { this.pressed.clear(); this.touchPressed.clear(); }
 }
