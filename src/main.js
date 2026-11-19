@@ -166,9 +166,13 @@ function handleEvents() {
       }
       case 'shot': {
         const f = sim.fighters[e.by];
-        if (e.by === p.id) { viewmodel.guns[p.cur].userData.muzzle.getWorldPosition(tmp); }
-        else { const v = views.get(e.by); if (v) v.muzzleWorld(tmp); else tmp.set(e.ox, e.oy, e.oz); }
-        tracers.add(tmp.x, tmp.y, tmp.z, e.ex, e.ey, e.ez, e.by === p.id ? 0xfff2b0 : 0xffc27a);
+        if (e.segment) {
+          tracers.add(e.ox, e.oy, e.oz, e.ex, e.ey, e.ez, e.by === p.id ? 0xfff2b0 : 0xffc27a);
+        } else {
+          if (e.by === p.id) { viewmodel.guns[p.cur].userData.muzzle.getWorldPosition(tmp); }
+          else { const v = views.get(e.by); if (v) v.muzzleWorld(tmp); else tmp.set(e.ox, e.oy, e.oz); }
+          tracers.add(tmp.x, tmp.y, tmp.z, e.ex, e.ey, e.ez, e.by === p.id ? 0xfff2b0 : 0xffc27a);
+        }
         if (e.hit === 'world' || e.penetrated) {
           const sx = e.surfaceX ?? e.ex, sy = e.surfaceY ?? e.ey, sz = e.surfaceZ ?? e.ez;
           decals.hole(sx, sy, sz, e.nx ?? 0, e.ny ?? 1, e.nz ?? 0);
