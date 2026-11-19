@@ -203,9 +203,11 @@ export class Hud {
   drawMini(dt, sim, p) {
     const g = this.mctx, S = 150, k = this.k, z = sim.zone;
     g.clearRect(0, 0, S, S); g.drawImage(this.mapBg, 0, 0);
-    // tint everything outside the safe circle red
-    g.save(); g.beginPath(); g.rect(0, 0, S, S); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283, true);
-    g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
+    // The operation map has no shrinking zone; retain the red tint only in battle-royale modes.
+    if (!sim.mission) {
+      g.save(); g.beginPath(); g.rect(0, 0, S, S); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283, true);
+      g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
+    }
     g.lineWidth = 1.5; g.strokeStyle = '#fff'; g.beginPath(); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283); g.stroke();
     if (!z.done && z.nextR < z.radius - 0.5) { g.strokeStyle = '#4aa3ff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(S / 2 + z.nextX * k, S / 2 + z.nextZ * k, z.nextR * k, 0, 6.283); g.stroke(); g.setLineDash([]); }
     for (const v of sim.vehicles?.list ?? []) {              // vehicles on the map
