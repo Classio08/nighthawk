@@ -133,8 +133,40 @@ export class Hud {
     if (!el) return;
     if (!mission) { el.style.display = 'none'; return; }
     el.style.display = 'block';
-    const info = mission.hudInfo(p), alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
-    const html = `<small>${info.title} · THREAT ${alert.level.toUpperCase()}</small><b>${info.objective}</b><span>${info.detail}</span><i><em style="width:${Math.round(Math.max(0, Math.min(1, info.bar)) * 100)}%"></em></i><small>${info.progress}</small>`;
+    // A mission describes itself through hudInfo(p) (DUST LANTERN and GHOST FREQUENCY do). An operation that has not been moved over yet still gets the generic
+    // reading of its stage / clues / hack / hold fields below (ChatGPT's generalisation, kept as the fallback so those operations keep working).
+    const alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
+    let info = mission.hudInfo?.(p);
+    if (!info) {
+      const stage = mission.stage;
+      const clues = mission.clues ?? [];
+      const found = mission.foundCount ?? clues.filter((clue) => clue.found).length;
+      const nearClue = stage === 'recon' && clues.some((clue) => !clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 3.4);
+      const nearCaptive = stage === 'recover' && mission.captive?.visible && Math.hypot(mission.captive.x - p.x, mission.captive.z - p.z) < 3.5;
+      const defaultDetail = stage === 'recon'
+        ? (nearClue ? 'PRESS E TO INVESTIGATE' : 'Search the evidence sites')
+        : stage === 'recover'
+          ? (nearCaptive ? 'PRESS E TO SECURE THE TECHNICIAN' : `Locate the technician · ${mission.targetSite?.name ?? 'TARGET AREA'}`)
+          : stage === 'extract'
+            ? (mission.captive?.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Reach the extraction pad')
+            : stage === 'complete' ? 'Operation objective complete' : 'Operation ended';
+      const denom = Math.max(1, clues.length || 2);
+      const percent = stage === 'recon' ? found / denom * 100
+        : stage === 'hack' ? (mission.hackT ?? 0) / Math.max(1, mission.hackDuration ?? 1) * 100
+          : stage === 'hold' ? (mission.holdT ?? 0) / Math.max(1, mission.holdDuration ?? 1) * 100
+            : stage === 'extract' ? (mission.extractT ?? 0) / 4 * 100
+              : stage === 'complete' ? 100 : 0;
+      const title = String(mission.name ?? mission.id ?? 'TACTICAL OPERATION').toUpperCase();
+      info = {
+        title: `OPERATION ${title}`, objective: mission.objective ?? title, detail: mission.detailFor?.(p) ?? defaultDetail, bar: percent / 100,
+        progress: mission.progressLabel ?? (stage === 'recon' ? `${found}/${clues.length || 2} CLUES`
+          : stage === 'hack' ? `UPLOAD ${Math.round(percent)}%`
+            : stage === 'hold' ? `DEFENCE ${Math.round(percent)}%`
+              : stage === 'extract' ? `EXTRACTION ${Math.round(percent)}%`
+                : stage === 'complete' ? 'SUCCESS' : String(stage).toUpperCase()),
+      };
+    }
+    const html = `<small>${info.title} · THREAT ${String(alert.level ?? 'routine').toUpperCase()}</small><b>${info.objective}</b><span>${info.detail}</span><i><em style="width:${Math.round(Math.max(0, Math.min(1, info.bar)) * 100)}%"></em></i><small>${info.progress}</small>`;
     if (el.innerHTML !== html) el.innerHTML = html;
   }
 

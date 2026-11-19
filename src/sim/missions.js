@@ -9,7 +9,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export class DustLanternMission {
   constructor(sim) {
-    this.sim = sim; this.id = 'dust-lantern'; this.title = 'OPERATION DUST LANTERN';
+    this.sim = sim; this.id = 'dust-lantern'; this.name = 'DUST LANTERN'; this.title = 'OPERATION DUST LANTERN';
     this.rng = makeRng(((sim.seed | 0) ^ 0xD0571A7E) >>> 0 || 7);
     const sites = [
       { id: 'basin-yard', name: 'BASIN YARD', x: -31, z: -42 },
@@ -140,8 +140,8 @@ export class DustLanternMission {
     if (this.finished) return;
     this.finished = true; this.stage = 'complete';
     this.sim.state = 'won';
-    this.sim.result = { to: this.sim.player?.id ?? 0, won: true, placement: 1, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true };
-    this.sim.emit({ t: 'end', ...this.sim.result, mission: true, clues: this.foundCount });
+    this.sim.result = { to: this.sim.player?.id ?? 0, won: true, placement: 1, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true, missionId: this.id ?? 'dust-lantern', missionName: this.name ?? 'DUST LANTERN' };
+    this.sim.emit({ t: 'end', ...this.sim.result, mission: true, missionId: this.id ?? 'dust-lantern', missionName: this.name ?? 'DUST LANTERN', clues: this.foundCount, objectives: this.foundCount + 1 });
   }
 
   fail() {
@@ -180,7 +180,7 @@ const GREEK = ['ALPHA', 'BRAVO', 'CHARLIE'];
 
 export class GhostFrequencyMission {
   constructor(sim) {
-    this.sim = sim; this.id = 'ghost-frequency'; this.title = 'OPERATION GHOST FREQUENCY';
+    this.sim = sim; this.id = 'ghost-frequency'; this.name = 'GHOST FREQUENCY'; this.title = 'OPERATION GHOST FREQUENCY';
     this.rng = makeRng(((sim.seed | 0) ^ 0x6057F4E9) >>> 0 || 9);
     this.insertion = findFreeSpot(sim.map, this.rng, 88, -84, 7, 2.2);
     this.extraction = { x: 56, z: 56, name: 'EXTRACTION PAD' };
@@ -293,14 +293,14 @@ export class GhostFrequencyMission {
   complete() {
     if (this.finished) return;
     this.finished = true; this.stage = 'complete'; this.sim.state = 'won';
-    this.sim.result = { to: this.sim.player?.id ?? 0, won: true, placement: 1, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true };
-    this.sim.emit({ t: 'end', ...this.sim.result, mission: true, clues: this.doneCount });
+    this.sim.result = { to: this.sim.player?.id ?? 0, won: true, placement: 1, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true, missionId: this.id, missionName: this.name };
+    this.sim.emit({ t: 'end', ...this.sim.result, mission: true, clues: this.doneCount, objectives: this.doneCount + 1 });
   }
   /** the trace locks on: the operation is lost even though the operator is alive */
   timeout() {
     if (this.finished) return;
     this.finished = true; this.stage = 'failed'; this.reason = 'trace'; this.active = null; this.sim.state = 'lost';
-    this.sim.result = { to: this.sim.player?.id ?? 0, won: false, placement: 0, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true, reason: 'trace' };
+    this.sim.result = { to: this.sim.player?.id ?? 0, won: false, placement: 0, kills: this.sim.player?.kills ?? 0, time: this.elapsed, mission: true, missionId: this.id, missionName: this.name, reason: 'trace' };
     this.sim.emit({ t: 'end', ...this.sim.result, clues: this.doneCount });
   }
   fail() { if (this.finished) return; this.finished = true; this.stage = 'failed'; this.active = null; }
