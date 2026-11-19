@@ -64,7 +64,11 @@ export class RagdollWorld {
     return rag;
   }
 
-  _free(rag) { for (const body of Object.values(rag.parts)) this.world.removeRigidBody(body); }   // also removes colliders + joints
+  _free(rag) {
+    if (!rag || rag.freed) return;
+    rag.freed = true;
+    for (const body of Object.values(rag.parts)) this.world.removeRigidBody(body);
+  }   // also removes colliders + joints
 
   update(dt) {
     this.acc += Math.min(dt, 0.1);
