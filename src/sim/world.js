@@ -396,7 +396,7 @@ export class Simulation {
     return this.losClear(a.x, a.eyeY, a.z, b.x, b.y + 0.35, b.z) && !smokeBlocks(this.smokes, a.x, a.eyeY, a.z, b.x, b.y + 0.35, b.z);      // smoke clouds block sight (not bullets)
   }
 
-  /** Acoustic path gain through up to three solid surfaces. NPC hearing remains evidence-only. */
+  /** Acoustic path gain through up to two solid surfaces. NPC hearing remains evidence-only. */
   soundPathGain(ax, ay, az, bx, by, bz) {
     const dx = bx - ax, dy = by - ay, dz = bz - az;
     const distance = Math.hypot(dx, dy, dz);
@@ -841,7 +841,7 @@ export class Simulation {
       target.hitPushX = clamp(target.hitPushX + push.x, -2.2, 2.2);
       target.hitPushZ = clamp(target.hitPushZ + push.z, -2.2, 2.2);
       target.hitPushT = Math.max(target.hitPushT, 0.14);
-      if (zone === 'leg' && info.cause === 'bullet') target.limpT = Math.max(target.limpT, 0.42);
+      if (zone === 'leg' && (info.cause === 'bullet' || info.cause === 'shrapnel')) target.limpT = Math.max(target.limpT, 0.42);
     }
 
     target.hp -= amount; target.noHurtT = 0;
