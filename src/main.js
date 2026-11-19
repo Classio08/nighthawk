@@ -345,7 +345,7 @@ function handleEvents() {
       case 'end': {
         if (e.to !== undefined && e.to !== p.id) break;        // somebody else's result
         G.over = true;
-        if (!sim.mission && !G.recorded) {             // BR profile rewards are not used for mission results yet
+        if (!sim.mission && !sim.blackSite && !G.recorded) {             // local BR profile rewards do not apply to offline story / deduction modes
           G.recorded = true;
           const res = recordMatch(profile, tracker.summary(e, Math.max(sim.fighters.length, e.placement ?? 0)));
           profile = res.profile; saveProfile(profile); G.gain = res.gain;
