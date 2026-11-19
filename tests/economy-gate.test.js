@@ -7,8 +7,8 @@ const shipped = JSON.parse(readFileSync(new URL('../data/compliance.json', impor
 const TODAY = '2026-11-19';
 const LIVE_ENV = { NIGHTHAWK_ECONOMY_LIVE: '1', ECONOMY_SECRET: 'ab'.repeat(32), ECONOMY_RPC_URL: 'https://rpc.example.com', ECONOMY_NFT_CONTRACT: '0x' + '11'.repeat(20), ECONOMY_CHAIN_ID: '8453' };
 const liveCfg = (over = {}) => ({
-  mode: 'live', features: { wallet: true, nft: true, earn: false, wager: true },
-  licence: { reference: 'NA-GEC-0001', issuer: 'Gaming Board (example)', approvedBy: 'Owner', approvedOn: '2026-11-01', expiresOn: '2027-11-01', scope: ['wallet', 'nft', 'wager'] },
+  mode: 'live', features: { wallet: true, nft: true, earn: false, wager: false },
+  licence: { reference: 'NA-GEC-0001', issuer: 'Gaming Board (example)', approvedBy: 'Owner', approvedOn: '2026-11-01', expiresOn: '2027-11-01', scope: ['wallet', 'nft'] },
   jurisdictions: { allow: ['NA'] }, chains: { sandbox: [11155111], live: [8453] }, ...over,
 });
 
@@ -56,10 +56,14 @@ test('live is blocked until EVERY condition holds, and a blocked live request fa
 });
 
 test('live only turns on the features the licence scope names', () => {
-  const s = evaluate(liveCfg(), { NIGHTHAWK_ECONOMY_LIVE: '1' }, TODAY);
-  assert.deepEqual(s.features, { wallet: true, nft: true, earn: false, wager: true });
-  const s2 = evaluate(liveCfg({ features: { wallet: true, nft: true, earn: true, wager: true } }), { NIGHTHAWK_ECONOMY_LIVE: '1' }, TODAY);
-  assert.equal(s2.features.earn, false, 'earn is enabled in features but not in the licence scope');
+  const s = evaluate(liveCfg(), LIVE_ENV, TODAY);
+  assert.deepEqual(s.features, { wallet: true, nft: true, earn: false, wager: false });
+  const s2 = evaluate(liveCfg({ features: { wallet: true, nft: true, earn: false, wager: false } }), LIVE_ENV, TODAY);
+  assert.equal(s2.mode, 'live');
+  const unsafe = evaluate(liveCfg({ features: { wallet: true, nft: true, earn: true, wager: false } }), LIVE_ENV, TODAY);
+  assert.equal(unsafe.mode, 'off', 'live real-value earn is deliberately not implemented');
+  const unsafeWager = evaluate(liveCfg({ features: { wallet: true, nft: true, earn: false, wager: true } }), LIVE_ENV, TODAY);
+  assert.equal(unsafeWager.mode, 'off', 'live real-value wagering is deliberately not implemented');
 });
 
 test('the licence expiring closes live on the very next evaluation', () => {
@@ -69,7 +73,7 @@ test('the licence expiring closes live on the very next evaluation', () => {
 });
 
 test('per player in live: allowed country, verified age and KYC are all required; sandbox only needs not-self-excluded', () => {
-  const env = { NIGHTHAWK_ECONOMY_LIVE: '1', ECONOMY_SECRET: 'ab'.repeat(32) }, cfg = liveCfg(), s = evaluate(cfg, env, TODAY);
+  const env = LIVE_ENV, cfg = liveCfg(), s = evaluate(cfg, env, TODAY);
   const ok = { country: 'na', verifiedAge: 21, kycVerified: true };
   assert.equal(evaluateForPlayer(s, cfg, ok).ok, true);
   for (const [name, p] of [['unknown country', { ...ok, country: '' }], ['blocked country', { ...ok, country: 'US' }], ['age unverified', { ...ok, verifiedAge: undefined }], ['under age', { ...ok, verifiedAge: 17 }], ['no kyc', { ...ok, kycVerified: false }], ['self-excluded', { ...ok, selfExcluded: true }]]) assert.equal(evaluateForPlayer(s, cfg, p).ok, false, name);
