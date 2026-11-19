@@ -333,7 +333,7 @@ export class Simulation {
   _breakProp(p, silent = false) {
     if (p.dead) return;
     p.dead = true;
-    this.solid.delete(p.col.handle); this.propByCol.delete(p.col.handle);
+    this.solid.delete(p.col.handle); this.propByCol.delete(p.col.handle); this.surfaceByCol.delete(p.col.handle);
     const t = p.body.translation();
     this.world.removeRigidBody(p.body);
     if (!this.destroyed.includes(p.id)) this.destroyed.push(p.id);
@@ -519,6 +519,7 @@ export class Simulation {
         e.hit = 'fighter'; e.target = target.id; e.zone = zone;
         if (throughSurface) {
           e.penetrated = true; e.material = firstMaterial; e.impact = impact.effect;
+          e.nx = hit.normal.x; e.ny = hit.normal.y; e.nz = hit.normal.z;
           e.surfaceX = origin.x + dir.x * firstWallT;
           e.surfaceY = origin.y + dir.y * firstWallT;
           e.surfaceZ = origin.z + dir.z * firstWallT;
