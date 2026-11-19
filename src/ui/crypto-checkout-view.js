@@ -1,6 +1,6 @@
 // Optional crypto cosmetic-store view. Mount this inside the existing NIGHTHAWK Economy tab.
 // It is deliberately separate from play-money credits: crypto checkout is a direct token transfer for cosmetics only.
-import { ensureGuestSession, getAccount } from '../net/account-session.js';
+import { ensureGuestSession, getAccount, getStoreCatalog } from '../net/account-session.js';
 import {
   checkoutCosmetic, fetchCryptoCheckoutConfig, formatTokenUnits, pendingCryptoPayments, retryCryptoConfirmation,
 } from '../net/crypto-checkout.js';
@@ -11,15 +11,15 @@ const el = (tag, text, cls) => {
   if (cls) item.className = cls;
   return item;
 };
-const safeStorage = () => {
-  try { return globalThis.sessionStorage ?? null; } catch { return null; }
+const safeStorage = (name) => {
+  try { return globalThis[name] ?? null; } catch { return null; }
 };
 
 export function mountCryptoCheckout(container, serverUrl, {
   provider,
   fetchImpl = globalThis.fetch,
-  storage = safeStorage(),
-  walletStorage = globalThis.localStorage,
+  storage = safeStorage('sessionStorage'),
+  walletStorage = safeStorage('localStorage'),
 } = {}) {
   if (!container) throw new TypeError('Crypto checkout container is required');
   let busy = false;
@@ -85,13 +85,15 @@ export function mountCryptoCheckout(container, serverUrl, {
     }
     await ensureGuestSession(serverUrl, { fetchImpl, storage: walletStorage });
     account = await getAccount(serverUrl, { fetchImpl, storage: walletStorage });
+    const cosmetics = await getStoreCatalog(serverUrl, { fetchImpl, storage: walletStorage });
     status.textContent = `MERCHANT CHECKOUT · ${config.tokenSymbol} ON CHAIN ${config.chainId} · GUEST ${account.displayName}`;
     list.replaceChildren();
 
     for (const item of config.catalog ?? []) {
       const card = el('article', undefined, 'nh-economy-card');
       const owned = account.cosmetics.includes(item.id);
-      card.appendChild(el('strong', item.name));
+      const details = cosmetics.find((cosmetic) => cosmetic.id === item.id);
+      card.appendChild(el('strong', details?.name ?? item.name ?? item.id));
       const amount = formatTokenUnits(item.tokenUnits, item.decimals);
       card.appendChild(el('p', `${amount} ${item.symbol} · COSMETIC ONLY`));
       card.appendChild(el('small', 'Your wallet will show the recipient, token and exact amount before you confirm.'));
