@@ -1,3 +1,4 @@
+import { MissionAlertDirector } from './mission-alert.js';
 // DUST LANTERN: first offline tactical operation. Pure simulation state; rendering lives in MissionView.
 // This director is deliberately not enabled in online rooms until its state has a versioned server snapshot.
 import { makeRng } from './rng.js';
@@ -30,6 +31,7 @@ export class DustLanternMission {
     this.elapsed = 0;
     this.finished = false;
     this.lastHint = '';
+    this.alert = new MissionAlertDirector();
   }
 
   get foundCount() { return this.clues.reduce((n, clue) => n + (clue.found ? 1 : 0), 0); }
@@ -73,6 +75,7 @@ export class DustLanternMission {
   update(dt) {
     if (this.finished) return;
     this.elapsed += dt;
+    this.alert.update(dt, this.sim.fighters);
     const operator = this.sim.player;
     if (this.stage !== 'extract' || !this.captive.rescued || !operator?.alive) return;
 
@@ -122,6 +125,7 @@ export class DustLanternMission {
       clues: this.clues.map(({ id, x, z, found }) => ({ id, x, z, found })),
       captive: { x: this.captive.x, z: this.captive.z, rescued: this.captive.rescued, separated: this.captive.separated },
       extraction: { ...this.extraction }, extractT: clamp(this.extractT, 0, 4), elapsed: this.elapsed,
+      alert: this.alert.snapshot(),
     };
   }
 }

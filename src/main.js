@@ -303,7 +303,7 @@ function handleEvents() {
           if (!e.won) sim.mission.fail();
           $('xpgain').innerHTML = '';
           paused = true;
-          const result = { ...e, mission: true, clues: sim.mission.foundCount };
+          const result = { ...e, mission: true, clues: sim.mission.foundCount, alert: sim.mission.alert.snapshot() };
           if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(result), 900); }
           else { audio.play('lose'); setTimeout(() => hud.showEnd(result, G.killer), 1200); }
         } else if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(e), 1200); }
