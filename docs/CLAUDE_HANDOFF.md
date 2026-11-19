@@ -82,3 +82,16 @@ Do not attempt all systems in one sprint. Preserve the existing Three.js/Rapier/
 A follow-on branch `feature/dust-lantern-alert-director` (draft PR #22) builds on the first playable DUST LANTERN branch. It adds `MissionAlertDirector` which derives a compact operation-wide threat level from evidence already held by living guard NPC brains: direct visual contact, recent sound investigation, and recent last-known-position reports. The pressure rises faster than it cools, and the HUD reports routine / uneasy / searching / alert / crisis. This system must never reveal hidden player coordinates or grant guards omniscient tracking. Tests cover escalation, observer counts, decay, and exclusion of dead/non-guard NPCs.
 
 Do not merge this follow-on before PR #20 is reviewed; it is based on the PR #20 branch to keep the dependency explicit. The alert director is an initial aggregate signal, not yet a full witness/body discovery, radio network or branching mission director.
+
+## Physics correlation extensions — 19 November 2026
+
+Dependent branch: `feature/physics-shrapnel-correlation`, based on Claude's `feature/physics-correlation-foundation`. Do not merge this child branch ahead of its physics foundation.
+
+- `src/sim/world.js` adds bounded seeded shrapnel traces for grenade, barrel and mortar blasts. Every fragment stops at the first solid Rapier collider; it can only hit a fighter capsule before that wall. Per-blast hit de-duplication prevents repeated fragments hitting one fighter, and armor applies to the fragment damage. These are instant server-side traces, **not** persistent flying rigid bodies or curved ballistic projectiles.
+- Material sound transmission is now used by NPC hearing. A path is checked through at most two solid surfaces, weather still limits hearing range, and repeated fire reports are coalesced to roughly eight updates per second per NPC. NPCs receive only a sound clue at the reported source; no live player position is revealed.
+- `src/fx/blood-pools.js` is client presentation only: an instanced pool follows a cosmetic Rapier ragdoll while it settles, then remains and fades. It respects the gore setting. Ragdolls mark themselves freed to prevent effects reading removed Rapier bodies.
+- `src/main.js` wires the pool into the existing effect loop. It does not add a second gameplay physics engine or alter the authoritative hit/health simulation.
+- The original Rapier blast, crate/vehicle damage, barrel chaining, material bullet response, recoil, hit push, leg limp, jump buffering, coyote time and fall response are retained.
+- Still open: true ballistic projectile travel with replicated/server flight-time decisions, physical shrapnel debris, alive-character articulated physics (alive fighters remain kinematic capsules), bleeding/bandages, detailed water-volume effects, persistent wall blood decals, doors/glass/cover physical interactions, full acoustic occlusion/reverb for player audio, and haptics.
+- Tests were added/extended as specifications, but the owner explicitly asked not to run tests/builds yet. Do not claim these branches passed CI or were playtested.
+- Integration order: review/merge the foundation branch only when the owner approves; then review this dependent extension. No merge has been performed.
