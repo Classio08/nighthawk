@@ -75,6 +75,9 @@ function safeDatabase(raw) {
     id: String(entry.id ?? '').slice(0, 80), accountId: String(entry.accountId ?? '').slice(0, 64),
     kind: String(entry.kind ?? '').slice(0, 32), amount: clampInt(entry.amount, -1e7, 1e7),
     reference: String(entry.reference ?? '').slice(0, 80), at: clampInt(entry.at, 0, 4e12),
+    asset: typeof entry.asset === 'string' ? entry.asset.slice(0, 12) : undefined,
+    tokenUnits: typeof entry.tokenUnits === 'string' && /^\d{1,78}$/.test(entry.tokenUnits) ? entry.tokenUnits : undefined,
+    txHash: typeof entry.txHash === 'string' && /^0x[a-f0-9]{64}$/i.test(entry.txHash) ? entry.txHash.toLowerCase() : undefined,
   })) : [];
   db.processedMatchIds = Array.isArray(raw.processedMatchIds) ? [...new Set(raw.processedMatchIds.filter((x) => typeof x === 'string'))].slice(-10000) : [];
   db.processedCryptoTxs = Array.isArray(raw.processedCryptoTxs) ? [...new Set(raw.processedCryptoTxs.filter((x) => typeof x === 'string' && /^0x[a-f0-9]{64}$/i.test(x)).map((x) => x.toLowerCase()))].slice(-10000) : [];
@@ -83,7 +86,7 @@ function safeDatabase(raw) {
       if (!/^[0-9a-f-]{36}$/i.test(id) || !row || typeof row !== 'object' || !db.accounts[row.accountId]) continue;
       if (!COSMETIC_CATALOG.some((item) => item.id === row.cosmeticId)) continue;
       if (!/^0x[a-f0-9]{40}$/i.test(row.walletAddress ?? '') || !/^0x[a-f0-9]{40}$/i.test(row.tokenAddress ?? '') || !/^0x[a-f0-9]{40}$/i.test(row.treasuryAddress ?? '')) continue;
-      if (!/^\\d{1,78}$/.test(String(row.amountUnits ?? '')) || !Number.isInteger(row.chainId) || row.chainId < 1) continue;
+      if (!/^\d{1,78}$/.test(String(row.amountUnits ?? '')) || !Number.isInteger(row.chainId) || row.chainId < 1) continue;
       db.cryptoIntents[id] = {
         id, accountId: row.accountId, cosmeticId: row.cosmeticId,
         walletAddress: row.walletAddress.toLowerCase(), tokenAddress: row.tokenAddress.toLowerCase(), treasuryAddress: row.treasuryAddress.toLowerCase(),
@@ -306,7 +309,7 @@ export class AccountService {
       }
       const address = (value) => typeof value === 'string' && /^0x[a-f0-9]{40}$/i.test(value);
       if (!address(quote.walletAddress) || !address(quote.tokenAddress) || !address(quote.treasuryAddress)) return { ok: false, status: 400, error: 'invalid-wallet-quote' };
-      if (!/^\\d{1,78}$/.test(String(quote.amountUnits ?? '')) || BigInt(quote.amountUnits) <= 0n) return { ok: false, status: 400, error: 'invalid-payment-amount' };
+      if (!/^\d{1,78}$/.test(String(quote.amountUnits ?? '')) || BigInt(quote.amountUnits) <= 0n) return { ok: false, status: 400, error: 'invalid-payment-amount' };
       if (!Number.isInteger(quote.chainId) || quote.chainId < 1) return { ok: false, status: 400, error: 'invalid-payment-chain' };
       const id = randomUUID();
       const intent = {
