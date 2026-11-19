@@ -6,17 +6,19 @@ import { skinOk } from '../../src/sim/weapons.js';
 import { sanitizeCmd, repeatCmd } from '../../src/sim/cmd.js';
 import { STEP, SNAP_EVERY, packSnapshot, packRoster, unpackCmd } from '../../src/net/protocol.js';
 import { ClientGuard, TickStats } from './limits.js';
+import { looksLikeSecret } from '../../src/economy/wallet.js';
 
 const STEP_MS = 1000 / 60;
 export const DEFAULTS = { lobbySecs: 15, total: 16, maxClients: 16, overLingerSecs: 12, vehicles: true, loot: true, difficulty: 'normal', reconnectSecs: 12, maxRooms: 40, compress: true };
 const MAX_QUEUE = 40;           // never hold more than this many unprocessed inputs per player (stops flooding)
 const REPEAT_MAX = 3;           // if a player's input is late, repeat the last one for at most 3 ticks, then stand still
 
-const cleanName = (n) => String(n ?? 'Operator').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, 16) || 'Operator';
+const cleanName = (n) => (looksLikeSecret(n) ? 'Operator' : String(n ?? 'Operator').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, 16) || 'Operator');       // never keep or show a pasted private key / recovery phrase
 
 export class MatchRoom extends Room {
   static cfg = { ...DEFAULTS };
   static instances = new Set();   // (tests peek into running matches)
+  static economy = null;          // ServerEconomy when the (default-closed) economy is on: wallet link, play-money earn, staked rooms
   /** counters for /metrics (all matches on this process) */
   static stats = { started: Date.now(), roomsCreated: 0, joins: 0, kicks: 0, dropped: 0, badMessages: 0, reconnects: 0, reconnectsFailed: 0, refused: 0, matchesStarted: 0, matchesFinished: 0, tick: new TickStats() };
   maxClients = MatchRoom.cfg.maxClients;
@@ -51,7 +53,7 @@ export class MatchRoom extends Room {
 
   onJoin(client, options) {
     MatchRoom.stats.joins++;
-    this.lobby.set(client.sessionId, { client, name: cleanName(options?.name), operator: String(options?.operator ?? ''), skin: skinOk(options?.skin) });
+    this.lobby.set(client.sessionId, { client, name: cleanName(options?.name), operator: String(options?.operator ?? ''), skin: skinOk(options?.skin), wallet: MatchRoom.economy?.identify(options?.wallet) ?? null });
     if (this.lobby.size >= this.maxClients) this._start();
     else this._sendLobby();
   }
@@ -173,6 +175,7 @@ export class MatchRoom extends Room {
       this.overSent = true; MatchRoom.stats.matchesFinished++;
       const over = this.evBuf.find((e) => e.t === 'over');
       this.broadcast('over', over ?? { winner: -1 });
+      MatchRoom.economy?.onOver(this);
       this.clock.setTimeout(() => this.disconnect(), this.cfg.overLingerSecs * 1000);
       this.setSimulationInterval(() => {}, 1000);      // stop stepping the finished match
     }

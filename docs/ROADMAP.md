@@ -65,8 +65,8 @@ See `docs/MASTER_SYSTEMS.md` for the detailed engineering map and tests.
 | P5 | Identity/progression | Guest-first profile, optional sign-in, server XP/inventory/mission ledger, account linking and recovery | Security/privacy review and migration tests |
 | P6 | Operations/social | Extraction/co-op matchmaking, parties, mission rotation, reporting/moderation and replay tools | Abuse controls and real-player playtest |
 | P7 | Fair economy | Direct-purchase cosmetics, earnable soft currency and auditable server ledger | No pay-to-win; payment-provider and regional policy approval |
-| P8 | Optional wallet proof | Wallet-linked cosmetic ownership proof only | Legal, privacy, platform and security review; never ask for seed phrases |
-| Later | Wagering / token prizes | Not scheduled or approved | No implementation without written legal advice, licensing analysis and region-specific compliance |
+| P8 | Wallet proof, NFT cosmetics, play-money earn and wagering | **Built behind the closed gate (19 Nov 2026), sandbox only**; real value NOT built | `docs/ECONOMY.md`: licence, settlement rail, KYC, audit; never ask for seed phrases |
+| Later | Real-value wagering / token prizes | Rail not built; gate closed | Needs recorded licence, written legal advice, settlement rail, audit and region-specific compliance |
 
 ## Performance and release gates
 
@@ -76,6 +76,6 @@ See `docs/MASTER_SYSTEMS.md` for the detailed engineering map and tests.
 - Profile named devices and exact commit SHAs before claiming optimisation.
 - Keep the initial load small; stream optional maps, operators, skins and audio.
 - Record every external asset and its licence in `ASSETS.md`.
-- Do not add real-money betting, crypto wagering or cash-out as a shortcut to monetisation.
+- Do not switch the economy gate to live, or add real-money betting, crypto wagering or cash-out, without a licence recorded by the owner (`docs/ECONOMY.md`).
 
 See `docs/EXPANSION_ARCHITECTURE.md` for the research-backed product, AI, physics, rendering, audio, UX, account, economy and delivery architecture.

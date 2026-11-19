@@ -11,7 +11,7 @@
     "smoke": "node scripts/smoke.mjs",
     "server": "node server/src/index.js",
     "load": "node scripts/load-test.mjs",
-    "server:test": "node scripts/retry.mjs 3 node server/test/match.mjs",
+    "server:test": "node scripts/retry.mjs 3 node server/test/match.mjs && node scripts/retry.mjs 3 node server/test/economy.mjs && node server/test/economy-off.mjs",
     "e2e": "node scripts/e2e.mjs",
     "server:dev": "node --watch server/src/index.js",
     "check": "npm test && npm run smoke && npm run server:test && npm run build",
@@ -25,6 +25,8 @@
     "@colyseus/sdk": "^0.18.10",
     "@colyseus/ws-transport": "^0.18.5",
     "@dimforge/rapier3d-compat": "^0.21.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
     "three": "^0.187.0",
     "yuka": "^0.7.8",
     "zzfx": "^1.4.0"

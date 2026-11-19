@@ -15,7 +15,7 @@ Before planning or changing code, read these files in order:
 - Use small, reviewable feature branches and draft pull requests. Never merge or rewrite another contributor's branch.
 - Avoid adding dependencies without a measured technical need. Keep all external assets licensed and documented.
 - Run `npm run check`; report the exact result. Do not claim browser playtesting or performance measurements unless actually performed.
-- Do not introduce real-money wagering, crypto staking, cash-out, token rewards or custody. See the Namibia compliance gate in the project direction notes.
+- Wallets, NFT cosmetics, play-money earn and wagering exist ONLY behind the default-closed gate in `src/economy/gate.js` / `data/compliance.json` (owner decision 19 Nov 2026, see `docs/ECONOMY.md`). Never ship that file with a non-empty licence you did not receive from the owner, never weaken the gate, never add real-value earn/wager/cash-out/custody without the owner's recorded licence and a real settlement rail, never request or store seed phrases or private keys. Do not claim legal compliance.
 - Do not put an LLM in control of authoritative combat, movement, hit detection or physics. AI reasoning must be bounded, testable and optional.
 
 ## Immediate owner-approved focus

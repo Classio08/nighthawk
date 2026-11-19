@@ -135,6 +135,8 @@ Memory is scoped: personal observation, squad radio, faction intelligence and ru
 
 ## 10. Wallets and wagering: hard legal gate
 
+> **Owner update, 19 Nov 2026 (supersedes the "not approved for implementation" line below).** The owner asked for NFTs, tokens, wallets, play-to-earn and wagering to be built, stated that his company has been selected for the crypto licences (in progress, nothing issued or recorded yet) and that he made all of the audio. They are now implemented **behind a default-closed compliance gate** (`src/economy/gate.js`, `data/compliance.json`, `docs/ECONOMY.md`). Sandbox = play money and test chains. Live = nothing until a licence is recorded, and even then no real-value earn/wager rail exists. All other rules in this section still stand: no seed phrases or private keys, no custody, no pooled real funds, AML/KYC, age and region controls, written legal advice. The gate must stay closed in every commit until the owner records a licence himself.
+
 Owner is interested in optional wallet connection and player-versus-player crypto stakes with a winner payout. This is **not approved for implementation**.
 
 - Never request or store seed phrases/private keys. A future wallet proof-of-control flow would use a signed, expiring, domain-bound nonce and no custody.

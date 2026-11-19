@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "_readme": "DEFAULT-CLOSED compliance gate for wallets, NFTs, play-to-earn and wagering. 'off' = nothing runs. 'sandbox' = play-money and testnet only, no real value. 'live' needs EVERY item in 'licence' filled in by the owner, jurisdictions allow-listed, and the server started with NIGHTHAWK_ECONOMY_LIVE=1. The browser can never change this file or turn anything on. Not legal advice: see docs/ECONOMY.md.",
+  "mode": "off",
+  "features": { "wallet": false, "nft": false, "earn": false, "wager": false },
+  "licence": {
+    "reference": "",
+    "issuer": "",
+    "approvedBy": "",
+    "approvedOn": "",
+    "expiresOn": "",
+    "scope": []
+  },
+  "jurisdictions": { "allow": [], "geoHeader": "cf-ipcountry" },
+  "players": { "minAge": 18, "requireKyc": true },
+  "chains": { "sandbox": [11155111, 84532, 80002], "live": [] },
+  "limits": { "minStake": 100, "maxStake": 10000, "maxPlayers": 8, "dailyLossLimit": 20000, "sessionLossLimit": 10000, "cooldownAfterLossSecs": 60, "rakeBps": 0 },
+  "earn": { "dailyCap": 600, "perMatchCap": 150, "perKill": 5, "perWin": 60, "perMissionComplete": 80 }
+}

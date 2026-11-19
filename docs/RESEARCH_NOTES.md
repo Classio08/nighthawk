@@ -48,7 +48,7 @@ The decision from `docs/MULTIPLAYER.md` and the Colyseus 0.18 audit stands: serv
 
 **Not built, and not going to be built without written legal advice and the owner's explicit sign-off**:
 
-- **NFTs, tokens, crypto wallets in the game, play-to-earn, staking, wagering, cash-out, custody.** `CLAUDE.md` forbids them, and the reasons are practical as well:
+- **NFTs, tokens, crypto wallets in the game, play-to-earn, staking, wagering, cash-out, custody.** `CLAUDE.md` now allows them only behind the closed gate in `docs/ECONOMY.md` (owner decision, 19 Nov 2026); the reasons for the gate are practical as well:
   - **Platforms**: Steam's rules ban games that issue or trade crypto or NFTs; Google Play has rules for tokenised digital assets; a portal like CrazyGames earns its money from SDK ads (whether a portal bans crypto features is something I did not verify). A crypto feature can cost us distribution.
   - **Namibia**: the Virtual Assets Act 2023 (Act 10 of 2023) makes the Bank of Namibia the regulator and requires licensing for virtual-asset service providers and token issuers. Real-money prizes or randomised paid rewards run into the Gaming and Entertainment Control Act 2018 (and a proposed software-lottery licence), which is also why paid loot boxes are off the table.
   - **Design**: pay-to-win and play-to-earn both push a shooter's economy toward the players who spend, and toward bots and farmers.

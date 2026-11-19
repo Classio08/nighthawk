@@ -3,3 +3,5 @@ dist/
 .DS_Store
 *.log
 .env
+data/economy-sandbox.json
+data/*.tmp

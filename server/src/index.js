@@ -2,6 +2,8 @@ import { defineServer, defineRoom } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { MatchRoom, DEFAULTS } from './MatchRoom.js';
 import { attachStatic } from './static.js';
+import { ServerEconomy } from './economy.js';
+import { makeStakedRoom } from './staked-room.js';
 
 /** Prometheus text format of /metrics (counters and gauges), for a scraper or Grafana */
 export function toPrometheus(m) {
@@ -16,13 +18,16 @@ export function toPrometheus(m) {
 /** @param {{lobbySecs?:number,total?:number}} cfg  (tests use a 1 second lobby) */
 export function createServer(cfg = {}) {
   MatchRoom.cfg = { ...DEFAULTS, ...cfg };
+  const se = cfg.economy === false ? null : new ServerEconomy({ env: cfg.economyEnv ?? process.env });      // default: loads data/compliance.json, which ships CLOSED
+  MatchRoom.economy = se?.enabled ? se : null; se?.start();
   const staticDir = cfg.staticDir ?? process.env.STATIC_DIR ?? '';        // folder with the built game (npm run build -> dist): serve it from the same port
   return defineServer({
     transport: new WebSocketTransport({ maxPayload: 4096, pingInterval: 5000, pingMaxRetries: 3, perMessageDeflate: MatchRoom.cfg.compress === false ? false : { threshold: 512, zlibDeflateOptions: { level: 3 }, serverNoContextTakeover: true, clientNoContextTakeover: true } }),     // a real input batch is under 1 KB: anything bigger is not from our client
-    rooms: { match: defineRoom(MatchRoom) },
+    rooms: { match: defineRoom(MatchRoom), ...(se?.enabled && se.status().features.wager ? { staked: defineRoom(makeStakedRoom(se)).filterBy(['stake']) } : {}) },
     express: (app) => {
       app.disable('x-powered-by');
       if (staticDir) attachStatic(app, staticDir);
+      se?.attach(app);
       // /health: for a load balancer or uptime monitor (no player data). /metrics: JSON, or ?format=prom; set METRICS_TOKEN to require "Authorization: Bearer <token>" (or ?token=)
       app.get('/health', (_req, res) => { const m = MatchRoom.metrics(); res.set('Cache-Control', 'no-store').json({ ok: true, uptimeSecs: m.uptimeSecs, rooms: m.rooms.total, players: m.players.humans }); });
       app.get('/metrics', (req, res) => {

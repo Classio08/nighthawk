@@ -80,9 +80,9 @@ export class NetSim {
   }
 
   /** open a connection, join a match room and resolve once the server has built the match (lobby countdown included) */
-  static async join(url, { name = 'Operator', operator = 'roms', skin = null, lag = 0, onLobby, now } = {}) {
+  static async join(url, { name = 'Operator', operator = 'roms', skin = null, lag = 0, onLobby, now, room: roomName = 'match', extra = {} } = {}) {
     const { Client } = await import('@colyseus/sdk');
-    const room = await new Client(url).joinOrCreate('match', { name, operator, skin });
+    const room = await new Client(url).joinOrCreate(roomName, { name, operator, skin, ...extra });
     const ns = new NetSim(room, { lag, now }); ns.onLobby = onLobby;
     await ns._wait;
     return ns;
