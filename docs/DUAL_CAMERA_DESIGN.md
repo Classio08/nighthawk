@@ -1,6 +1,6 @@
 # NIGHTHAWK — First- and Third-Person Camera Design
 
-Status: target design only. The current player implementation is first-person; third-person is not yet implemented.
+Status: a first-/third-person toggle is implemented on main via V, with a collision-aware third-person camera helper, local body view and first-person viewmodel. This design remains the target for polish, rigging and multiplayer fairness; it is no longer an unimplemented feature.
 Owner decision (2026-11-18): support both perspectives.
 
 ## 1. Non-negotiable architecture rule
@@ -84,4 +84,4 @@ Check current bindings in `src/input/input.js` before assigning keys. Do not sil
 
 ## 8. Current implementation gap
 
-The repository currently creates a first-person camera and a first-person `Viewmodel` in `src/main.js`. Remote fighters are rendered by `src/render/fighter.js` as box-based body parts. The third-person mode therefore depends on a rigged local operator and camera boom; it is not just a camera toggle.
+The current `src/main.js` toggles `thirdPerson` with the configured camera action (V by default), calls `thirdPersonCameraPosition()`, hides the FPP viewmodel when appropriate, and shows a local `FighterView` body. Remote/local operator visuals are still procedural/block-built rather than a finished shared GLB rig. The camera feature exists, but production animation, shoulder customization, ADS/muzzle alignment review and external online fairness tests remain open.
