@@ -96,6 +96,24 @@
   #skins small{width:100%;opacity:.6;font-size:11px;letter-spacing:3px}
   .skin{pointer-events:auto;cursor:pointer;width:62px;height:34px;border-radius:4px;border:2px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:9px;letter-spacing:1px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;text-shadow:0 1px 2px #000,0 0 3px #000;background:#20242b}
   .skin:hover{border-color:#fff}.skin.on{border-color:var(--accent);box-shadow:0 0 10px var(--accent)}
+  /* profile card + XP summary */
+  #profile{pointer-events:auto;width:min(520px,92vw);background:rgba(8,11,16,.55);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:8px 14px;text-align:left;font-size:12px;letter-spacing:2px}
+  #profile summary{cursor:pointer;list-style:none;display:flex;gap:6px;align-items:baseline}
+  #profile summary::-webkit-details-marker{display:none}
+  #profile summary b{color:var(--accent);font-size:15px}#profile summary small{opacity:.65;margin-left:auto}
+  .xpbar{height:5px;background:rgba(255,255,255,.14);border-radius:3px;overflow:hidden;margin:6px 0}.xpbar i{display:block;height:100%;background:var(--accent)}
+  .pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0;text-align:center}
+  .pstats b{display:block;font-size:17px;letter-spacing:1px}.pstats small{opacity:.6;font-size:9px;letter-spacing:2px}
+  .pfav{font-size:11px!important;opacity:.7;margin:4px 0!important;letter-spacing:2px}
+  .pbadges{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+  .badge{font-size:9px;letter-spacing:1px;padding:3px 6px;border-radius:3px;border:1px solid rgba(255,255,255,.18);opacity:.4}
+  .badge.on{opacity:1;color:#111;background:var(--accent);border-color:var(--accent)}
+  #xpgain{width:min(380px,90vw);text-align:left;font-size:12px;letter-spacing:2px}
+  #xpgain .xptotal{font-size:24px;color:var(--accent);text-align:center;letter-spacing:4px}
+  #xpgain .xpparts div{display:flex;justify-content:space-between;opacity:.85;padding:1px 0}#xpgain .xpparts b{font-weight:400;color:var(--accent)}
+  #xpgain .xplevel{margin-top:8px;opacity:.8}
+  #xpgain .xpnote{margin-top:6px;color:var(--green);text-align:center}#xpgain .xpnote.up{color:var(--accent);font-size:15px}
+  .skin.lock{opacity:.4;cursor:not-allowed;filter:grayscale(.7)}
   #stats-end{display:flex;gap:26px;font-size:14px}#stats-end b{display:block;font-size:30px;color:var(--accent)}
   #rotate{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:#0b0e13;color:#ffcf4d;font-size:22px;letter-spacing:3px;text-align:center}
   @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
@@ -134,6 +152,7 @@
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <button class="btn" id="startsettings">SETTINGS</button>
+  <details id="profile"><summary>LV 1 RECRUIT</summary></details>
   <input id="namebox" maxlength="16" placeholder="your callsign" spellcheck="false" autocomplete="off" />
   <label for="operatorbox" style="font-size:11px;letter-spacing:2px;opacity:.7">SELECT YOUR OPERATOR</label>
   <select id="operatorbox" aria-label="Select operator"><option value="roms">ROMS · HEAVY GUNNER</option><option value="shadow">SHADOW · INFILTRATOR</option><option value="douglas">DOUGLAS · COMBAT MEDIC</option><option value="cliffhanger">CLIFFHANGER · DEMOLITIONS</option><option value="navy-blue">NAVY BLUE · MARKSMAN</option><option value="rampol">RAMPOL · BREACHER</option><option value="maetja">MAETJA · HACKER</option><option value="cleiseis">CLEISEIS · ASSASSIN</option></select>
@@ -149,6 +168,7 @@
   <h1 id="endtitle">ELIMINATED</h1>
   <p id="endsub"></p>
   <div id="stats-end"><div><b id="e-place">#1</b>PLACE</div><div><b id="e-kills">0</b>KILLS</div><div><b id="e-time">0:00</b>SURVIVED</div></div>
+  <div id="xpgain" aria-live="polite"></div>
   <button class="btn" id="againbtn">PLAY AGAIN</button>
 </div>
 <div id="rotate">ROTATE YOUR PHONE<br><small>landscape only</small></div>

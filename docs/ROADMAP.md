@@ -15,14 +15,14 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 | Character visuals | Design only | Five likeness references documented; renderer still uses block-built fighters |
 | Environment art | Prototype only | Procedural sand canvas + Lambert world materials; no selected PBR set integrated |
 | FPP/TPP | Prototype built | V toggles first/third person (collision-safe boom camera); vehicle chase camera takes over while driving; online fairness tests still to do (camera never changes aim origin or hit rules) |
-| Profiles/progression | Not implemented | No persistent cross-device player account system verified |
+| Profiles/progression | Guest profile built | XP, levels 1-50, ranks, career stats, 14 badges, skins unlocked by level, saved in the browser; no accounts, cross-device sync or server-signed results yet |
 | Vehicles | Built first pass | Buggies + bikes, E to enter, roadkill, bots drive, server-authoritative with prediction; unit, netcode and browser tests |
 | Loot and inventory | Built first pass | Guns, ammo, armor LV1-3, medkits, death drops, airdrop crates, hot-zone loot at named places; server-authoritative pickups |
 | Map | Greybox | Kavari Basin: Basin Yard, Dry River, Relay Ridge, Forward Outpost, Extraction Pad with minimap labels; still blocks, no real art |
 | Operators | Abilities built | Eight operators selectable; all eight active abilities (Q) work, server-validated, bots use them; art and passives still to do |
 | Bots | Navigation + difficulty built | A* routes round buildings, four difficulty levels (easy/normal/hard/brutal); smoke grenades and a training range still to do |
 | Server safety | Hardened | Rate limits, kicks, payload and room caps, reconnect window, health + metrics; still to do: load test with real players, per-IP limits in the proxy, rejoin after a page refresh |
-| Settings | Built | Sensitivity, FOV, volume, graphics, difficulty, key rebinding, saved in the browser; accessibility options and a progression profile still to do |
+| Settings | Built | Sensitivity, FOV, volume, graphics, difficulty, key rebinding, saved in the browser; accessibility options still to do |
 | Movement | Crouch + fall damage built | C crouch, fall damage; slide, mantle/vault and melee still to do |
 | Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
 | Monetisation | Not implemented | Platform adapters and policy review required |
@@ -47,7 +47,7 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 | 9 | **First real visual slice** | One CC0 PBR ground set integrated; one modular environment kit; one realistic GLB operator with shared rig, LODs and animation; browser performance measured | NEXT (needs asset downloads) |
 | 10 | **One complete map** | Kavari Basin vertical slice with three routes per POI, cover, navmesh/AI, story props, weather presets and a working extraction point | PLANNED (greybox exists) |
 | 11 | **Mission modes** | Extraction contracts and a short Black Site social-deduction PvPvE mode with evidence, sabotage, counterplay and replayable objectives | PLANNED |
-| 12 | **Profiles and progression** | Guest-first profile, local save, settings menu, optional account linking, XP, weapon mastery and cosmetics; privacy policy and migration tests | PLANNED |
+| 12 | **Profiles and progression** | Guest-first profile, local save, settings menu, optional account linking, XP, weapon mastery and cosmetics; privacy policy and migration tests | Guest profile + settings DONE (Stages 11, 13); account linking, weapon mastery, privacy policy still open |
 | 13 | **Replay and creator tools** | Short replay buffer, kill snapshot export, streamer mode, custom lobby links, consent-based sharing | PLANNED |
 | 14 | **Platform readiness** | Low-end performance pass, mobile touch UI, portal-specific builds/SDK adapters, policy and privacy review | PLANNED |
 | 15 | **Monetisation** | Cosmetics-only store/battle pass after retention evidence; platform-specific ads/IAP compliance; no pay-to-win | PLANNED |

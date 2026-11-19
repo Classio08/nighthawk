@@ -24,6 +24,8 @@ import { VehiclesView } from './render/vehicles-view.js';
 import { LootView } from './render/loot-view.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings, QUALITY } from './settings.js';
+import { loadProfile, saveProfile, resetProfile, recordMatch, MatchTracker, skinUnlocked, levelInfo, SKIN_UNLOCK } from './profile.js';
+import { renderProfile, renderGain } from './ui/profile-view.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { thirdPersonCameraPosition } from './render/camera.js';
 import { ABILITIES } from './sim/abilities.js';
@@ -40,9 +42,12 @@ const FAKE_LAG = +(params.get('lag') ?? 0);                         // ?lag=120 
 
 /* weapon skin: picked on the start screen, remembered in the browser, ?skin=magma overrides (for testing) */
 let SKIN = null;
+let profile = loadProfile();                         // guest profile (stats, XP, badges) saved in this browser
+const tracker = new MatchTracker();                  // my damage / headshots / weapon kills for the current match
 const OPERATOR_IDS = new Set(OPERATORS.map((op) => op.id));
 let OPERATOR = OPERATOR_IDS.has(params.get('op')) ? params.get('op') : 'roms';
 try { SKIN = skinOk(params.get('skin') ?? localStorage.getItem('nh_skin')); } catch { /* private mode */ }
+if (SKIN && !params.has('skin') && !skinUnlocked(SKIN, levelInfo(profile.xp).level)) SKIN = null;      // a skin you have not unlocked (e.g. after a profile reset) falls back to stock
 
 const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -97,6 +102,7 @@ async function newMatch(online = null) {
   hud.hideEnd();
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
   viewmodel.root.visible = !thirdPerson;
+  tracker.reset();
   window.__nh = { G, sim, cmd, input, hud, camera, audio, net: online };     // handles for the automatic browser test
   return G;
 }
@@ -126,6 +132,7 @@ function angleTo(p, x, z) { return Math.atan2(-(x - p.x), -(z - p.z)); }
 function handleEvents() {
   const { sim, particles, decals, tracers, views } = G, p = sim.player;
   for (const e of sim.drainEvents()) {
+    tracker.onEvent(e, p.id);
     switch (e.t) {
       case 'fire': {
         const f = sim.fighters[e.by], w = WEAPONS[e.w];
@@ -278,6 +285,12 @@ function handleEvents() {
       case 'end': {
         if (e.to !== undefined && e.to !== p.id) break;        // somebody else's result
         G.over = true;
+        if (!G.recorded) {                                  // bank the match: XP, stats, badges, skin unlocks
+          G.recorded = true;
+          const res = recordMatch(profile, tracker.summary(e, Math.max(sim.fighters.length, e.placement ?? 0)));
+          profile = res.profile; saveProfile(profile); G.gain = res.gain;
+          renderGain($('xpgain'), res.gain, profile); refreshProfileUi();
+        }
         if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(e), 1200); }
         else { audio.play('lose'); setTimeout(() => hud.showEnd(e, G.killer), 1900); }
         if (document.pointerLockElement) document.exitPointerLock();
@@ -523,18 +536,29 @@ $('operatorbox').addEventListener('change', () => {
   try { localStorage.setItem('nh_operator', OPERATOR); } catch { /* ignore */ }
   renderOperatorInfo();
 });
-/* weapon skin chips on the start screen */
-{
-  const box = $('skins');
+/* weapon skin chips on the start screen: the stock look is free, the others unlock with your level */
+function renderSkins() {
+  const box = $('skins'), level = levelInfo(profile.xp).level;
+  box.querySelectorAll('.skin').forEach((b) => b.remove());
+  if (SKIN && !skinUnlocked(SKIN, level) && !params.has('skin')) SKIN = null;
   const chips = [[null, 'STOCK', '#20242b'], ...SKINS.map((id) => [id, SKIN_INFO[id].label, SKIN_INFO[id].css])];
   for (const [id, label, css] of chips) {
-    const b = document.createElement('button'); b.className = 'skin'; b.textContent = label; b.style.background = css; b.dataset.skin = id ?? '';
-    b.onclick = () => { SKIN = id; try { if (id) localStorage.setItem('nh_skin', id); else localStorage.removeItem('nh_skin'); } catch { /* ignore */ } mark(); };
+    const locked = !skinUnlocked(id, level);
+    const b = document.createElement('button'); b.className = locked ? 'skin lock' : 'skin'; b.type = 'button'; b.style.background = css; b.dataset.skin = id ?? '';
+    b.textContent = locked ? `LV ${SKIN_UNLOCK[id]}` : label;
+    if (locked) { b.title = `${label}: unlocks at level ${SKIN_UNLOCK[id]}`; b.setAttribute('aria-disabled', 'true'); }
+    else b.onclick = () => { SKIN = id; try { if (id) localStorage.setItem('nh_skin', id); else localStorage.removeItem('nh_skin'); } catch { /* ignore */ } mark(); };
     box.appendChild(b);
   }
-  const mark = () => box.querySelectorAll('.skin').forEach((b) => b.classList.toggle('on', (b.dataset.skin || null) === SKIN));
   mark();
+  function mark() { box.querySelectorAll('.skin').forEach((b) => b.classList.toggle('on', (b.dataset.skin || null) === SKIN)); }
 }
+/* profile card (start screen) + skin chips: redrawn whenever the profile changes */
+function refreshProfileUi() {
+  renderProfile($('profile'), profile, () => { profile = resetProfile(); refreshProfileUi(); });
+  renderSkins();
+}
+refreshProfileUi();
 { const gt = $('goretoggle'); gt.checked = settings.gore; gt.addEventListener('change', () => settings.setGore(gt.checked)); settings.onChange(() => { gt.checked = settings.gore; }); }
 const settingsMenu = initSettingsMenu($('settings'), input, () => settingsMenu.close());
 $('startsettings').addEventListener('click', () => settingsMenu.open());

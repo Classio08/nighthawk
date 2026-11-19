@@ -38,7 +38,7 @@ npm run dev
 ```
 Open the address it prints (usually http://localhost:5173) in Chrome. Click the screen to play.
 
-**Controls:** `WASD` move, `Shift` sprint, **`C` crouch (hold)**, `Space` jump, **`Q` operator ability** (every operator has one: Overclock, Cloak, Trauma Kit, Blast Dash, Deadeye, Bulwark, EMP Breach, Crimson Rush), **`V` first/third person**, (all keys can be changed in **SETTINGS**, together with mouse sensitivity, field of view, volume, graphics quality and bot difficulty), mouse aim, **left click fire**, **right click aim down sights**, `R` reload, `1`-`6` or mouse wheel switch weapon, `G` grenade, **`T` mortar strike** (after 3 kills in a row or a contract), **`E` get in or out of a buggy or bike** (then `W/S` gas, `A/D` steer, `Space` brake, `Shift` boost), **`H` use a medkit** (3 s, stand still; you start with a pistol only - walk over guns, armor and medkits to loot them), `F` flashlight at night, `Esc` pause. If the mouse will not lock, use the arrow keys to look.
+**Controls:** `WASD` move, `Shift` sprint, **`C` crouch (hold)**, `Space` jump, **`Q` operator ability** (every operator has one: Overclock, Cloak, Trauma Kit, Blast Dash, Deadeye, Bulwark, EMP Breach, Crimson Rush), **`V` first/third person**, (all keys can be changed in **SETTINGS**, together with mouse sensitivity, field of view, volume, graphics quality and bot difficulty), mouse aim, **left click fire**, **right click aim down sights**, `R` reload, `1`-`6` or mouse wheel switch weapon, `G` grenade, **`T` mortar strike** (after 3 kills in a row or a contract), **`E` get in or out of a buggy or bike** (then `W/S` gas, `A/D` steer, `Space` brake, `Shift` boost), **`H` use a medkit** (3 s, stand still; you start with a pistol only - walk over guns, armor and medkits to loot them), `F` flashlight at night, `Esc` pause. Your **profile** (XP, level, rank, stats, badges, weapon skins that unlock as you level up) is saved in your browser and shown on the start screen. If the mouse will not lock, use the arrow keys to look.
 
 **What you are playing:** a 16-fighter battle royale. You and 15 bots (the other seven operators + Recruits) spawn spread across a desert map. A red zone shrinks every ~40 seconds; stand outside it and you take damage. Last one alive wins. Bots see you with real line-of-sight, hear gunfire, take cover, throw grenades and also fight *each other*.
 
@@ -57,7 +57,7 @@ Open the page, type a callsign, press **PLAY ONLINE**, and open a second window 
 ## Check that everything works
 
 ```powershell
-npm test               # 91 unit tests: movement, weapons, bots, zone, ragdolls, props, contracts, vehicles, loot, multiplayer rules, netcode maths
+npm test               # 164 unit tests: movement, weapons, bots, zone, ragdolls, props, contracts, vehicles, loot, profile, settings, navigation, multiplayer rules, netcode maths
 npm run smoke          # physics + AI engine checks, no browser needed
 npm run server:test    # real server + two real clients with 120 ms fake lag (hits, prediction, leaving)
 npm run build          # makes the website files in the dist folder

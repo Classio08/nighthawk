@@ -19,8 +19,9 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 10 | Bot navigation (grid + A*), difficulty levels | built | `src/sim/nav.js`, `src/sim/difficulty.js`, `src/sim/bot.js` | `tests/nav.test.js`, `tests/bot-difficulty.test.js` |
 | 11 | Settings menu (sensitivity, FOV, volume, graphics, difficulty, gore, key rebinding), saved in the browser | built | `src/settings.js`, `src/ui/settings-menu.js`, `src/input/input.js` | `tests/settings.test.js`, `scripts/e2e-settings.mjs` |
 | 12 | Server hardening: rate limits, kicks, payload cap, room cap, reconnect window, /health + /metrics | built | `server/src/limits.js`, `server/src/MatchRoom.js`, `server/src/index.js`, `src/net/netsim.js` | `tests/limits.test.js`, section 6 of `server/test/match.mjs` |
+| 13 | Guest profile: XP, levels and ranks, career stats, 14 badges, weapon skins unlocked by level (cosmetic only), saved in the browser | built | `src/profile.js`, `src/ui/profile-view.js`, `src/main.js` | `tests/profile.test.js`, `scripts/e2e-profile.mjs` |
 
-Run everything: `npm test` (150 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (164 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
@@ -151,6 +152,19 @@ Effect: a sniper that needed 30 s to reach a nest now needs about 20 s; bots no 
 ## Stage 12: server hardening
 
 See `docs/MULTIPLAYER.md` (section "Hardening and reconnect") for how it works and `docs/DEPLOY.md` section C2 for what to run on the VPS (health check, metrics, limits, env vars). Short version: every connection has message-rate buckets and a 4 KB payload cap, flooders are kicked, the server refuses new matches above `MAX_ROOMS`, a dropped player gets 12 s to reconnect before a bot takes over, and `/health` + `/metrics` (token-protected) show tick times and abuse counters.
+
+## Stage 13: guest profile and progression
+
+Everything lives in `src/profile.js` (pure logic, unit-tested in Node) and `src/ui/profile-view.js` (DOM). Saved in this browser under `nh_profile_v1`; nothing is sent anywhere.
+
+- **XP per match**: 20 for playing + survival (8 per minute, up to 15 min) + placement (0-100, linear from last to first) + 30 per kill + 10 per headshot kill + 1 per 20 damage dealt (max 60) + 150 for a win. Capped at 1500. The end screen lists every part.
+- **Levels**: level 1 to 50; going from level L to L+1 costs `120 + 40 * (L - 1)` XP, so a normal match is roughly one level early on and one level every few matches later. **Ranks** (cosmetic title): RECRUIT 1, PRIVATE 5, CORPORAL 10, SERGEANT 15, LIEUTENANT 20, CAPTAIN 30, MAJOR 40, COLONEL 50.
+- **Weapon skins unlock by level** (carbon 2, damascus 4, gold 7, magma 10, reactive 14). Locked chips show `LV n`. Skins are cosmetic only; operators, guns and abilities are never gated. The `?skin=` URL override still works for testing.
+- **Career stats**: matches, wins, top-5 finishes, kills, deaths, K/D, headshot kills, damage, time played, best placement, best kills in a match, kills per weapon (favourite weapon), explosion kills, vehicle kills, last 10 matches.
+- **14 badges** (FIRST BLOOD, HUNTER, WARLORD, HEADHUNTER, DEADEYE, SURVIVOR, VETERAN, WINNER, CHAMPION, CONTENDER, BRAWLER, DEMOLITION, ROADKILL, ENDURANCE). They are computed from the lifetime stats, so nothing extra is stored and they can be re-balanced later.
+- **How stats are collected**: `MatchTracker` listens to the same sim events solo and online (`hit`, `kill`), counting only the local player's hits and kills (self damage and suicides are ignored). The `end` event (placement, kills, time, won) closes the match once (`G.recorded`), `recordMatch` returns the new profile plus a `gain` report (XP parts, level-up, new badges, new skins), the profile is saved and the cards redraw. Quitting mid-match records nothing.
+- **Safety**: every field is validated on load (`sanitizeProfile`): numbers are clamped, wins cannot exceed matches, weapon keys must look like `[a-z0-9_-]{1,16}` (no prototype keys, max 16), history keeps 10 entries, storage errors (private mode, quota) never break the game. RESET PROFILE needs a second click.
+- **Honest limits**: the save is client-trusted, which is fine for cosmetics. Anything with real value (leaderboards, a shop, ranked) needs server-side accounts with server-signed results. Cross-device sync, account linking and weapon mastery tiers are still to do.
 
 ## What to look at next (open items)
 
