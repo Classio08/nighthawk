@@ -114,6 +114,11 @@ export class FighterView {
     for (const l of this.legs) { l.scale.y = 1 - 0.38 * this.cK; l.position.y = 0.82 * (1 - 0.38 * this.cK); }
     this.aim.rotation.x = clamp(f.pitch, -1.2, 1.2) + (f.sprinting ? 0.5 : 0) - (f.reloadT > 0 ? 0.5 : 0);
     this.body.rotation.x = f.sprinting ? 0.18 : 0;
+    if (f.sliding) {                                                      // slide: lean back, both legs out in front (positive x-rotation swings a limb forward; the model faces -z)
+      this.body.rotation.x = 0.75; this.legs[0].rotation.x = 1.25; this.legs[1].rotation.x = 1.05; this.aim.rotation.x += 0.15;
+    } else if (f.mantling) {                                              // mantle: lean into the wall, arms up on the ledge, one knee tucked
+      this.body.rotation.x = -0.4; this.aim.rotation.x = 1.05; this.legs[0].rotation.x = 0.95; this.legs[1].rotation.x = -0.15;
+    }
     if (this.slashT > 0) {                                                // melee strike: the gun arm chops down and the body leans into it
       this.slashT = Math.max(0, this.slashT - dt); const u = Math.sin((1 - this.slashT / 0.3) * Math.PI);
       this.aim.rotation.x -= u * 1.25; this.body.rotation.x += u * 0.3;

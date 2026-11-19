@@ -33,7 +33,9 @@ import { initSettingsMenu } from './ui/settings-menu.js';
 import { thirdPersonCameraPosition } from './render/camera.js';
 import { ABILITIES } from './sim/abilities.js';
 import { FrameMetrics } from './perf/frame-metrics.js';
-import { MissionView } from './render/mission-view.js';
+import { createMissionView } from './render/mission-view.js';
+import { snapshotLines, composeCard } from './ui/snapshot.js';
+import { ViewMotion } from './render/headbob.js';
 
 const STEP = 1 / 60;
 const $ = (id) => document.getElementById(id);
@@ -84,10 +86,10 @@ function disposeScene(scene) {
   });
 }
 
-async function newMatch(online = null, operation = false) {
+async function newMatch(online = null, operation = false) {          // `operation`: false for a battle royale, or a mission id from missions.js
   if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: operation ? 0 : +(params.get('bots') ?? 15), guards: operation ? 8 : undefined, mission: operation ? 'dust-lantern' : undefined, contracts: operation ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operation, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
+  const sim = online ?? await Simulation.create({ seed, bots: operation ? 0 : +(params.get('bots') ?? 15), guards: operation ? 8 : undefined, mission: operation || undefined, contracts: operation ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operation, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
@@ -96,7 +98,7 @@ async function newMatch(online = null, operation = false) {
   const pview = sim.plane ? new PlaneView(scene, sim.plane) : null;
   const sview = new SmokeView(scene, sim);
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
-  const mview = sim.mission ? new MissionView(scene, sim) : null;
+  const mview = sim.mission ? createMissionView(scene, sim) : null;
   const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
   const views = new Map();
   for (const f of sim.fighters) if (!f.isPlayer) views.set(f.id, new FighterView(f, scene));
@@ -107,9 +109,9 @@ async function newMatch(online = null, operation = false) {
   viewmodel.setSkin(p.skin);
   cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.melee = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
   G = { sim, net: online, scene, world, pview, sview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
-    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0 };
+    prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0, vm: new ViewMotion(), vmo: { y: 0, roll: 0, pitch: 0, fov: 0 } };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
-  hud.hideEnd();
+  hud.hideEnd(); $('snapwrap').style.display = 'none';
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
   viewmodel.root.visible = !thirdPerson;
   tracker.reset();
@@ -208,10 +210,9 @@ function handleEvents() {
         break;
       }
       case 'propHit': break;
-      case 'mission': {
-        if (e.phase === 'clue') { hud.message(`EVIDENCE RECOVERED · ${e.count}/2`, '#ffcf4d', 1.8); audio.play('pickup', { vol: 0.9 }); }
-        else if (e.phase === 'identified') { hud.message(`SITE IDENTIFIED · ${sim.mission?.targetSite.name ?? 'TARGET AREA'}`, '#58d8ff', 2.6); audio.play('contract', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); }
-        else if (e.phase === 'rescued') { hud.message('TECHNICIAN SECURED · MOVE TO EXTRACTION', '#5be37a', 2.8); audio.play('healend', { vol: 0.9 }); }
+      case 'mission': {                                        // the operation decides what each of its events says
+        const msg = sim.mission?.eventMessage?.(e);
+        if (msg) { hud.message(msg.text, msg.color, msg.secs); audio.play(msg.sfx, msg.at ? { x: msg.at.x, z: msg.at.z, maxD: 120, vol: 0.9 } : { vol: 0.9 }); }
         break;
       }
       case 'contract': {                                       // airdrop / hardpoint / bounty came, landed, was cashed in or ran out
@@ -305,6 +306,8 @@ function handleEvents() {
       case 'dry': if (e.by === p.id) audio.play('dry'); break;
       case 'switch': if (e.by === p.id) audio.play('switch'); break;
       case 'throw': { const f = sim.fighters[e.by]; audio.play('throw', e.by === p.id ? {} : { x: f.x, z: f.z, maxD: 45 }); break; }
+      case 'slide': if (e.by === p.id) audio.play('slide', { vol: 0.9 }); else audio.play('slide', { x: e.x, z: e.z, maxD: 35, vol: 0.7 }); break;
+      case 'mantle': if (e.by === p.id) { audio.play('vault', { vol: 1 }); camfx.add(0.12); } else audio.play('vault', { x: e.x, z: e.z, maxD: 30, vol: 0.7 }); break;
       case 'melee': {
         const f = sim.fighters[e.by];
         audio.play('melee', e.by === p.id ? { vol: 0.9 } : { x: f.x, z: f.z, maxD: 30 });
@@ -315,7 +318,7 @@ function handleEvents() {
       case 'smoke': audio.play('smoke', e.by === p.id ? { vol: 0.9 } : { x: e.x, z: e.z, maxD: 60, vol: 0.8 }); break;
       case 'end': {
         if (e.to !== undefined && e.to !== p.id) break;        // somebody else's result
-        G.over = true;
+        G.over = true; G.snapReq = true;
         if (!sim.mission && !G.recorded) {             // BR profile rewards are not used for mission results yet
           G.recorded = true;
           const res = recordMatch(profile, tracker.summary(e, Math.max(sim.fighters.length, e.placement ?? 0)));
@@ -326,17 +329,29 @@ function handleEvents() {
           if (!e.won) sim.mission.fail();
           $('xpgain').innerHTML = '';
           paused = true;
-          const result = { ...e, mission: true, clues: sim.mission.foundCount, alert: sim.mission.alert.snapshot() };
-          if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(result), 900); }
-          else { audio.play('lose'); setTimeout(() => hud.showEnd(result, G.killer), 1200); }
-        } else if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(e), 1200); }
-        else { audio.play('lose'); setTimeout(() => hud.showEnd(e, G.killer), 1900); }
+          const result = { ...e, mission: true, clues: sim.mission.objectivesDone, alert: sim.mission.alert.snapshot(), debrief: sim.mission.debrief(!!e.won) };
+          if (e.won) { audio.play('win'); setTimeout(() => { hud.showEnd(result); showSnap(result); }, 900); }
+          else { audio.play('lose'); setTimeout(() => { hud.showEnd(result, G.killer); showSnap(result); }, 1200); }
+        } else if (e.won) { audio.play('win'); setTimeout(() => { hud.showEnd(e); showSnap(e); }, 1200); }
+        else { audio.play('lose'); setTimeout(() => { hud.showEnd(e, G.killer); showSnap(e); }, 1900); }
         if (document.pointerLockElement) document.exitPointerLock();
         break;
       }
       default: break;
     }
   }
+}
+
+/** the snapshot card on the end screen: the captured last frame plus a caption; SAVE downloads it as a PNG */
+function showSnap(result) {
+  const wrap = $('snapwrap'), shot = G?.snapShot;
+  if (!shot) { wrap.style.display = 'none'; return; }
+  try {
+    const lines = snapshotLines(result, { name: ($('namebox').value || 'Operator').trim(), killerName: G.killer ?? '', opName: G.sim.mission?.title ?? '' });
+    const card = composeCard(shot, lines), url = card.toDataURL('image/png');
+    $('snapimg').src = url; wrap.style.display = 'flex';
+    $('snapbtn').onclick = () => { const a = document.createElement('a'); a.href = url; a.download = lines.file; document.body.appendChild(a); a.click(); a.remove(); };
+  } catch { wrap.style.display = 'none'; }
 }
 
 /* =========================  per-frame update  ========================= */
@@ -412,11 +427,12 @@ function updateCamera(dt, alpha) {
       camera.rotation.set(cmd.pitch * 0.72 + shake.pitch, cmd.yaw + shake.yaw, shake.roll);
     } else {
       G.eye = lerp(G.eye ?? 0.72, p.crouch ? 0.2 : 0.72, 1 - Math.exp(-14 * dt));        // the eyes glide down when you crouch
-      camera.position.set(x, y + G.eye, z);
+      const vo = G.vmo;                                                                   // body motion from headbob.js (zeroes itself when the setting is off)
+      camera.position.set(x, y + G.eye + vo.y, z);
       G.roll = lerp(G.roll, -cmd.strafe * 0.014 * (p.sprinting ? 1.6 : 1), 1 - Math.exp(-10 * dt));
-      camera.rotation.set(cmd.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + shake.roll);
+      camera.rotation.set(cmd.pitch + vo.pitch + shake.pitch, cmd.yaw + shake.yaw, G.roll + vo.roll + shake.roll);
     }
-    const targetFov = driving ? settings.fov + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(settings.fov + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0) + (p.air === 2 ? 16 : 0), w.adsFov * settings.fov / 78, G.adsK);
+    const targetFov = driving ? settings.fov + Math.min(14, Math.abs(p.veh.speed) * 0.5) : lerp(settings.fov + (p.sprinting ? 6 : 0) + (p.dashT > 0 ? 16 : 0) + (p.air === 2 ? 16 : 0) + G.vmo.fov, w.adsFov * settings.fov / 78, G.adsK);
     G.fov = lerp(G.fov, targetFov, 1 - Math.exp(-14 * dt));
   } else {
     // death cam: slowly orbit the ragdoll
@@ -475,7 +491,10 @@ function frame(now) {
     });
     G.lookYaw = 0; G.lookPitch = 0;
     // player footsteps
-    if (p.grounded && p.speedH > 2) { G.stepT -= dt; if (G.stepT <= 0) { G.stepT = p.sprinting ? 0.27 : 0.4; audio.play('step', { vol: p.ads ? 0.4 : 1 }); } } else G.stepT = 0.1;
+    // (the view-motion phase and the footstep sound share one clock, so the thud lands at the lowest point of each step)
+    G.vmo = G.vm.update(dt, { speed: p.speedH, sprinting: p.sprinting, crouch: p.crouch, grounded: p.grounded, vy: p.vy, sliding: p.sliding, mantling: p.mantling, enabled: settings.headbob && !thirdPerson && !(p.veh && p.seat === 0) });
+    if (G.vmo.stepped) audio.play('step', { vol: p.ads ? 0.4 : p.crouch ? 0.5 : 1 });
+    if (G.vmo.landed > 0) { audio.play('land', { vol: 0.5 + G.vmo.landed }); camfx.add(0.15 + G.vmo.landed * 0.35); }
   }
 
   // The local full-body fighter is visible only in third-person; simulation hitboxes stay unchanged.
@@ -526,6 +545,10 @@ function frame(now) {
   hud.update(dt, sim, p, clamp(spreadPx, 0, 120), G.adsK, fpsSmooth);
 
   renderer.render(G.scene, camera);
+  if (G.snapReq) {                                   // end-of-match snapshot: copy the frame in the same task as the render (the WebGL buffer is cleared afterwards)
+    G.snapReq = false;
+    try { const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height; c.getContext('2d').drawImage(canvas, 0, 0); G.snapShot = c; } catch { G.snapShot = null; }
+  }
 }
 
 /* =========================  start / pause / play again  ========================= */
@@ -539,14 +562,15 @@ async function beginPlay() {
   if (!AUTOSTART) input.lock();
 }
 
-async function beginOperation() {
+async function beginOperation(id = 'dust-lantern') {
   audio.unlock();
   started = true;
-  await newMatch(null, true);
+  await newMatch(null, id);
   showOv('start', false); showOv('pause', false); showOv('end', false); paused = false;
   if (!AUTOSTART) input.lock();
 }
-$('operationbtn').addEventListener('click', beginOperation);
+$('operationbtn').addEventListener('click', () => beginOperation('dust-lantern'));
+$('operation2btn').addEventListener('click', () => beginOperation('ghost-frequency'));
 
 input.onLockChange = (locked) => {
   if (!started || !G || G.over || AUTOSTART) return;
@@ -626,12 +650,12 @@ $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); p
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);
   if (G?.net) { const url = ONLINE_URL; G.net.dispose(); G.net = null; if (url) { await beginOnline(); return; } }
-  const operation = !!G?.sim?.mission;
+  const operation = G?.sim?.mission?.id ?? false;                 // play the same operation again
   await newMatch(null, operation); paused = false; if (!AUTOSTART) input.lock();
 });
 
 (async function boot() {
   await initPhysics();
   requestAnimationFrame(frame);
-  if (AUTOSTART) { input.lockFailed = true; await (params.has('online') ? beginOnline() : beginPlay()); }
+  if (AUTOSTART) { input.lockFailed = true; await (params.has('online') ? beginOnline() : params.has('mission') ? beginOperation(params.get('mission')) : beginPlay()); }
 })();

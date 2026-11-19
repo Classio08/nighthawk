@@ -1,12 +1,13 @@
-// Visual-only presentation for the offline DUST LANTERN mission.
+// Visual-only presentation for the offline operations (createMissionView picks the right one for sim.mission.id). Never reads or writes simulation state.
 import * as THREE from 'three';
+import { TASK } from '../sim/missions.js';
 
 const mat = (color, emissive = 0x000000) => new THREE.MeshStandardMaterial({ color, roughness: 0.82, emissive, emissiveIntensity: 0.35 });
 const put = (group, geometry, material, x, y, z) => {
   const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x, y, z); group.add(mesh); return mesh;
 };
 
-export class MissionView {
+export class DustLanternView {
   constructor(scene, sim) {
     this.scene = scene; this.mission = sim.mission;
     if (!this.mission) return;
@@ -62,3 +63,59 @@ export class MissionView {
     if (this.extract.visible) this.extract.children[0].rotation.z = this.time * 0.18;
   }
 }
+
+// GHOST FREQUENCY: three relay masts, each with a ground ring (the task range), a fill disc that grows while you splice, a pulsing beacon and a tall
+// light beam so the node can be found from across the map. Yellow = to do, white = being jammed, green = dark.
+export class GhostFrequencyView {
+  constructor(scene, sim) {
+    this.scene = scene; this.mission = sim.mission;
+    this.root = new THREE.Group(); scene.add(this.root);
+    const concrete = mat(0x59616a), steel = mat(0x8d98a3);
+    this.nodes = this.mission.nodes.map((node) => {
+      const g = new THREE.Group(); g.position.set(node.x, 0, node.z); this.root.add(g);
+      put(g, new THREE.BoxGeometry(1.5, 0.35, 1.5), concrete, 0, 0.175, 0);
+      put(g, new THREE.CylinderGeometry(0.07, 0.1, 3.4, 6), steel, 0, 2.05, 0);
+      const dish = put(g, new THREE.ConeGeometry(0.55, 0.3, 12, 1, true), steel, 0.25, 3.0, 0); dish.rotation.z = -1.1; dish.material.side = THREE.DoubleSide;
+      const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffc857 });
+      const beacon = put(g, new THREE.SphereGeometry(0.18, 10, 8), beaconMat, 0, 3.9, 0);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false });
+      const ring = put(g, new THREE.RingGeometry(TASK.RANGE - 0.18, TASK.RANGE, 40), ringMat, 0, 0.05, 0); ring.rotation.x = -Math.PI / 2;
+      const fillMat = new THREE.MeshBasicMaterial({ color: 0x58d8ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false });
+      const fill = put(g, new THREE.CircleGeometry(TASK.RANGE - 0.3, 32), fillMat, 0, 0.04, 0); fill.rotation.x = -Math.PI / 2; fill.visible = false;
+      const beamMat = new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.3, depthWrite: false });
+      const beam = put(g, new THREE.CylinderGeometry(0.14, 0.14, 70, 6, 1, true), beamMat, 0, 35, 0);
+      return { g, beaconMat, ringMat, fillMat, beamMat, fill, beam, ring, beacon };
+    });
+    this.extract = new THREE.Group(); this.root.add(this.extract);
+    const pad = put(this.extract, new THREE.RingGeometry(7.2, 7.6, 48), new THREE.MeshBasicMaterial({ color: 0x58d8ff, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }), 0, 0.08, 0); pad.rotation.x = -Math.PI / 2;
+    const centre = put(this.extract, new THREE.CircleGeometry(6.9, 48), new THREE.MeshBasicMaterial({ color: 0x58d8ff, transparent: true, opacity: 0.08, side: THREE.DoubleSide }), 0, 0.025, 0); centre.rotation.x = -Math.PI / 2;
+    this.extract.position.set(this.mission.extraction.x, 0, this.mission.extraction.z); this.extract.visible = false;
+    this.time = 0;
+    this.col = { todo: new THREE.Color(0xffc857), busy: new THREE.Color(0xffffff), done: new THREE.Color(0x5be37a) };
+  }
+
+  update(dt, player) {
+    this.time += dt;
+    const m = this.mission;
+    this.nodes.forEach((v, i) => {
+      const node = m.nodes[i], busy = m.active === node;
+      const c = node.done ? this.col.done : busy ? this.col.busy : this.col.todo;
+      v.beaconMat.color.copy(c); v.ringMat.color.copy(c); v.beamMat.color.copy(c);
+      const near = player ? Math.hypot(player.x - node.x, player.z - node.z) : 99;
+      v.beamMat.opacity = (node.done ? 0.12 : busy ? 0.5 : 0.3) * Math.min(1, Math.max(0, (near - 4) / 10));      // the beam is a far-away signpost: it fades out as you walk up to the mast so it never fills the screen
+      v.beacon.scale.setScalar(1 + 0.25 * Math.sin(this.time * (busy ? 9 : 3) + i));
+      v.ring.rotation.z = this.time * 0.3;
+      v.fill.visible = busy;
+      if (busy) v.fill.scale.setScalar(Math.max(0.02, node.progress / TASK.T));
+    });
+    this.extract.visible = m.stage === 'extract';
+    if (this.extract.visible) this.extract.children[0].rotation.z = this.time * 0.18;
+  }
+}
+
+/** the view for whichever operation the simulation is running */
+export function createMissionView(scene, sim) {
+  if (!sim.mission) return null;
+  return sim.mission.id === 'ghost-frequency' ? new GhostFrequencyView(scene, sim) : new DustLanternView(scene, sim);
+}
+export { DustLanternView as MissionView };           // (the old name)

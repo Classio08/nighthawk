@@ -1,5 +1,5 @@
 // Player settings that live in the browser (localStorage). Portal builds (Poki / CrazyGames, PEGI-12) start with gore OFF.
-//   URL overrides for testing: ?gore=0/1  ?diff=easy|normal|hard|brutal  ?sens=1.4  ?fov=90  ?vol=0.3  ?quality=low|medium|high
+//   URL overrides for testing: ?gore=0/1  ?bob=0/1  ?diff=easy|normal|hard|brutal  ?sens=1.4  ?fov=90  ?vol=0.3  ?quality=low|medium|high
 // Everything is validated on the way in (a corrupted or hand-edited save can never produce NaN or a broken key map) and
 // written back on every change. Pure data + a tiny change-listener list: the menu (ui/settings-menu.js), input, camera and audio read from here.
 import { DIFFICULTY_IDS } from './sim/difficulty.js';
@@ -30,7 +30,7 @@ const clampNum = (v, [lo, hi], d) => {
 };
 
 const KEY = 'nh_settings_v1';
-const state = { gore: !PORTAL, difficulty: 'normal', sens: 1, fov: 78, volume: 0.5, quality: 'high', keys: { ...DEFAULT_KEYS } };
+const state = { gore: !PORTAL, headbob: true, difficulty: 'normal', sens: 1, fov: 78, volume: 0.5, quality: 'high', keys: { ...DEFAULT_KEYS } };
 const listeners = new Set();
 
 /** merge untrusted data (a saved blob or URL values) into the state, keeping only valid fields */
@@ -38,6 +38,7 @@ export function sanitize(raw, base = state) {
   const out = { ...base, keys: { ...base.keys } };
   if (!raw || typeof raw !== 'object') return out;
   if (typeof raw.gore === 'boolean') out.gore = raw.gore;
+  if (typeof raw.headbob === 'boolean') out.headbob = raw.headbob;           // first-person head bob / landing dip / slide tilt (off for motion-sensitive players)
   if (DIFFICULTY_IDS.includes(raw.difficulty)) out.difficulty = raw.difficulty;
   if (raw.sens !== undefined) out.sens = clampNum(raw.sens, LIMITS.sens, out.sens);
   if (raw.fov !== undefined) out.fov = clampNum(raw.fov, LIMITS.fov, out.fov);
@@ -67,6 +68,7 @@ function load() {
   Object.assign(state, next);
   const u = {};
   if (params.has('gore')) u.gore = params.get('gore') !== '0';
+  if (params.has('bob')) u.headbob = params.get('bob') !== '0';
   if (params.has('diff')) u.difficulty = params.get('diff');
   if (params.has('sens')) u.sens = params.get('sens');
   if (params.has('fov')) u.fov = params.get('fov');
@@ -79,6 +81,7 @@ load();
 
 export const settings = {
   get gore() { return state.gore; }, setGore(v) { state.gore = !!v; save(); },
+  get headbob() { return state.headbob; }, setHeadbob(v) { state.headbob = !!v; save(); },
   get difficulty() { return state.difficulty; }, setDifficulty(v) { if (DIFFICULTY_IDS.includes(v)) { state.difficulty = v; save(); } },
   get sens() { return state.sens; }, setSens(v) { state.sens = clampNum(v, LIMITS.sens, state.sens); save(); },
   get fov() { return state.fov; }, setFov(v) { state.fov = clampNum(v, LIMITS.fov, state.fov); save(); },

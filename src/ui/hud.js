@@ -133,13 +133,8 @@ export class Hud {
     if (!el) return;
     if (!mission) { el.style.display = 'none'; return; }
     el.style.display = 'block';
-    const stage = mission.stage;
-    const progress = stage === 'recon' ? `${mission.foundCount}/2 CLUES` : stage === 'extract' ? `${Math.min(100, Math.round(mission.extractT / 4 * 100))}% EXTRACTION` : stage === 'recover' ? 'TARGET IDENTIFIED' : stage === 'complete' ? 'SUCCESS' : 'IN PROGRESS';
-    const nearClue = stage === 'recon' && mission.clues.some((clue) => !clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 3.4);
-    const nearCaptive = stage === 'recover' && Math.hypot(mission.captive.x - p.x, mission.captive.z - p.z) < 3.5;
-    const detail = stage === 'recon' ? (nearClue ? 'PRESS E TO INVESTIGATE' : 'Search the marked evidence sites') : stage === 'recover' ? (nearCaptive ? 'PRESS E TO SECURE THE TECHNICIAN' : `Locate the technician · ${mission.targetSite.name}`) : stage === 'extract' ? (mission.captive.separated ? 'TECHNICIAN SEPARATED — MOVE CLOSER' : 'Keep the technician with you and reach the extraction pad') : stage === 'complete' ? 'Technician safely extracted' : 'Operation ended';
-    const alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
-    const html = `<small>OPERATION DUST LANTERN · THREAT ${alert.level.toUpperCase()}</small><b>${mission.objective}</b><span>${detail}</span><i><em style="width:${stage === 'recon' ? mission.foundCount / 2 * 100 : stage === 'extract' ? mission.extractT / 4 * 100 : stage === 'complete' ? 100 : 0}%"></em></i><small>${progress}</small>`;
+    const info = mission.hudInfo(p), alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
+    const html = `<small>${info.title} · THREAT ${alert.level.toUpperCase()}</small><b>${info.objective}</b><span>${info.detail}</span><i><em style="width:${Math.round(Math.max(0, Math.min(1, info.bar)) * 100)}%"></em></i><small>${info.progress}</small>`;
     if (el.innerHTML !== html) el.innerHTML = html;
   }
 
@@ -238,10 +233,13 @@ export class Hud {
       if (v.dead) continue; const x = S / 2 + v.x * k, y = S / 2 + v.z * k;
       g.fillStyle = v.driver >= 0 ? '#ff8a4d' : '#5fd6ff'; g.fillRect(x - 2, y - 2, 4, 4);
     }
-    if (sim.mission) {
-      for (const clue of sim.mission.clues) if (!clue.found && Math.hypot(clue.x - p.x, clue.z - p.z) < 22) { g.fillStyle = '#ffcf4d'; g.beginPath(); g.arc(S / 2 + clue.x * k, S / 2 + clue.z * k, 3, 0, 6.283); g.fill(); }
-      if (sim.mission.stage === 'recover') { g.fillStyle = '#ff9d45'; g.fillRect(S / 2 + sim.mission.captive.x * k - 2, S / 2 + sim.mission.captive.z * k - 2, 5, 5); }
-      if (sim.mission.stage === 'extract') { g.strokeStyle = '#58d8ff'; g.lineWidth = 1.5; g.beginPath(); g.arc(S / 2 + sim.mission.extraction.x * k, S / 2 + sim.mission.extraction.z * k, 5, 0, 6.283); g.stroke(); }
+    if (sim.mission) {                                      // each operation says what to draw: a dot (task / clue), a square (person / done) or a ring (extraction)
+      for (const m of sim.mission.mapMarkers(p)) {
+        const x = S / 2 + m.x * k, y = S / 2 + m.z * k;
+        if (m.kind === 'dot') { g.fillStyle = m.color; g.beginPath(); g.arc(x, y, 3, 0, 6.283); g.fill(); }
+        else if (m.kind === 'square') { g.fillStyle = m.color; g.fillRect(x - 2, y - 2, 5, 5); }
+        else if (m.kind === 'ring') { g.strokeStyle = m.color; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, 5, 0, 6.283); g.stroke(); }
+      }
     }
     for (const c of sim.contracts?.list ?? []) {            // contracts on the map
       const x = S / 2 + c.x * k, y = S / 2 + c.z * k;
@@ -262,7 +260,7 @@ export class Hud {
     $('endtitle').textContent = r.mission ? (r.won ? 'OPERATION COMPLETE' : 'OPERATION FAILED') : r.won ? 'WINNER WINNER' : 'ELIMINATED';
     $('endtitle').style.color = r.won ? '#5be37a' : '#ff4d4d';
     $('endsub').textContent = r.mission
-      ? (r.won ? `Technician extracted safely · ${r.clues ?? 0}/3 clues recovered · No persistent rewards yet` : 'The operator was lost before the technician could be extracted')
+      ? (r.debrief ?? (r.won ? 'Operation complete · No persistent rewards yet' : 'The operator was lost'))
       : r.won ? 'Last one standing. The desert is yours.' : (killerName ? `Taken out by ${killerName}` : 'The zone got you');
     $('e-place').textContent = r.mission ? (r.won ? 'SAFE' : 'FAIL') : `#${r.placement}`;
     $('e-kills').textContent = r.kills ?? 0; $('e-time').textContent = fmt(r.time);

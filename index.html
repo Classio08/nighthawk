@@ -121,6 +121,7 @@
   #xpgain .xplevel{margin-top:8px;opacity:.8}
   #xpgain .xpnote{margin-top:6px;color:var(--green);text-align:center}#xpgain .xpnote.up{color:var(--accent);font-size:15px}
   .skin.lock{opacity:.4;cursor:not-allowed;filter:grayscale(.7)}
+  #snapwrap{display:flex;flex-direction:column;align-items:center;gap:8px}#snapimg{width:min(300px,60vw);border:1px solid rgba(255,255,255,.25);border-radius:4px}#snapbtn{padding:6px 14px;font-size:12px}
   #stats-end{display:flex;gap:26px;font-size:14px}#stats-end b{display:block;font-size:30px;color:var(--accent)}
   #rotate{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:#0b0e13;color:#ffcf4d;font-size:22px;letter-spacing:3px;text-align:center}
   @media (orientation:portrait) and (pointer:coarse){#rotate{display:flex}}
@@ -160,6 +161,7 @@
   <p style="font-size:12px;opacity:.7"><b>Every match starts in the plane:</b> press <b>Space</b> to jump, hold <b>W</b> to dive, the parachute opens by itself at 60 m (Space opens it early) &middot; you land with a pistol: <b>loot guns, armor and medkits</b> (walk over them) &middot; grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="operationbtn">OPERATION: DUST LANTERN</button>
+  <button class="btn" id="operation2btn">OPERATION: GHOST FREQUENCY</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <button class="btn" id="startsettings">SETTINGS</button>
   <details id="profile"><summary>LV 1 RECRUIT</summary></details>
@@ -179,6 +181,7 @@
   <p id="endsub"></p>
   <div id="stats-end"><div><b id="e-place">#1</b>PLACE</div><div><b id="e-kills">0</b>KILLS</div><div><b id="e-time">0:00</b>SURVIVED</div></div>
   <div id="xpgain" aria-live="polite"></div>
+  <div id="snapwrap" style="display:none"><img id="snapimg" alt="Snapshot of the final moment" /><button class="btn" id="snapbtn" type="button">SAVE SNAPSHOT</button></div>
   <button class="btn" id="againbtn">PLAY AGAIN</button>
 </div>
 <div id="rotate">ROTATE YOUR PHONE<br><small>landscape only</small></div>

@@ -41,6 +41,11 @@ export function initSettingsMenu(root, input, onClose) {
     rows.push(() => { cb.checked = settings.gore; });
     body.appendChild(el('label', { className: 'srow' }, [el('span', { text: 'BLOOD & GORE' }), cb, el('b')])); }
 
+  { const cb = el('input', { type: 'checkbox' }); cb.setAttribute('aria-label', 'Head bob and camera motion');
+    cb.addEventListener('change', () => settings.setHeadbob(cb.checked));
+    rows.push(() => { cb.checked = settings.headbob; });
+    body.appendChild(el('label', { className: 'srow' }, [el('span', { text: 'HEAD BOB & CAMERA MOTION' }), cb, el('b')])); }
+
   body.appendChild(el('h3', { text: 'CONTROLS  (click a key, then press the new one)' }));
   const grid = el('div', { className: 'keys' }); body.appendChild(grid);
   let waiting = null;

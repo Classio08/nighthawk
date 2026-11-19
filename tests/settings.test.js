@@ -66,3 +66,13 @@ test('sanitize: an older save that already uses a newer action\'s default key ke
   const clash = sanitize({ keys: { ...Object.fromEntries(ACTIONS.map(([id, , k]) => [id, k])), back: 'KeyX' } }, base());
   assert.deepEqual(clash.keys, Object.fromEntries(ACTIONS.map(([id, , k]) => [id, k])));
 });
+
+test('headbob: on by default, only a real boolean changes it, setter notifies', () => {
+  assert.equal(settings.headbob, true, 'default: the view motion is on');
+  assert.equal(sanitize({ headbob: false }, { ...base(), headbob: true }).headbob, false);
+  assert.equal(sanitize({ headbob: 'no' }, { ...base(), headbob: true }).headbob, true, 'a string is not a boolean: keep the old value');
+  assert.equal(sanitize({ headbob: 0 }, { ...base(), headbob: true }).headbob, true);
+  let seen = 0; const off = settings.onChange(() => seen++);
+  const before = settings.headbob; settings.setHeadbob(!before); assert.equal(settings.headbob, !before); settings.setHeadbob(before);
+  assert.ok(seen >= 2); if (typeof off === 'function') off();
+});

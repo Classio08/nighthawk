@@ -13,7 +13,7 @@ import { SLOT_ORDER } from '../sim/weapons.js';
 import { isCloaked } from '../sim/abilities.js';
 import { STEP, TICKS_PER_MS, INTERP_TICKS, packCmd, unpackFighterInto, unpackZoneInto } from './protocol.js';
 
-const OWN_EVENTS = new Set(['shot', 'fire', 'reload', 'dry', 'switch', 'throw', 'melee']);   // predicted locally, so the server's copy is ignored
+const OWN_EVENTS = new Set(['shot', 'fire', 'reload', 'dry', 'switch', 'throw', 'melee', 'slide', 'mantle']);   // predicted locally, so the server's copy is ignored
 const lerp = (a, b, t) => a + (b - a) * t;
 const lerpAngle = (a, b, t) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
 
@@ -25,7 +25,7 @@ class RemoteFighter {
     this.alive = true; this.kills = 0; this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.speedH = 0; this.grounded = true; this.ads = false; this.sprinting = false; this.cur = r.weapon; this.reloadT = 0;
     this.weapons = {}; this.nades = 0; this.fireT = 0; this.switchT = 0; this.bloom = 0;
-    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false; this.crouch = false; this.air = 0; this.airT = 0; this.smokes = 0;      // operator ability tells (flags from the snapshot)
+    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false; this.crouch = false; this.sliding = false; this.mantling = false; this.air = 0; this.airT = 0; this.smokes = 0;      // operator ability tells (flags from the snapshot)
   }
   get eyeY() { return this.y + (this.crouch ? 0.2 : 0.72); }
 }
@@ -49,6 +49,7 @@ for (const k of DELEGATED) Object.defineProperty(Me.prototype, k, { get() { retu
 Object.defineProperties(Me.prototype, {
   abOn: { get() { return this.pl.abT > 0; } }, cloaked: { get() { return isCloaked(this.pl); } },
   stunned: { get() { return this.pl.stunT > 0; } }, dashing: { get() { return this.pl.dashT > 0; } },
+  sliding: { get() { return this.pl.slideT > 0; } }, mantling: { get() { return this.pl.mantleT > 0; } },
 });
 
 export class NetSim {

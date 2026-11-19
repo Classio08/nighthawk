@@ -25,17 +25,17 @@ export function unpackCmd(a) {
 }
 
 /* ---------- state: server -> client ---------- */
-export const FF = { alive: 1, ads: 2, sprint: 4, ground: 8, ab: 16, cloak: 32, stun: 64, dash: 128, crouch: 256, airShift: 9 };      // bits 9-10: 0 on foot, 1 plane, 2 free fall, 3 parachute
+export const FF = { alive: 1, ads: 2, sprint: 4, ground: 8, ab: 16, cloak: 32, stun: 64, dash: 128, crouch: 256, slide: 2048, mantle: 4096, airShift: 9 };      // bits 9-10: 0 on foot, 1 plane, 2 free fall, 3 parachute
 
 export function packFighter(f) {
-  const flags = (f.alive ? FF.alive : 0) | (f.ads ? FF.ads : 0) | (f.sprinting ? FF.sprint : 0) | (f.grounded ? FF.ground : 0) | (f.abT > 0 ? FF.ab : 0) | (isCloaked(f) ? FF.cloak : 0) | (f.stunT > 0 ? FF.stun : 0) | (f.dashT > 0 ? FF.dash : 0) | (f.crouch ? FF.crouch : 0) | ((f.air & 3) << FF.airShift);
+  const flags = (f.alive ? FF.alive : 0) | (f.ads ? FF.ads : 0) | (f.sprinting ? FF.sprint : 0) | (f.grounded ? FF.ground : 0) | (f.abT > 0 ? FF.ab : 0) | (isCloaked(f) ? FF.cloak : 0) | (f.stunT > 0 ? FF.stun : 0) | (f.dashT > 0 ? FF.dash : 0) | (f.crouch ? FF.crouch : 0) | (f.slideT > 0 ? FF.slide : 0) | (f.mantleT > 0 ? FF.mantle : 0) | ((f.air & 3) << FF.airShift);
   return [f.id, r2(f.x), r2(f.y), r2(f.z), r3(f.yaw), r3(f.pitch), Math.ceil(f.hp), flags, SLOT_ORDER.indexOf(f.cur), r2(f.speedH), f.kills, r2(f.reloadT)];
 }
 /** write a packed fighter record into a live object (the object keeps the same identity so the renderer never loses it) */
 export function unpackFighterInto(o, a) {
   o.x = a[1]; o.y = a[2]; o.z = a[3]; o.yaw = a[4]; o.pitch = a[5]; o.hp = a[6];
   const fl = a[7]; o.alive = !!(fl & FF.alive); o.ads = !!(fl & FF.ads); o.sprinting = !!(fl & FF.sprint); o.grounded = !!(fl & FF.ground);
-  o.abOn = !!(fl & FF.ab); o.cloaked = !!(fl & FF.cloak); o.stunned = !!(fl & FF.stun); o.dashing = !!(fl & FF.dash); o.crouch = !!(fl & FF.crouch); o.air = (fl >> FF.airShift) & 3;
+  o.abOn = !!(fl & FF.ab); o.cloaked = !!(fl & FF.cloak); o.stunned = !!(fl & FF.stun); o.dashing = !!(fl & FF.dash); o.crouch = !!(fl & FF.crouch); o.sliding = !!(fl & FF.slide); o.mantling = !!(fl & FF.mantle); o.air = (fl >> FF.airShift) & 3;
   o.cur = SLOT_ORDER[a[8]] ?? o.cur; o.speedH = a[9]; o.kills = a[10]; o.reloadT = a[11];
   return o;
 }

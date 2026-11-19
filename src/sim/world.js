@@ -23,7 +23,8 @@ import { BotBrain } from './bot.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
-import { DustLanternMission } from './missions.js';
+import { createMission } from './missions.js';
+import { MANTLE, findLedge, mantlePos } from './mantle.js';
 
 export const GRAV = -22;
 export const OPERATORS = operatorData.operators;
@@ -32,6 +33,8 @@ const EYE_C = 0.2;              // ...and when crouching (eyes about 1.1 m above
 const FALL_SAFE = 12, FALL_DMG = 7;       // landing faster than 12 m/s (a ~3.3 m drop) hurts: 7 HP per extra m/s. A normal jump lands at 8.2 m/s, so jumping is always free.
 const BASE_SPEED = 7;
 const JUMP = 8.2;
+// SLIDE: press C while sprinting. You keep your momentum (a bit more than a sprint), it bleeds off to a crouch walk, you stay low (crouch hitbox, steady aim) and can shoot. Jump cancels it.
+export const SLIDE = { T: 0.85, BOOST: 1.25, CD: 0.9, MIN_SPEED: 5, BLOCKED: 0.35 };
 const REGEN_DELAY = 6, REGEN_RATE = 5, REGEN_CAP = 0.65;
 const GRENADE_FUSE = 2.2, GRENADE_R = 9, GRENADE_DMG = 150;
 const CRATE_HP = 70, BARREL_HP = 40, BARREL_R = 8, BARREL_DMG = 130;   // props: bullets and blasts wear them down
@@ -51,6 +54,8 @@ export class Fighter {
     this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.vy = 0; this.grounded = false; this.speedH = 0; this.moveX = 0; this.moveZ = 0;
     this.ads = false; this.sprinting = false; this.crouch = false;
+    this.slideT = 0; this.slideVx = 0; this.slideVz = 0; this.slideCd = 0;                   // sprint-slide (SLIDE)
+    this.mantleT = 0; this.mFrom = null; this.mTo = null;                                   // ledge pull-up (mantle.js)
     this.weapons = {}; this.cur = op.weapon;
     for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve, have: true };
     this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.mortar = 0; this.streak = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
@@ -61,6 +66,8 @@ export class Fighter {
     this.air = 0; this.airT = 0; this.avx = 0; this.avz = 0; this.jumpPrev = false;      // drop-in (drop.js): 0 on foot, 1 in the plane, 2 free fall, 3 parachute
     this.brain = null; this.rb = null; this.col = null;
   }
+  get sliding() { return this.slideT > 0; }           // (the views read these names on every kind of fighter: sim, remote snapshot, predicted self)
+  get mantling() { return this.mantleT > 0; }
   get eyeY() { return this.y + (this.crouch ? EYE_C : EYE); }
 
   /** loot matches: you start with a pistol and nothing else */
@@ -79,7 +86,8 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, sn: this.smokes, nadeT: this.nadeT, mlT: this.meleeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, sn: this.smokes, nadeT: this.nadeT, mlT: this.meleeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH,
+      sl: [this.slideT, this.slideVx, this.slideVz, this.slideCd], ml: this.mantleT > 0 ? [this.mantleT, this.mFrom.x, this.mFrom.y, this.mFrom.z, this.mTo.x, this.mTo.y, this.mTo.z] : 0 };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
@@ -88,6 +96,8 @@ export class Fighter {
     if (s.hv !== undefined) { SLOT_ORDER.forEach((k, i) => { this.weapons[k].have = !!(s.hv & (1 << i)); }); this.armor = s.ar; this.armorLv = s.al; this.meds = s.md; this.healT = s.hl; }
     this.crouch = !!s.cr;
     if (s.air) { this.air = s.air[0]; this.airT = s.air[1]; this.avx = s.air[2]; this.avz = s.air[3]; this.jumpPrev = !!s.air[4]; }
+    if (s.sl) { this.slideT = s.sl[0]; this.slideVx = s.sl[1]; this.slideVz = s.sl[2]; this.slideCd = s.sl[3]; }
+    if (s.ml) { this.mantleT = s.ml[0]; this.mFrom = { x: s.ml[1], y: s.ml[2], z: s.ml[3] }; this.mTo = { x: s.ml[4], y: s.ml[5], z: s.ml[6] }; } else { this.mantleT = 0; this.mFrom = this.mTo = null; }
     if (s.ab) { this.abCd = s.ab[0]; this.abT = s.ab[1]; this.dashT = s.ab[2]; this.dashVx = s.ab[3]; this.dashVz = s.ab[4]; this.stunT = s.ab[5]; }
     this.nades = s.nades; if (s.sn !== undefined) this.smokes = s.sn; this.nadeT = s.nadeT; if (s.mlT !== undefined) this.meleeT = s.mlT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
@@ -114,7 +124,7 @@ export class Simulation {
     this.obstacles = [];            // Yuka obstacle entities (for bot steering)
     this.weather = pickWeather(this.seed, opts.weather);       // same seed => same weather on the server and in every browser
     this.contracts = new Contracts(this);
-    this.mission = opts.mission === 'dust-lantern' ? new DustLanternMission(this) : null;
+    this.mission = createMission(opts.mission, this);
     if (this.mission) this.contracts.off = true;
     this.loot = new LootSystem(this);      // starting items come from the seed (loot.js); only a loot match (opts.loot) has any
     this.strikes = [];              // mortar barrages in progress
@@ -701,34 +711,73 @@ export class Simulation {
   stepPlayer(p, cmd, dt) {
     p.yaw = cmd.yaw; p.pitch = clamp(cmd.pitch, -1.5, 1.5);
     p.lagTicks = cmd.vt > 0 ? clamp(this.tick - cmd.vt, 0, MAX_LAG_TICKS) : 0;
-    if (p.air) { stepAir(this, p, cmd, dt); return; }                                  // plane / free fall / parachute: its own physics, no shooting
-    if (p.veh) { this._stepSeated(p, cmd, dt); return; }
+    if (p.air) { p.slideT = 0; p.mantleT = 0; stepAir(this, p, cmd, dt); return; }       // plane / free fall / parachute: its own physics, no shooting
+    if (p.veh) { p.slideT = 0; p.mantleT = 0; this._stepSeated(p, cmd, dt); return; }
     const w = WEAPONS[p.cur];
+    const wasCrouch = p.crouch, wasSprint = p.sprinting;                           // (last tick's stance: a slide starts on the tick C goes down while sprinting)
+    p.slideCd = Math.max(0, p.slideCd - dt);
+    if (p.stunT > 0 || p.dashT > 0) { p.slideT = 0; p.mantleT = 0; p.mFrom = p.mTo = null; }      // an EMP or a dash interrupts both
     p.crouch = !!cmd.crouch;                                                      // C (hold): lower, slower, steadier, harder to hit; no sprint or jump while crouched
     p.sprinting = !!cmd.sprint && cmd.forward > 0 && !cmd.ads && !p.crouch;
     p.ads = !!cmd.ads && !p.sprinting && p.reloadT <= 0 && p.switchT <= 0;
+    const mv = moveVector(p.yaw, cmd.forward, cmd.strafe);                        // the one shared (and unit-tested) movement maths
+    const mvLen = Math.hypot(mv.x, mv.z);
+    // SLIDE: C pressed while sprinting on the ground, with speed and no cooldown
+    if (p.slideT <= 0 && p.mantleT <= 0 && cmd.crouch && !wasCrouch && wasSprint && p.grounded && p.slideCd <= 0 && p.speedH >= SLIDE.MIN_SPEED) {
+      p.slideT = SLIDE.T;
+      if (mvLen > 0.1) { p.slideVx = mv.x / mvLen; p.slideVz = mv.z / mvLen; } else { p.slideVx = -Math.sin(p.yaw); p.slideVz = -Math.cos(p.yaw); }
+      this.emit({ t: 'slide', by: p.id, x: p.x, y: p.y, z: p.z });
+    }
+    if (p.slideT > 0 && cmd.jump) { p.slideT = 0; p.slideCd = SLIDE.CD; p.crouch = false; }       // a jump cancels the slide (and is allowed even if C is still down)
+    const slideOn = p.slideT > 0;
+    if (slideOn) { p.crouch = true; p.sprinting = false; p.ads = false; }
+    // MANTLE: airborne, pushing into a ledge within reach: pull up and over (rules in mantle.js)
+    if (p.mantleT <= 0 && !p.grounded && !p.crouch && mvLen > 0.1 && p.vy > MANTLE.MAX_FALL) {
+      const led = findLedge(this.map, p.x, p.y - MANTLE.FEET, p.z, mv.x / mvLen, mv.z / mvLen);
+      if (led) {
+        p.mantleT = MANTLE.T; p.mFrom = { x: p.x, y: p.y, z: p.z }; p.mTo = { x: led.x, y: led.y, z: led.z };
+        p.slideT = 0; p.healT = 0; p.reloadT = 0; this.emit({ t: 'mantle', by: p.id, x: p.x, y: p.y, z: p.z });
+      }
+    }
+    const busy = p.mantleT > 0;
+    if (busy) { p.ads = false; p.sprinting = false; }
     let sp = BASE_SPEED * (p.op.speed / 10) * w.moveMul;
+    const walkSp = sp * 0.5;
     if (p.sprinting) sp *= 1.5; else if (p.ads) sp *= 0.62;
     if (p.crouch) sp *= 0.5;
     if (p.reloadT > 0) sp *= 0.92;
+    if (slideOn) { const k = p.slideT / SLIDE.T; sp = walkSp + (BASE_SPEED * (p.op.speed / 10) * w.moveMul * 1.5 * SLIDE.BOOST - walkSp) * k * k; }   // momentum bleeds off smoothly to a crouch walk
     const act = activeAbility(p); if (act?.speedMul) sp *= act.speedMul;      // Cloak: faster
-    if (cmd.ability) useAbility(this, p);                                     // Q: the operator's ability (the server validates cooldown / state)
+    if (cmd.ability && !busy) useAbility(this, p);                                     // Q: the operator's ability (the server validates cooldown / state)
     // medkit (H): takes HEAL_T seconds of standing mostly still; shooting, reloading, switching, throwing, sprinting or getting hurt cancels it
     if (cmd.heal) this.startHeal(p);
     if (p.healT > 0 && (cmd.fire || cmd.reload || cmd.slot || cmd.grenade || cmd.melee || cmd.use || p.sprinting)) p.healT = 0;
     if (p.healT > 0) sp *= 0.55;
-    const { x: mx, z: mz } = moveVector(p.yaw, cmd.forward, cmd.strafe); // the one shared (and unit-tested) movement maths
-    this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump && !p.crouch);
-    if (!p.alive) return;                                                 // (a lethal landing ends the turn)
+    if (busy) {
+      p.mantleT = Math.max(0, p.mantleT - dt);
+      const pos = mantlePos(p.mFrom, p.mTo, 1 - p.mantleT / MANTLE.T), ox = p.x, oz = p.z;
+      p.rb.setNextKinematicTranslation(pos); p.x = pos.x; p.y = pos.y; p.z = pos.z;
+      p.moveX = (pos.x - ox) / dt; p.moveZ = (pos.z - oz) / dt; p.speedH = Math.hypot(p.moveX, p.moveZ); p.vy = 0; p.grounded = false;
+      if (p.mantleT <= 0) { p.grounded = true; p.mFrom = p.mTo = null; }
+    } else {
+      const mx = slideOn ? p.slideVx : mv.x, mz = slideOn ? p.slideVz : mv.z;
+      this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump && !p.crouch);
+      if (!p.alive) return;                                               // (a lethal landing ends the turn)
+      if (slideOn) {
+        p.slideT = Math.max(0, p.slideT - dt);
+        if (!p.grounded || p.speedH < sp * SLIDE.BLOCKED) p.slideT = 0;   // ran into something, or slid off an edge
+        if (p.slideT <= 0) p.slideCd = SLIDE.CD;
+      }
+    }
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
     if (cmd.smoke) this.throwGrenade(p, this._aimDir(p, 0), 15, true);
-    if (cmd.melee) this.melee(p);
+    if (cmd.melee && !busy) this.melee(p);
     if (cmd.mortar) this.callMortarFromView(p);
     if (cmd.use && !this.mission?.interact(p)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
     p.nadeT = Math.max(0, p.nadeT - dt); p.meleeT = Math.max(0, p.meleeT - dt);
     this.tickHeal(p, dt);
-    this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
+    this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0 && !busy, !!cmd.reload);
     tickAbility(this, p, dt);
   }
 
