@@ -31,10 +31,14 @@ test('sandbox: play money only, test chains only, features follow the flags, nev
 });
 
 test('live is blocked until EVERY condition holds, and a blocked live request fails CLOSED (not into sandbox)', () => {
-  const env = { NIGHTHAWK_ECONOMY_LIVE: '1' };
+  const env = { NIGHTHAWK_ECONOMY_LIVE: '1', ECONOMY_SECRET: 'ab'.repeat(32) };
   assert.equal(evaluate(liveCfg(), env, TODAY).mode, 'live');
   const cases = [
     ['no server env flag', liveCfg(), {}, TODAY],
+    ['no persistent signing secret', liveCfg(), { NIGHTHAWK_ECONOMY_LIVE: '1' }, TODAY],
+    ['invalid calendar date', liveCfg({ licence: { ...liveCfg().licence, expiresOn: '2027-02-30' } }), env, TODAY],
+    ['approval date in the future', liveCfg({ licence: { ...liveCfg().licence, approvedOn: '2027-01-01' } }), env, TODAY],
+    ['expiry before approval', liveCfg({ licence: { ...liveCfg().licence, approvedOn: '2027-10-01', expiresOn: '2027-09-01' } }), env, TODAY],
     ['no licence reference', liveCfg({ licence: { ...liveCfg().licence, reference: '' } }), env, TODAY],
     ['no issuer', liveCfg({ licence: { ...liveCfg().licence, issuer: '' } }), env, TODAY],
     ['no approver', liveCfg({ licence: { ...liveCfg().licence, approvedBy: '' } }), env, TODAY],
@@ -61,7 +65,7 @@ test('the licence expiring closes live on the very next evaluation', () => {
 });
 
 test('per player in live: allowed country, verified age and KYC are all required; sandbox only needs not-self-excluded', () => {
-  const env = { NIGHTHAWK_ECONOMY_LIVE: '1' }, cfg = liveCfg(), s = evaluate(cfg, env, TODAY);
+  const env = { NIGHTHAWK_ECONOMY_LIVE: '1', ECONOMY_SECRET: 'ab'.repeat(32) }, cfg = liveCfg(), s = evaluate(cfg, env, TODAY);
   const ok = { country: 'na', verifiedAge: 21, kycVerified: true };
   assert.equal(evaluateForPlayer(s, cfg, ok).ok, true);
   for (const [name, p] of [['unknown country', { ...ok, country: '' }], ['blocked country', { ...ok, country: 'US' }], ['age unverified', { ...ok, verifiedAge: undefined }], ['under age', { ...ok, verifiedAge: 17 }], ['no kyc', { ...ok, kycVerified: false }], ['self-excluded', { ...ok, selfExcluded: true }]]) assert.equal(evaluateForPlayer(s, cfg, p).ok, false, name);
