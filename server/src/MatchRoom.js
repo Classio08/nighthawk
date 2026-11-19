@@ -6,6 +6,7 @@ import { skinOk } from '../../src/sim/weapons.js';
 import { sanitizeCmd, repeatCmd } from '../../src/sim/cmd.js';
 import { STEP, SNAP_EVERY, packSnapshot, packRoster, unpackCmd } from '../../src/net/protocol.js';
 import { ClientGuard, TickStats } from './limits.js';
+import { accountService } from './account-service.js';
 
 const STEP_MS = 1000 / 60;
 export const DEFAULTS = { lobbySecs: 15, total: 16, maxClients: 16, overLingerSecs: 12, vehicles: true, loot: true, difficulty: 'normal', reconnectSecs: 12, maxRooms: 40, compress: true };
@@ -16,6 +17,10 @@ const cleanName = (n) => String(n ?? 'Operator').replace(/[^\p{L}\p{N} _.\-]/gu,
 
 export class MatchRoom extends Room {
   static cfg = { ...DEFAULTS };
+  static async onAuth(token) {
+    if (!token) return { accountId: null };
+    return await accountService.consumeRoomTicket(token) ?? false;
+  }
   static instances = new Set();   // (tests peek into running matches)
   /** counters for /metrics (all matches on this process) */
   static stats = { started: Date.now(), roomsCreated: 0, joins: 0, kicks: 0, dropped: 0, badMessages: 0, reconnects: 0, reconnectsFailed: 0, refused: 0, matchesStarted: 0, matchesFinished: 0, tick: new TickStats() };
@@ -30,6 +35,8 @@ export class MatchRoom extends Room {
     this.sim = null;
     this.q = new Map();           // fighter id -> { cmds:[], last, ack, started, repeats }
     this.byClient = new Map();    // sessionId -> fighter
+    this.accountByFighter = new Map();
+    this.awardedResults = new Set();
     this.lobbyLeft = this.cfg.lobbySecs;
     this.evBuf = []; this.acc = 0; this.last = performance.now();
     this.onMessage('c', (client, data) => { if (this._allow(client, 'c')) this._onCmds(client, data); });
@@ -49,9 +56,9 @@ export class MatchRoom extends Room {
     return false;
   }
 
-  onJoin(client, options) {
+  onJoin(client, options, auth = null) {
     MatchRoom.stats.joins++;
-    this.lobby.set(client.sessionId, { client, name: cleanName(options?.name), operator: String(options?.operator ?? ''), skin: skinOk(options?.skin) });
+    this.lobby.set(client.sessionId, { client, name: cleanName(options?.name), operator: String(options?.operator ?? ''), skin: skinOk(options?.skin), accountId: typeof auth?.accountId === 'string' ? auth.accountId : null });
     if (this.lobby.size >= this.maxClients) this._start();
     else this._sendLobby();
   }
@@ -125,11 +132,34 @@ export class MatchRoom extends Room {
     const roster = packRoster(this.sim);
     for (const f of this.sim.humans) {
       this.byClient.set(f.sessionId, f);
+      const accountId = this.lobby.get(f.sessionId)?.accountId;
+      if (accountId) this.accountByFighter.set(f.id, accountId);
       this.q.set(f.id, { cmds: [], last: null, ack: 0, started: false, repeats: 0 });
       this.lobby.get(f.sessionId)?.client.send('welcome', { id: f.id, seed, mapSeed: this.sim.opts.mapSeed ?? 7, weather: this.sim.weather.id, vehicles: this.cfg.vehicles === false ? false : true, loot: this.cfg.loot === false ? false : true, drop: !!this.cfg.drop, tick: this.sim.tick, roster, self: f.exportSelf() });
     }
     this.last = performance.now(); this.acc = 0;
     this.setSimulationInterval(() => this._pump(), 8);
+  }
+
+
+  _awardAccountResult(event) {
+    const fighterId = event.to;
+    if (this.awardedResults.has(fighterId)) return;
+    const accountId = this.accountByFighter.get(fighterId);
+    if (!accountId) return;
+    this.awardedResults.add(fighterId);
+    const result = {
+      placement: event.placement,
+      total: this.sim?.fighters.length ?? this.cfg.total,
+      kills: event.kills,
+      time: event.time,
+      won: event.won === true,
+    };
+    const matchId = `${this.roomId ?? 'room'}:${this.sim?.seed ?? 0}:${fighterId}`;
+    void accountService.recordServerMatch(accountId, result, matchId).catch((error) => {
+      // Progression persistence failures must not interrupt a running match.
+      console.error('[nighthawk] account result persistence failed', error?.message ?? error);
+    });
   }
 
   /* ---------------- inputs ---------------- */
@@ -167,7 +197,10 @@ export class MatchRoom extends Room {
     const t0 = performance.now();
     sim.step(STEP, cmds);
     MatchRoom.stats.tick.add(performance.now() - t0);
-    for (const e of sim.drainEvents()) this.evBuf.push(e);
+    for (const e of sim.drainEvents()) {
+      if (e.t === 'end' && e.to !== undefined) this._awardAccountResult(e);
+      this.evBuf.push(e);
+    }
     if (sim.tick % SNAP_EVERY === 0 || sim.state === 'over') this._snapshot();
     if (sim.state === 'over' && !this.overSent) {
       this.overSent = true; MatchRoom.stats.matchesFinished++;
