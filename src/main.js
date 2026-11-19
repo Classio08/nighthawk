@@ -301,6 +301,7 @@ function handleEvents() {
         }
         if (sim.mission) {
           if (!e.won) sim.mission.fail();
+          $('xpgain').innerHTML = '';
           paused = true;
           const result = { ...e, mission: true, clues: sim.mission.foundCount };
           if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(result), 900); }
