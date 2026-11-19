@@ -64,6 +64,69 @@ export function injectedWallet(globalObject = globalThis) {
   return provider && typeof provider.request === 'function' ? provider : null;
 }
 
+const UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const walletRegistries = new WeakMap();
+
+function walletRegistry(windowObject) {
+  let registry = walletRegistries.get(windowObject);
+  if (registry) return registry;
+  registry = { providers: new Map(), listeners: new Set() };
+  const announce = (event) => {
+    const detail = event?.detail;
+    const info = detail?.info;
+    const wallet = detail?.provider;
+    if (!info || !UUID4.test(String(info.uuid ?? '')) || typeof info.name !== 'string' ||
+        !info.name.trim() || !wallet || typeof wallet.request !== 'function') return;
+    if (registry.providers.has(info.uuid)) return;
+    const entry = {
+      id: info.uuid,
+      name: info.name.trim().slice(0, 64),
+      rdns: typeof info.rdns === 'string' ? info.rdns.slice(0, 128) : '',
+      provider: wallet,
+      legacy: false,
+    };
+    registry.providers.set(entry.id, entry);
+    const snapshot = [...registry.providers.values()];
+    for (const listener of registry.listeners) {
+      try { listener(snapshot); } catch { /* a view callback must not break provider discovery */ }
+    }
+  };
+  // EIP-6963 requires this listener to remain installed for the lifetime of the page.
+  windowObject.addEventListener('eip6963:announceProvider', announce);
+  walletRegistries.set(windowObject, registry);
+  return registry;
+}
+
+/**
+ * Discover multiple injected EIP-1193 providers using EIP-6963.
+ * The registry listener remains installed for the page lifetime so late wallet
+ * announcements are also captured. Legacy window.ethereum is used only when
+ * no EIP-6963 wallet responds.
+ */
+export async function discoverWalletProviders({
+  windowObject = globalThis.window,
+  globalObject = globalThis,
+  timeoutMs = 300,
+} = {}) {
+  if (windowObject?.addEventListener && windowObject?.dispatchEvent) {
+    const registry = walletRegistry(windowObject);
+    const EventType = windowObject.Event ?? globalThis.Event;
+    if (typeof EventType === 'function') windowObject.dispatchEvent(new EventType('eip6963:requestProvider'));
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.min(1500, timeoutMs))));
+    const announced = [...registry.providers.values()].sort((a, b) => a.name.localeCompare(b.name));
+    if (announced.length) return announced;
+  }
+  const legacy = injectedWallet(globalObject);
+  return legacy ? [{ id: 'legacy-window-ethereum', name: 'Browser wallet', rdns: '', provider: legacy, legacy: true }] : [];
+}
+
+export function subscribeWalletProviders(listener, { windowObject = globalThis.window } = {}) {
+  if (typeof listener !== 'function' || !windowObject?.addEventListener) return () => {};
+  const registry = walletRegistry(windowObject);
+  registry.listeners.add(listener);
+  return () => registry.listeners.delete(listener);
+}
+
 async function walletRequest(provider, method, params = []) {
   if (!provider || typeof provider.request !== 'function') throw new Error('No compatible browser wallet was found.');
   try { return await provider.request({ method, params }); }
