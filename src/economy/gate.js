@@ -65,6 +65,14 @@ export function liveBlockers(cfg, env = {}, today = '1970-01-01') {
   if (!FEATURES.some((k) => cfg.features[k] && L.scope.includes(k))) b.push('licence scope covers none of the enabled features');
   if (!cfg.jurisdictions.allow.length) b.push('no allowed jurisdictions listed');
   if (!cfg.chains.live.length) b.push('no live chain ids listed');
+  if (cfg.features.nft) {
+    let rpc = null;
+    try { rpc = new URL(str(env.ECONOMY_RPC_URL)); } catch { /* invalid or missing */ }
+    if (!rpc || rpc.protocol !== 'https:' || rpc.username || rpc.password) b.push('NFT live mode requires an HTTPS RPC URL without embedded credentials');
+    if (!/^0x[0-9a-f]{40}$/i.test(str(env.ECONOMY_NFT_CONTRACT))) b.push('NFT live mode requires a valid contract address');
+    const rpcChain = Number(env.ECONOMY_CHAIN_ID ?? 0);
+    if (!Number.isSafeInteger(rpcChain) || !cfg.chains.live.includes(rpcChain)) b.push('NFT RPC chain id must be included in the live chain allow-list');
+  }
   return b;
 }
 
