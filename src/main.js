@@ -570,7 +570,7 @@ async function beginOperation(id = 'dust-lantern') {
   if (!AUTOSTART) input.lock();
 }
 $('operationbtn').addEventListener('click', () => beginOperation('dust-lantern'));
-$('operation2btn').addEventListener('click', () => beginOperation('ghost-frequency'));
+$('operation2btn').addEventListener('click', () => beginOperation('signal-blackout'));
 
 input.onLockChange = (locked) => {
   if (!started || !G || G.over || AUTOSTART) return;

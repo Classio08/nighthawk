@@ -82,9 +82,9 @@ export class DustLanternView {
   }
 }
 
-// GHOST FREQUENCY: three relay masts, each with a ground ring (the task range), a fill disc that grows while you splice, a pulsing beacon and a tall
+// SIGNAL BLACKOUT: three relay masts, each with a ground ring (the task range), a fill disc that grows while you splice, a pulsing beacon and a tall
 // light beam so the node can be found from across the map. Yellow = to do, white = being jammed, green = dark.
-export class GhostFrequencyView {
+export class SignalBlackoutView {
   constructor(scene, sim) {
     this.scene = scene; this.mission = sim.mission;
     this.root = new THREE.Group(); scene.add(this.root);
@@ -134,6 +134,6 @@ export class GhostFrequencyView {
 /** the view for whichever operation the simulation is running */
 export function createMissionView(scene, sim) {
   if (!sim.mission) return null;
-  return sim.mission.id === 'ghost-frequency' ? new GhostFrequencyView(scene, sim) : new DustLanternView(scene, sim);
+  return sim.mission.id === 'signal-blackout' ? new SignalBlackoutView(scene, sim) : new DustLanternView(scene, sim);
 }
 export { DustLanternView as MissionView };           // (the old name)

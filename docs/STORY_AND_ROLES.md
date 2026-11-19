@@ -8,7 +8,7 @@ Status: **proposals only** unless a line says "built". The owner has not approve
 | Eight operators with a role, a backstory and one active ability each | built (`data/operators.json`, `src/sim/abilities.js`) |
 | Battle royale in the Kavari Basin (plane drop, zone, loot, contracts, vehicles, weather) | built |
 | Operation DUST LANTERN: recon, rescue a technician, extract | built, offline |
-| Operation GHOST FREQUENCY: jam three relays before a trace locks, extract | built, offline |
+| Operation SIGNAL BLACKOUT: jam three relays before a trace locks, extract | built, offline |
 | Movement: slide, mantle, crouch, sprint, melee | built |
 | Everything below | **planned** |
 
@@ -16,7 +16,7 @@ Status: **proposals only** unless a line says "built". The owner has not approve
 A short chain of operations that share the same map and cast, each one playable on its own:
 
 1. **DUST LANTERN** (built): a signals technician is held at one of two sites. The evidence you recover says someone *inside* the recovery contract sold the unit's schedule.
-2. **GHOST FREQUENCY** (built): the people who bought it are tracing your unit through its own relays. You go dark.
+2. **SIGNAL BLACKOUT** (built): the people who bought it are tracing your unit through its own relays. You go dark.
 3. **BLACK GLASS** (planned): a night infiltration of the buyer's data vault. Stealth first; every alarm raises the garrison the way the alert director already does. Rewards a quiet approach, allows a loud one.
 4. **LAST LIGHT** (planned): the unit defends the Extraction Pad while a convoy arrives. A hold-the-line mission using the vehicles and mortar that already exist.
 5. **THE BROKER** (planned): a final contract to take the buyer alive. Choice at the end: hand them over, or the evidence.
@@ -32,7 +32,7 @@ Each mission ends with a one-screen debrief card (it already exists) carrying a 
 ## 4. Roles (planned)
 The eight operators already have a role. "More roles" can mean two different things:
 
-- **New operators.** Candidates with a gap to fill: a **Scout / Drone Pilot** (marks enemies for the team, fragile, no heavy gun), a **Signals / Spy** (plants a fake relay that pulls the garrison away; pairs with GHOST FREQUENCY), a **Mechanic / Driver** (repairs buggies, boosts a vehicle). Each needs an ability, a backstory, a model and an art pass; none exists.
+- **New operators.** Candidates with a gap to fill: a **Scout / Drone Pilot** (marks enemies for the team, fragile, no heavy gun), a **Signals / Spy** (plants a fake relay that pulls the garrison away; pairs with SIGNAL BLACKOUT), a **Mechanic / Driver** (repairs buggies, boosts a vehicle). Each needs an ability, a backstory, a model and an art pass; none exists.
 - **Squad roles** in co-op operations (planned, needs online missions): **Breacher** (opens routes), **Tech** (does relay tasks faster), **Overwatch** (marksman cover), **Medic**. They are labels over the existing operators and a small bonus each, not new classes.
 
 Passive traits per operator (small, never pay-to-win) are also planned: for example Roms carries one more magazine, Douglas heals a little faster. These would touch authoritative state and need tests and netcode work.
@@ -56,4 +56,4 @@ Muzzle smoke and heat shimmer, dust kicked up by a slide, a shock ring on a hard
 1. Keep it fictional, original and respectful of real people, units and places.
 2. Do not copy scenes, characters, dialogue or music from films or games.
 3. Nothing is "canon" until the owner approves it in `docs/PROJECT_DIRECTION_AND_CHAT_NOTES.md`.
-4. A new mission is a code task (`docs/MISSION_GHOST_FREQUENCY.md`, "To add the next operation"), not just a document.
+4. A new mission is a code task (`docs/MISSION_SIGNAL_BLACKOUT.md`, "To add the next operation"), not just a document.

@@ -133,7 +133,7 @@ export class Hud {
     if (!el) return;
     if (!mission) { el.style.display = 'none'; return; }
     el.style.display = 'block';
-    // A mission describes itself through hudInfo(p) (DUST LANTERN and GHOST FREQUENCY do). An operation that has not been moved over yet still gets the generic
+    // A mission describes itself through hudInfo(p) (DUST LANTERN and SIGNAL BLACKOUT do). An operation that has not been moved over yet still gets the generic
     // reading of its stage / clues / hack / hold fields below (ChatGPT's generalisation, kept as the fallback so those operations keep working).
     const alert = mission.alert?.snapshot?.() ?? { level: 'routine' };
     let info = mission.hudInfo?.(p);

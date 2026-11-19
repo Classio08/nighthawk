@@ -28,7 +28,7 @@ Rule: every milestone ends with something you can open in a browser and play. St
 | Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
 | Monetisation | Not implemented | Platform adapters and policy review required |
 | Production deployment | Pending | Deploy and test with players on separate networks; localhost load test done (`npm run load`, `docs/DEPLOY.md` C3), VPS and real-network tests outstanding |
-| Missions | Two offline operations built, one mission registry | DUST LANTERN (rescue/recovery/extraction) and GHOST FREQUENCY (three held relay tasks in any order, garrison response, 8-minute trace, extraction). `MISSIONS` registry + a common HUD/minimap/debrief surface, so a new operation is a class, a view and a button. Offline only; online mission state needs a versioned snapshot and server validation first |
+| Missions | Two offline operations built, one mission registry | DUST LANTERN (rescue/recovery/extraction) and SIGNAL BLACKOUT (three held relay tasks in any order, garrison response, 8-minute trace, extraction). `MISSIONS` registry + a common HUD/minimap/debrief surface, so a new operation is a class, a view and a button. Offline only; online mission state needs a versioned snapshot and server validation first |
 | Automated quality | Built | 247 unit tests (incl. a source-level purity guard for `src/sim`), smoke checks, server netcode test (retried up to 3x, it is timing-sensitive), 20 browser scripts (incl. a draw-call budget check), production build in `npm run check`; CI workflow merged |
 | Persistent accounts/progression | Not implemented | Guest profile is local only; no cross-device account, mission ledger or server-backed economy |
 | AI long-term memory | Not implemented | Current AI is tactical/utility based plus a mission alert director; no persistent faction intelligence model |
@@ -46,7 +46,7 @@ Rule: every milestone ends with something you can open in a browser and play. St
 - **Stage 17:** melee strike (`B`; a kill from behind, bots use it at point blank, solo and online).
 - **Stage 18:** draw-call cut (measured 284-618 -> 160-234 per view with 16 fighters and loot; same look), suppression effect for near-miss bullets (client-only), `src/sim` purity guard test, `scripts/e2e-perf.mjs` budget check.
 - **Operation DUST LANTERN** (ChatGPT, merged and browser-tested): offline rescue mission with an alert director.
-- **Stage 19** (Claude): slide, ledge mantle and first-person view motion; mission registry and Operation GHOST FREQUENCY; end-of-match snapshot card. Details in `docs/MASTER_SYSTEMS.md` (Stage 19), `docs/MISSION_GHOST_FREQUENCY.md`, `docs/RESEARCH_NOTES.md`.
+- **Stage 19** (Claude): slide, ledge mantle and first-person view motion; mission registry and Operation SIGNAL BLACKOUT; end-of-match snapshot card. Details in `docs/MASTER_SYSTEMS.md` (Stage 19), `docs/MISSION_SIGNAL_BLACKOUT.md`, `docs/RESEARCH_NOTES.md`.
 - **Frame-time telemetry:** `window.__nhPerf()` gives rolling p50/p95/p99.
 - **Mission objective extension:** two-stage relay uplink; secure the relay alone, then hold it alone for upload. Existing garrison guards redeploy without spawning extra fighters.
 - **CI:** GitHub Actions runs `npm ci` and `npm run check`.

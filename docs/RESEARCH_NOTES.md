@@ -34,9 +34,9 @@ Design rationale, not sourced to one article: tactical shooters read as "real" w
 
 ## 4. Among-Us-style missions in a shooter
 
-What the genre gives us: a **task list that can be done in any order**, tasks that are **visible and interruptible**, and **pressure from a clock and from other players** rather than from a boss. GHOST FREQUENCY (`docs/MISSION_GHOST_FREQUENCY.md`) is the first use of it: three relay tasks, each a held action that a hit or a step away cancels, a loud ping to the garrison, and an 8-minute trace.
+What the genre gives us: a **task list that can be done in any order**, tasks that are **visible and interruptible**, and **pressure from a clock and from other players** rather than from a boss. SIGNAL BLACKOUT (`docs/MISSION_SIGNAL_BLACKOUT.md`) is the first use of it: three relay tasks, each a held action that a hit or a step away cancels, a loud ping to the garrison, and an 8-minute trace.
 
-Not built, and why: **social deduction / impostors** needs real players (online missions have no versioned snapshot protocol yet), and an AI "impostor" would be a gimmick. A good later version is co-op: two to four players split the relays while guards react.
+Not built on `main`: **social deduction / impostors**. ChatGPT's unmerged branch `feature/faction-operations-suite` has a hidden-role "Black Site" mode (tasks, sabotage, meetings, voting) that I have only seen as a file list and a dry-run merge; it is not reviewed or claimed here. Online play of any operation still needs the versioned mission snapshot first. A good later version is co-op: two to four players split the relays while guards react.
 
 ## 5. Netcode and ping
 

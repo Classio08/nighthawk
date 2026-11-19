@@ -162,7 +162,7 @@ export class DustLanternMission {
 
 
 // ===================================================================================================================================================
-// GHOST FREQUENCY: the second offline operation. A hostile signal-trace is closing on your unit: jam three relay nodes before it locks, then reach
+// SIGNAL BLACKOUT: the second offline operation. A hostile signal-trace is closing on your unit: jam three relay nodes before it locks, then reach
 // the extraction pad. Like the task lists in social-deduction games, the nodes can be done in ANY order, but every task is a held, interruptible
 // action: start it with E, then stay within range for TASK.T seconds. Walking off or taking a hit cancels it (progress is lost), starting it
 // pings the garrison, and finishing one sends the guards sweeping to the next node. The trace is a countdown, not an AI: it is plain arithmetic.
@@ -178,9 +178,9 @@ const GF_SITES = [
 ];
 const GREEK = ['ALPHA', 'BRAVO', 'CHARLIE'];
 
-export class GhostFrequencyMission {
+export class SignalBlackoutMission {
   constructor(sim) {
-    this.sim = sim; this.id = 'ghost-frequency'; this.name = 'GHOST FREQUENCY'; this.title = 'OPERATION GHOST FREQUENCY';
+    this.sim = sim; this.id = 'signal-blackout'; this.name = 'SIGNAL BLACKOUT'; this.title = 'OPERATION SIGNAL BLACKOUT';
     this.rng = makeRng(((sim.seed | 0) ^ 0x6057F4E9) >>> 0 || 9);
     this.insertion = findFreeSpot(sim.map, this.rng, 88, -84, 7, 2.2);
     this.extraction = { x: 56, z: 56, name: 'EXTRACTION PAD' };
@@ -217,7 +217,7 @@ export class GhostFrequencyMission {
       : this.stage === 'extract' ? 'All relays jammed. Reach the extraction pad' : this.stage === 'complete' ? 'Signal dark: the unit is clear' : (this.reason === 'trace' ? 'The trace found your unit' : 'Operation ended');
     return {
       title: this.title, objective: this.objective, detail,
-      progress: this.stage === 'extract' ? `${Math.min(100, Math.round(this.extractT / 4 * 100))}% EXTRACTION · TRACE ${GhostFrequencyMission.fmt(this.trace)}` : `${this.doneCount}/3 RELAYS · TRACE ${GhostFrequencyMission.fmt(this.trace)}`,
+      progress: this.stage === 'extract' ? `${Math.min(100, Math.round(this.extractT / 4 * 100))}% EXTRACTION · TRACE ${SignalBlackoutMission.fmt(this.trace)}` : `${this.doneCount}/3 RELAYS · TRACE ${SignalBlackoutMission.fmt(this.trace)}`,
       bar: a ? a.progress / TASK.T : this.stage === 'extract' ? this.extractT / 4 : this.stage === 'complete' ? 1 : this.doneCount / 3,
     };
   }
@@ -235,7 +235,7 @@ export class GhostFrequencyMission {
     return null;
   }
   debrief(won) {
-    return won ? `All relays jammed · extracted with ${GhostFrequencyMission.fmt(this.trace)} left on the trace · No persistent rewards yet`
+    return won ? `All relays jammed · extracted with ${SignalBlackoutMission.fmt(this.trace)} left on the trace · No persistent rewards yet`
       : this.reason === 'trace' ? `The trace locked on with ${this.doneCount}/3 relays jammed` : `The operator was lost with ${this.doneCount}/3 relays jammed`;
   }
 
@@ -318,7 +318,7 @@ export class GhostFrequencyMission {
 // ---- registry: the one place that knows which operations exist ----
 export const MISSIONS = {
   'dust-lantern': { id: 'dust-lantern', name: 'DUST LANTERN', blurb: 'Recon, rescue, extract', create: (sim) => new DustLanternMission(sim) },
-  'ghost-frequency': { id: 'ghost-frequency', name: 'GHOST FREQUENCY', blurb: 'Jam three relays before the trace locks', create: (sim) => new GhostFrequencyMission(sim) },
+  'signal-blackout': { id: 'signal-blackout', name: 'SIGNAL BLACKOUT', blurb: 'Jam three relays before the trace locks', create: (sim) => new SignalBlackoutMission(sim) },
 };
 export const MISSION_IDS = Object.keys(MISSIONS);
 /** a fresh mission director for `id`, or null for no / an unknown id */

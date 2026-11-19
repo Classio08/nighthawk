@@ -13,9 +13,9 @@ test('snapshot caption: battle royale win, loss with a killer, loss to the zone'
 });
 
 test('snapshot caption: operations name the mission and never show a placement; a trace lock reads as such', () => {
-  const ok = snapshotLines({ won: true, mission: true, kills: 2, time: 301 }, { opName: 'OPERATION GHOST FREQUENCY' });
-  assert.deepEqual([ok.title, ok.where, ok.sub, ok.stats], ['OPERATION COMPLETE', 'GHOST FREQUENCY', 'extracted', '2 KILLS · 5:01']);
-  const trace = snapshotLines({ won: false, mission: true, reason: 'trace', kills: 0, time: 480 }, { opName: 'OPERATION GHOST FREQUENCY' });
+  const ok = snapshotLines({ won: true, mission: true, kills: 2, time: 301 }, { opName: 'OPERATION SIGNAL BLACKOUT' });
+  assert.deepEqual([ok.title, ok.where, ok.sub, ok.stats], ['OPERATION COMPLETE', 'SIGNAL BLACKOUT', 'extracted', '2 KILLS · 5:01']);
+  const trace = snapshotLines({ won: false, mission: true, reason: 'trace', kills: 0, time: 480 }, { opName: 'OPERATION SIGNAL BLACKOUT' });
   assert.deepEqual([trace.title, trace.sub, trace.stats], ['OPERATION FAILED', 'the trace locked on', '0 KILLS · 8:00']);
   assert.equal(snapshotLines({ won: false, mission: true, kills: 0, time: 9 }).sub, 'operator lost');
 });

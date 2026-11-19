@@ -2,20 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/sim/world.js';
 import { insideAnyBox } from '../src/sim/map.js';
-import { MISSIONS, MISSION_IDS, createMission, GhostFrequencyMission, TASK, TRACE_T } from '../src/sim/missions.js';
+import { MISSIONS, MISSION_IDS, createMission, SignalBlackoutMission, TASK, TRACE_T } from '../src/sim/missions.js';
 
-const make = (seed = 777, guards = 0) => Simulation.create({ seed, bots: 0, guards, mission: 'ghost-frequency', loot: false, contracts: false });
+const make = (seed = 777, guards = 0) => Simulation.create({ seed, bots: 0, guards, mission: 'signal-blackout', loot: false, contracts: false });
 const place = (f, p) => { f.x = p.x; f.z = p.z; f.rb.setTranslation({ x: p.x, y: 0.9, z: p.z }, true); };
 const events = (sim) => sim.drainEvents().filter((e) => e.t === 'mission');
 const tick = (m, secs) => { for (let i = 0; i < Math.round(secs * 60); i++) m.update(1 / 60); };
 
 test('registry: both operations are registered, unknown ids give no mission, ids on the objects match', async () => {
-  assert.deepEqual(MISSION_IDS.sort(), ['dust-lantern', 'ghost-frequency']);
+  assert.deepEqual(MISSION_IDS.sort(), ['dust-lantern', 'signal-blackout']);
   for (const id of MISSION_IDS) assert.equal(MISSIONS[id].id, id);
   assert.equal(createMission('nope', {}), null); assert.equal(createMission(undefined, {}), null);
   const a = await make(), b = await Simulation.create({ seed: 5, bots: 0, guards: 0, mission: 'dust-lantern', loot: false, contracts: false });
   try {
-    assert.equal(a.mission.id, 'ghost-frequency'); assert.ok(a.mission instanceof GhostFrequencyMission); assert.equal(b.mission.id, 'dust-lantern');
+    assert.equal(a.mission.id, 'signal-blackout'); assert.ok(a.mission instanceof SignalBlackoutMission); assert.equal(b.mission.id, 'dust-lantern');
     for (const sim of [a, b]) {                            // every operation offers the same UI surface
       const info = sim.mission.hudInfo(sim.player);
       assert.ok(info.title && info.objective && info.detail && info.progress && info.bar >= 0 && info.bar <= 1, JSON.stringify(info));
@@ -27,7 +27,7 @@ test('registry: both operations are registered, unknown ids give no mission, ids
   } finally { a.dispose(); b.dispose(); }
 });
 
-test('GHOST FREQUENCY: setup is deterministic per seed; three relays on three different sites, all on open ground, you land away from them', async () => {
+test('SIGNAL BLACKOUT: setup is deterministic per seed; three relays on three different sites, all on open ground, you land away from them', async () => {
   const a = await make(11), b = await make(11), c = await make(12), d = await make(13);
   try {
     const sig = (s) => JSON.stringify(s.mission.nodes.map(({ id, x, z, site }) => ({ id, x, z, site })));
@@ -43,7 +43,7 @@ test('GHOST FREQUENCY: setup is deterministic per seed; three relays on three di
   } finally { for (const s of [a, b, c, d]) s.dispose(); }
 });
 
-test('GHOST FREQUENCY: E only starts a task near an unfinished relay; a far press falls through (to vehicles)', async () => {
+test('SIGNAL BLACKOUT: E only starts a task near an unfinished relay; a far press falls through (to vehicles)', async () => {
   const sim = await make();
   try {
     const m = sim.mission, p = sim.player;
@@ -55,7 +55,7 @@ test('GHOST FREQUENCY: E only starts a task near an unfinished relay; a far pres
   } finally { sim.dispose(); }
 });
 
-test('GHOST FREQUENCY: a task needs TASK.T seconds in range; walking off or being hit cancels it and loses the progress', async () => {
+test('SIGNAL BLACKOUT: a task needs TASK.T seconds in range; walking off or being hit cancels it and loses the progress', async () => {
   const sim = await make();
   try {
     const m = sim.mission, p = sim.player, n = m.nodes[0];
@@ -74,7 +74,7 @@ test('GHOST FREQUENCY: a task needs TASK.T seconds in range; walking off or bein
   } finally { sim.dispose(); }
 });
 
-test('GHOST FREQUENCY: starting a second task cancels the first; healing does not count as being hit', async () => {
+test('SIGNAL BLACKOUT: starting a second task cancels the first; healing does not count as being hit', async () => {
   const sim = await make();
   try {
     const m = sim.mission, p = sim.player, [a, b] = m.nodes;
@@ -85,7 +85,7 @@ test('GHOST FREQUENCY: starting a second task cancels the first; healing does no
   } finally { sim.dispose(); }
 });
 
-test('GHOST FREQUENCY: three relays unlock extraction; extraction needs four seconds on the pad; then the operation is won', async () => {
+test('SIGNAL BLACKOUT: three relays unlock extraction; extraction needs four seconds on the pad; then the operation is won', async () => {
   const sim = await make();
   try {
     const m = sim.mission, p = sim.player;
@@ -100,7 +100,7 @@ test('GHOST FREQUENCY: three relays unlock extraction; extraction needs four sec
   } finally { sim.dispose(); }
 });
 
-test('GHOST FREQUENCY: the trace locking on fails the operation even if the operator is alive, and warns first', async () => {
+test('SIGNAL BLACKOUT: the trace locking on fails the operation even if the operator is alive, and warns first', async () => {
   const sim = await make();
   try {
     const m = sim.mission, p = sim.player;
@@ -112,12 +112,12 @@ test('GHOST FREQUENCY: the trace locking on fails the operation even if the oper
     assert.equal(m.finished, true); assert.equal(m.stage, 'failed'); assert.equal(m.reason, 'trace'); assert.equal(sim.state, 'lost'); assert.ok(p.alive);
     const end = sim.drainEvents().find((e) => e.t === 'end'); assert.ok(end && end.won === false && end.reason === 'trace');
     assert.match(m.debrief(false), /trace/i);
-    const snap = m.snapshot(); assert.equal(snap.id, 'ghost-frequency'); assert.equal(snap.trace, 0);
+    const snap = m.snapshot(); assert.equal(snap.id, 'signal-blackout'); assert.equal(snap.trace, 0);
     JSON.stringify(snap);
   } finally { sim.dispose(); }
 });
 
-test('GHOST FREQUENCY: jamming a relay is loud (the garrison is sent to it) and finishing one sweeps the guards to the next', async () => {
+test('SIGNAL BLACKOUT: jamming a relay is loud (the garrison is sent to it) and finishing one sweeps the guards to the next', async () => {
   const sim = await make(777, 4);
   try {
     const m = sim.mission, p = sim.player, [a, b] = m.nodes, guard = sim.fighters.find((f) => f.npc && f.brain?.p.guard);
@@ -129,7 +129,7 @@ test('GHOST FREQUENCY: jamming a relay is loud (the garrison is sent to it) and 
   } finally { sim.dispose(); }
 });
 
-test('GHOST FREQUENCY: eliminating a defender does not end the operation; the operator dying does', async () => {
+test('SIGNAL BLACKOUT: eliminating a defender does not end the operation; the operator dying does', async () => {
   const sim = await make(777, 2);
   try {
     const g = sim.fighters.find((f) => f.npc); sim.damage(g, 9999, sim.player, { cause: 'bullet' });

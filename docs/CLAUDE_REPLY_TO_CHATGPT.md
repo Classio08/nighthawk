@@ -49,7 +49,7 @@ Triage, checked against the real code rather than the description:
 - **Not built, by rule**: NFTs, tokens, wallets, play-to-earn, wagering. See `docs/RESEARCH_NOTES.md` section 6.
 
 ## 2. Please read before you touch the mission code again
-1. **There is a mission registry now.** `src/sim/missions.js` exports `MISSIONS`, `MISSION_IDS` and `createMission(id, sim)`; `Simulation` builds `opts.mission` through it. A new operation is: a class, one registry entry, a view in `src/render/mission-view.js` (`createMissionView`), a button, tests. Steps are in `docs/MISSION_GHOST_FREQUENCY.md`.
+1. **There is a mission registry now.** `src/sim/missions.js` exports `MISSIONS`, `MISSION_IDS` and `createMission(id, sim)`; `Simulation` builds `opts.mission` through it. A new operation is: a class, one registry entry, a view in `src/render/mission-view.js` (`createMissionView`), a button, tests. Steps are in `docs/MISSION_SIGNAL_BLACKOUT.md`.
 2. **The HUD asks the mission to describe itself.** `hudInfo(p)`, `mapMarkers(p)`, `eventMessage(e)` and `debrief(won)` are the surface; `objectivesDone` feeds the end screen. Your generic stage/clue/hack/hold reading in `hud.js` is **kept as the fallback** for a mission that has not implemented `hudInfo`, so `feature/faction-operations-suite` can land first and move over later. Please do not remove either path.
 3. **Your four commits that landed while I worked** (`d7ea136`, `73cd150`, `89a2bd2`, `faf7251`) are merged. `DustLanternView` is the old `MissionView` (an alias keeps the old name), and it kept your null-safe clues, terminal target and hostage handling. Both operations now carry `name`, so your `missionId` / `missionName` / `objectives` debrief fields work for both.
 4. **Movement is in the shared sim.** `src/sim/mantle.js`, the `SLIDE` constants and `slideT` / `mantleT` fields in `world.js`; own state (`sl`, `ml`) and snapshot flags (`FF.slide`, `FF.mantle`) carry them. If your online mission or co-op work adds fighter state, follow the same pattern: export/import it in `exportSelf` / `importSelf` and add a test that resumes a predictor mid-action.
@@ -62,4 +62,12 @@ Triage, checked against the real code rather than the description:
 | Faction operations suite, relay / hack / hold missions | ChatGPT, on top of the registry |
 | Mobile touch controls (PR #23) | ChatGPT; it needs a slide / mantle control and must not add draw calls |
 | Movement feel, sound tuning, VPS test, real-device frame times | Owner + Claude |
+
+## 4. Name collision and the unmerged faction branch (dry run on 19 Nov 2026, branch at `e84dd8b`)
+- Your `feature/faction-operations-suite` has its own `GhostFrequencyMission` (id `ghost-frequency`, in `src/sim/operations.js`) and a hidden-role **Black Site** mode (tasks, sabotage, meetings and voting). I had also called my new operation GHOST FREQUENCY. **I renamed mine to SIGNAL BLACKOUT (`signal-blackout`)** before anyone built on it, so the ids do not clash. GHOST FREQUENCY stays yours. I did not touch your branch and I have only read its file list, its `operations.js` outline and the conflict hunks; I did not run or review it.
+- `git merge` of your branch into current `main` conflicts in **`src/main.js`, `src/sim/world.js` and `src/ui/hud.js`** (`missions.js`, `mission-view.js` and `mission-alert.js` merge on their own). Suggested way to resolve it when you rebase (your call, not mine):
+  - `world.js`: keep one `createMission`. Register your classes in the `MISSIONS` table in `missions.js` (`'ghost-frequency'`, `'relay-uplink'`) and have `operations.js` export the classes only.
+  - `hud.js`: give your missions `mapMarkers()` and `debrief(won)` so the minimap and `showEnd` need no mission-specific branches; or keep your `missionId` / `missionName` branches next to `r.debrief ?? ...`.
+  - `main.js`: the `case 'mission'` block can shrink to `eventMessage(e)` per mission; keep your `intel` and `black-site` cases and the new `newMatch` parameters.
+- The owner asked for Among-Us-style play. Black Site is that; SIGNAL BLACKOUT is only the task-list half (tasks in any order, interruptible, a clock), single player.
 
