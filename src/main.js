@@ -86,8 +86,9 @@ function disposeScene(scene) {
 
 async function newMatch(online = null, operation = false) {
   if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
+  const operationId = typeof operation === 'string' ? operation : operation ? 'dust-lantern' : null;
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: operation ? 0 : +(params.get('bots') ?? 15), guards: operation ? 8 : undefined, mission: operation ? 'dust-lantern' : undefined, contracts: operation ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operation, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
+  const sim = online ?? await Simulation.create({ seed, bots: operationId ? 0 : +(params.get('bots') ?? 15), guards: operationId ? 8 : undefined, mission: operationId ?? undefined, contracts: operationId ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operationId, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
@@ -542,7 +543,8 @@ async function beginPlay() {
 async function beginOperation() {
   audio.unlock();
   started = true;
-  await newMatch(null, true);
+  const operationId = $('operationselect').value;
+  await newMatch(null, operationId);
   showOv('start', false); showOv('pause', false); showOv('end', false); paused = false;
   if (!AUTOSTART) input.lock();
 }
@@ -626,7 +628,7 @@ $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); p
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);
   if (G?.net) { const url = ONLINE_URL; G.net.dispose(); G.net = null; if (url) { await beginOnline(); return; } }
-  const operation = !!G?.sim?.mission;
+  const operation = G?.sim?.mission?.id ?? null;
   await newMatch(null, operation); paused = false; if (!AUTOSTART) input.lock();
 });
 
