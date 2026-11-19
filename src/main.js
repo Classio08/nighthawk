@@ -84,11 +84,12 @@ function disposeScene(scene) {
   });
 }
 
-async function newMatch(online = null, operation = false) {
+async function newMatch(online = null, operation = false, mode = null, blackSiteRole = 'operative') {
   if (G) { G.atmo?.dispose(); G.cview?.dispose(); G.vview?.dispose(); G.lview?.dispose(); G.scene.remove(camera); G.sim.dispose(); G.rag.clear(); disposeScene(G.scene); }
   const operationId = typeof operation === 'string' ? operation : operation ? 'dust-lantern' : null;
+  const isBlackSite = mode === 'black-site';
   const seed = params.get('seed') ? +params.get('seed') : undefined;
-  const sim = online ?? await Simulation.create({ seed, bots: operationId ? 0 : +(params.get('bots') ?? 15), guards: operationId ? 8 : undefined, mission: operationId ?? undefined, contracts: operationId ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operationId, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
+  const sim = online ?? await Simulation.create({ seed, bots: operationId ? 0 : +(params.get('bots') ?? 15), guards: operationId ? 8 : undefined, mission: operationId ?? undefined, mode: isBlackSite ? 'black-site' : undefined, blackSiteRole, contracts: operationId || isBlackSite ? false : undefined, operator: OPERATOR, skin: SKIN, difficulty: settings.difficulty, drop: DROP_ON && !operationId && !isBlackSite, weather: params.get('weather') ?? undefined, contractStart: params.has('cstart') ? +params.get('cstart') : undefined, ...(isBlackSite || params.get('vehicles') === '0' ? { vehicles: false } : {}), ...(isBlackSite || params.get('loot') === '0' ? {} : { loot: true }) });      // ?vehicles=0 turns buggies/bikes off, ?loot=0 gives everybody every gun from the start
   const scene = new THREE.Scene(); scene.add(camera);
   const world = new WorldView(scene, sim);
   const particles = new Particles(scene), decals = new Decals(scene), tracers = new Tracers(scene);
@@ -226,6 +227,22 @@ function handleEvents() {
         if (e.kind === 'body-found') { hud.message('BODY DISCOVERED · GUARD SEARCHES INBOUND', '#ffad55', 2.2); audio.play('contract', { x: e.x, z: e.z, maxD: 70, vol: 0.55 }); }
         break;
       }
+      case 'black-site': {
+        if (e.phase === 'task-started') hud.message('TASK STARTED · STAY IN THE AREA', '#53d9ff', 1.8);
+        else if (e.phase === 'task-complete') { hud.message(`TASK COMPLETE · ${e.count}/3`, '#5be37a', 2); audio.play('pickup', { vol: 0.85 }); }
+        else if (e.phase === 'sabotage') { hud.message('SYSTEM SABOTAGE DETECTED · RESTORE THE TASK', '#ffad55', 2.4); audio.play('contract', { vol: 0.8 }); }
+        else if (e.phase === 'extract-unlocked') hud.message('ALL TASKS COMPLETE · EXTRACT THE BLACK FILE', '#5be37a', 2.8);
+        else if (e.phase === 'meeting') {
+          const select = $('meetingtarget'); select.innerHTML = '<option value="">SKIP VOTE</option>';
+          for (const candidate of e.candidates ?? []) if (candidate.id !== sim.player.id) {
+            const option = document.createElement('option'); option.value = String(candidate.id); option.textContent = candidate.name; select.appendChild(option);
+          }
+          $('meetingreason').textContent = 'A body was discovered. Identify the suspected infiltrator or skip.';
+          showOv('meeting', true);
+        } else if (e.phase === 'ejected') hud.message(e.wasSaboteur ? 'INFILTRATOR EXPOSED' : 'OPERATIVE EXILED · VERIFY YOUR EVIDENCE', e.wasSaboteur ? '#5be37a' : '#ffad55', 2.5);
+        else if (e.phase === 'no-majority') hud.message('NO MAJORITY · OPERATION RESUMES', '#cbd5e1', 2);
+        break;
+      }
       case 'contract': {                                       // airdrop / hardpoint / bounty came, landed, was cashed in or ran out
         const who = e.by >= 0 ? (e.by === p.id ? 'YOU' : e.byName) : '';
         const nice = { airdrop: 'AIRDROP', hardpoint: 'HARDPOINT', bounty: 'BOUNTY', uplink: 'RELAY UPLINK' }[e.type];
@@ -334,11 +351,13 @@ function handleEvents() {
           profile = res.profile; saveProfile(profile); G.gain = res.gain;
           renderGain($('xpgain'), res.gain, profile); refreshProfileUi();
         }
-        if (sim.mission) {
-          if (!e.won) sim.mission.fail();
+        if (sim.mission || sim.blackSite) {
+          if (!e.won) sim.mission?.fail();
+          $('meeting').classList.remove('show');
           $('xpgain').innerHTML = '';
           paused = true;
-          const result = { ...e, mission: true, missionId: sim.mission.id, missionName: sim.mission.name, clues: sim.mission.foundCount, objectives: sim.mission.objectiveCount ?? sim.mission.foundCount, alert: sim.mission.alert.snapshot() };
+          const operation = sim.mission ?? sim.blackSite;
+          const result = { ...e, mission: true, missionId: operation.id, missionName: operation.name, clues: operation.foundCount ?? 0, objectives: operation.objectiveCount ?? 0, alert: operation.alert?.snapshot?.() ?? undefined };
           if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(result), 900); }
           else { audio.play('lose'); setTimeout(() => hud.showEnd(result, G.killer), 1200); }
         } else if (e.won) { audio.play('win'); setTimeout(() => hud.showEnd(e), 1200); }
@@ -561,6 +580,15 @@ async function beginOperation() {
 }
 $('operationbtn').addEventListener('click', beginOperation);
 
+async function beginBlackSite() {
+  audio.unlock();
+  started = true;
+  await newMatch(null, false, 'black-site', $('blacksite-role').value);
+  showOv('start', false); showOv('pause', false); showOv('end', false); paused = false;
+  if (!AUTOSTART) input.lock();
+}
+$('blacksitebtn').addEventListener('click', beginBlackSite);
+
 input.onLockChange = (locked) => {
   if (!started || !G || G.over || AUTOSTART) return;
   if (!locked) { paused = true; showOv('pause', true); } else { paused = false; showOv('pause', false); }
@@ -636,11 +664,18 @@ $('startsettings').addEventListener('click', () => settingsMenu.open());
 $('pausesettings').addEventListener('click', () => settingsMenu.open());
 addEventListener('keydown', (e) => { if (e.code === 'Escape' && settingsMenu.isOpen && !e.nhCaptured) settingsMenu.close(); });
 $('resumebtn').addEventListener('click', () => { audio.unlock(); input.lock(); paused = false; showOv('pause', false); });
+$('meetingvote').addEventListener('click', () => {
+  const value = $('meetingtarget').value;
+  G?.sim?.blackSite?.vote(G.sim.player.id, value === '' ? null : Number(value));
+  showOv('meeting', false);
+});
 $('againbtn').addEventListener('click', async () => {
   audio.unlock(); showOv('end', false);
   if (G?.net) { const url = ONLINE_URL; G.net.dispose(); G.net = null; if (url) { await beginOnline(); return; } }
   const operation = G?.sim?.mission?.id ?? null;
-  await newMatch(null, operation); paused = false; if (!AUTOSTART) input.lock();
+  if (G?.sim?.blackSite) await newMatch(null, false, 'black-site', $('blacksite-role').value);
+  else await newMatch(null, operation); 
+  paused = false; if (!AUTOSTART) input.lock();
 });
 
 (async function boot() {
