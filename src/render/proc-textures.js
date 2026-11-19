@@ -83,6 +83,27 @@ export function makeMetalTexture() {
   return toTexture(c);
 }
 
+
+/** Weathered desert rock / exposed stone. One tile is about 3.4 m; colour noise and warm mineral flecks break up flat grey boxes. */
+export function makeRockTexture() {
+  const n = 256, broad = fbm(n, 41, 3, 4), grain = fbm(n, 42, 40, 2), r = rng(43);
+  const { c, g } = paint(n, (x, y) => {
+    const i = y * n + x, b = broad[i], f = grain[i] - 0.5;
+    const vein = Math.max(0, 0.47 - Math.abs(b - 0.5)) * 15;
+    return [
+      clamp8(112 + b * 28 + f * 28 + vein),
+      clamp8(103 + b * 24 + f * 24 + vein * 0.72),
+      clamp8(88 + b * 19 + f * 20 + vein * 0.35),
+    ];
+  });
+  for (let i = 0; i < 160; i++) {
+    const x = r() * n, y = r() * n, radius = 0.45 + r() * 1.4;
+    g.fillStyle = r() < 0.55 ? 'rgba(52,43,34,.28)' : 'rgba(214,187,139,.22)';
+    g.beginPath(); g.ellipse(x, y, radius * 1.6, radius, r() * Math.PI, 0, Math.PI * 2); g.fill();
+  }
+  return toTexture(c, 2);
+}
+
 /** Replace a box-like geometry's UVs with world-space ones (projected along the face's dominant axis), so a texture keeps the same scale on every wall however big the box is. */
 export function worldUV(geo, metresPerTile) {
   const pos = geo.attributes.position, nor = geo.attributes.normal, uv = geo.attributes.uv, k = 1 / metresPerTile;
