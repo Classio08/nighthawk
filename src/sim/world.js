@@ -22,6 +22,7 @@ import { idleCmd } from './cmd.js';
 import { BotBrain } from './bot.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
+import { meleeSwing } from './melee.js';
 import { DustLanternMission } from './missions.js';
 
 export const GRAV = -22;
@@ -53,7 +54,7 @@ export class Fighter {
     this.weapons = {}; this.cur = op.weapon;
     for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve, have: true };
     this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.mortar = 0; this.streak = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
-    this.nades = 2; this.nadeT = 0; this.smokes = 2;       // smoke grenades (smoke.js)
+    this.nades = 2; this.nadeT = 0; this.meleeT = 0; this.smokes = 2;       // smoke grenades (smoke.js)
     this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;       // loot: armor points left, medkits carried, seconds left of the medkit being used
     this.abCd = 0; this.abT = 0; this.dashT = 0; this.dashVx = 0; this.dashVz = 0; this.dashHit = []; this.stunT = 0;   // operator ability: cooldown left, effect time left, dash, stunned
     this.noHurtT = 0; this.zoneAcc = 0;
@@ -78,7 +79,7 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, sn: this.smokes, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, sn: this.smokes, nadeT: this.nadeT, mlT: this.meleeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
@@ -88,7 +89,7 @@ export class Fighter {
     this.crouch = !!s.cr;
     if (s.air) { this.air = s.air[0]; this.airT = s.air[1]; this.avx = s.air[2]; this.avz = s.air[3]; this.jumpPrev = !!s.air[4]; }
     if (s.ab) { this.abCd = s.ab[0]; this.abT = s.ab[1]; this.dashT = s.ab[2]; this.dashVx = s.ab[3]; this.dashVz = s.ab[4]; this.stunT = s.ab[5]; }
-    this.nades = s.nades; if (s.sn !== undefined) this.smokes = s.sn; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
+    this.nades = s.nades; if (s.sn !== undefined) this.smokes = s.sn; this.nadeT = s.nadeT; if (s.mlT !== undefined) this.meleeT = s.mlT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
   }
 }
@@ -714,7 +715,7 @@ export class Simulation {
     if (cmd.ability) useAbility(this, p);                                     // Q: the operator's ability (the server validates cooldown / state)
     // medkit (H): takes HEAL_T seconds of standing mostly still; shooting, reloading, switching, throwing, sprinting or getting hurt cancels it
     if (cmd.heal) this.startHeal(p);
-    if (p.healT > 0 && (cmd.fire || cmd.reload || cmd.slot || cmd.grenade || cmd.use || p.sprinting)) p.healT = 0;
+    if (p.healT > 0 && (cmd.fire || cmd.reload || cmd.slot || cmd.grenade || cmd.melee || cmd.use || p.sprinting)) p.healT = 0;
     if (p.healT > 0) sp *= 0.55;
     const { x: mx, z: mz } = moveVector(p.yaw, cmd.forward, cmd.strafe); // the one shared (and unit-tested) movement maths
     this.moveFighter(p, mx * sp * dt, mz * sp * dt, dt, !!cmd.jump && !p.crouch);
@@ -722,13 +723,17 @@ export class Simulation {
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
     if (cmd.smoke) this.throwGrenade(p, this._aimDir(p, 0), 15, true);
+    if (cmd.melee) this.melee(p);
     if (cmd.mortar) this.callMortarFromView(p);
     if (cmd.use && !this.mission?.interact(p)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
-    p.nadeT = Math.max(0, p.nadeT - dt);
+    p.nadeT = Math.max(0, p.nadeT - dt); p.meleeT = Math.max(0, p.meleeT - dt);
     this.tickHeal(p, dt);
     this.updateWeapon(p, dt, !!cmd.fire && p.switchT <= 0, !!cmd.reload);
     tickAbility(this, p, dt);
   }
+
+  /** a close-quarters strike (B for humans, the brain for bots); rules in melee.js */
+  melee(f) { return meleeSwing(this, f); }
 
   /** start using a medkit (humans: the H key, bots: their brain). It is finished by tickHeal() after HEAL_T seconds. */
   startHeal(f) {
@@ -751,7 +756,7 @@ export class Simulation {
     p.sprinting = false; p.ads = !!cmd.ads && p.seat === 1 && p.reloadT <= 0 && p.switchT <= 0;
     if (p.seat === 0) v.input = { thr: cmd.forward, steer: cmd.strafe, brake: !!cmd.jump, boost: !!cmd.sprint };
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
-    p.nadeT = Math.max(0, p.nadeT - dt);
+    p.nadeT = Math.max(0, p.nadeT - dt); p.meleeT = Math.max(0, p.meleeT - dt);
     this.updateWeapon(p, dt, p.seat === 1 && !!cmd.fire && p.switchT <= 0, p.seat === 1 && !!cmd.reload);
     tickAbility(this, p, dt);
   }

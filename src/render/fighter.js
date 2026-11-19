@@ -57,7 +57,7 @@ export class FighterView {
       this.chute.add(new THREE.Line(g, lineM));
     }
     this.root.rotation.order = 'YXZ';
-    this.phase = 0; this.hurtT = 0; this.visible = true; this.init = false; this.sx = f.x; this.sy = f.y; this.sz = f.z; this.stepSign = 1;
+    this.phase = 0; this.hurtT = 0; this.slashT = 0; this.visible = true; this.init = false; this.sx = f.x; this.sy = f.y; this.sz = f.z; this.stepSign = 1;
     this.muzzleV = new THREE.Vector3(); this.fade = 1; this.glow = '';
   }
 
@@ -99,6 +99,10 @@ export class FighterView {
     for (const l of this.legs) { l.scale.y = 1 - 0.38 * this.cK; l.position.y = 0.82 * (1 - 0.38 * this.cK); }
     this.aim.rotation.x = clamp(f.pitch, -1.2, 1.2) + (f.sprinting ? 0.5 : 0) - (f.reloadT > 0 ? 0.5 : 0);
     this.body.rotation.x = f.sprinting ? 0.18 : 0;
+    if (this.slashT > 0) {                                                // melee strike: the gun arm chops down and the body leans into it
+      this.slashT = Math.max(0, this.slashT - dt); const u = Math.sin((1 - this.slashT / 0.3) * Math.PI);
+      this.aim.rotation.x -= u * 1.25; this.body.rotation.x += u * 0.3;
+    }
     if (f.cur !== this.gunId) {
       if (this.gunId) { const old = this.guns[this.gunId]; old.visible = false; old.userData.muzzle.remove(this.flashMesh); }
       this.gunId = f.cur; const g = this._gun(f.cur); g.visible = true; g.userData.muzzle.add(this.flashMesh);
@@ -123,6 +127,8 @@ export class FighterView {
   }
 
   flash() { this.hurtT = 0.12; }
+  slash() { this.slashT = 0.3; }
+
   shotFlash() { this.flashMesh.visible = true; this.flashT = 0.05; this.flashMesh.rotation.z = Math.random() * 6; }
   /** world position of the gun (where a dropped magazine starts) */
   gunWorld(out) { const g = this.guns[this.gunId]; if (g) { this.root.updateWorldMatrix(true, true); const m = g.userData.mag ?? g; m.getWorldPosition(out); } else out.set(this.f.x, this.f.y, this.f.z); return out; }

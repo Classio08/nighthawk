@@ -12,16 +12,16 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
 /* ---------- input: client -> server (one tick of keys, packed into a small array) ---------- */
-export const CF = { jump: 1, sprint: 2, fire: 4, ads: 8, reload: 16, grenade: 32, mortar: 64, use: 128, heal: 256, ability: 512, crouch: 1024, smoke: 2048 };
+export const CF = { jump: 1, sprint: 2, fire: 4, ads: 8, reload: 16, grenade: 32, mortar: 64, use: 128, heal: 256, ability: 512, crouch: 1024, smoke: 2048, melee: 4096 };
 export function packCmd(c) {
-  const flags = (c.jump ? CF.jump : 0) | (c.sprint ? CF.sprint : 0) | (c.fire ? CF.fire : 0) | (c.ads ? CF.ads : 0) | (c.reload ? CF.reload : 0) | (c.grenade ? CF.grenade : 0) | (c.smoke ? CF.smoke : 0) | (c.mortar ? CF.mortar : 0) | (c.use ? CF.use : 0) | (c.heal ? CF.heal : 0) | (c.ability ? CF.ability : 0) | (c.crouch ? CF.crouch : 0);
+  const flags = (c.jump ? CF.jump : 0) | (c.sprint ? CF.sprint : 0) | (c.fire ? CF.fire : 0) | (c.ads ? CF.ads : 0) | (c.reload ? CF.reload : 0) | (c.grenade ? CF.grenade : 0) | (c.smoke ? CF.smoke : 0) | (c.melee ? CF.melee : 0) | (c.mortar ? CF.mortar : 0) | (c.use ? CF.use : 0) | (c.heal ? CF.heal : 0) | (c.ability ? CF.ability : 0) | (c.crouch ? CF.crouch : 0);
   return [c.seq, r3(c.yaw), r3(c.pitch), c.forward, c.strafe, flags, c.slot | 0, c.vt | 0];
 }
 export function unpackCmd(a) {
   if (!Array.isArray(a) || a.length < 8) return null;
   const f = a[5] | 0;
   return { seq: a[0], yaw: a[1], pitch: a[2], forward: a[3], strafe: a[4], jump: !!(f & CF.jump), sprint: !!(f & CF.sprint), fire: !!(f & CF.fire),
-    ads: !!(f & CF.ads), reload: !!(f & CF.reload), grenade: !!(f & CF.grenade), smoke: !!(f & CF.smoke), mortar: !!(f & CF.mortar), use: !!(f & CF.use), heal: !!(f & CF.heal), ability: !!(f & CF.ability), crouch: !!(f & CF.crouch), slot: a[6], vt: a[7] };
+    ads: !!(f & CF.ads), reload: !!(f & CF.reload), grenade: !!(f & CF.grenade), smoke: !!(f & CF.smoke), melee: !!(f & CF.melee), mortar: !!(f & CF.mortar), use: !!(f & CF.use), heal: !!(f & CF.heal), ability: !!(f & CF.ability), crouch: !!(f & CF.crouch), slot: a[6], vt: a[7] };
 }
 
 /* ---------- state: server -> client ---------- */

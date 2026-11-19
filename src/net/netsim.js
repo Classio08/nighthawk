@@ -13,7 +13,7 @@ import { SLOT_ORDER } from '../sim/weapons.js';
 import { isCloaked } from '../sim/abilities.js';
 import { STEP, TICKS_PER_MS, INTERP_TICKS, packCmd, unpackFighterInto, unpackZoneInto } from './protocol.js';
 
-const OWN_EVENTS = new Set(['shot', 'fire', 'reload', 'dry', 'switch', 'throw']);   // predicted locally, so the server's copy is ignored
+const OWN_EVENTS = new Set(['shot', 'fire', 'reload', 'dry', 'switch', 'throw', 'melee']);   // predicted locally, so the server's copy is ignored
 const lerp = (a, b, t) => a + (b - a) * t;
 const lerpAngle = (a, b, t) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * t; };
 

@@ -11,7 +11,7 @@ const PORTAL = !!import.meta.env?.VITE_PORTAL;
 export const ACTIONS = [
   ['forward', 'Move forward', 'KeyW'], ['back', 'Move back', 'KeyS'], ['left', 'Strafe left', 'KeyA'], ['right', 'Strafe right', 'KeyD'],
   ['jump', 'Jump', 'Space'], ['sprint', 'Sprint (hold)', 'ShiftLeft'], ['crouch', 'Crouch (hold)', 'KeyC'],
-  ['reload', 'Reload', 'KeyR'], ['grenade', 'Grenade', 'KeyG'], ['smoke', 'Smoke grenade', 'KeyX'], ['use', 'Use / enter vehicle', 'KeyE'], ['heal', 'Medkit', 'KeyH'],
+  ['reload', 'Reload', 'KeyR'], ['grenade', 'Grenade', 'KeyG'], ['smoke', 'Smoke grenade', 'KeyX'], ['melee', 'Melee strike', 'KeyB'], ['use', 'Use / enter vehicle', 'KeyE'], ['heal', 'Medkit', 'KeyH'],
   ['ability', 'Operator ability', 'KeyQ'], ['mortar', 'Mortar strike', 'KeyT'], ['flashlight', 'Flashlight', 'KeyF'], ['camera', 'First / third person', 'KeyV'],
 ];
 export const DEFAULT_KEYS = Object.fromEntries(ACTIONS.map(([id, , k]) => [id, k]));

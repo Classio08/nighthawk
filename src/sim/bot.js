@@ -11,6 +11,7 @@ import { searchWaypoint } from './guard-doctrine.js';
 import { PERSONALITIES } from './personality.js';
 import { diffOf } from './difficulty.js';
 import { botAir } from './drop.js';
+import { MELEE } from './melee.js';
 import { botUseAbility, activeAbility, isCloaked, ABILITIES } from './abilities.js';
 
 const BASE_SPEED = 7;
@@ -584,6 +585,8 @@ export class BotBrain {
           }
         }
       }
+      // point blank: strike them (quick, quiet, and a kill from behind); mostly when the gun is no use (reloading / empty) or they are right on top of me
+      if (dist < MELEE.REACH - 0.35 && f.meleeT <= 0 && this.skill > 0.15 && (dist < 1.5 || f.reloadT > 0 || f.weapons[f.cur].ammo <= 0 || sim.rng() < 0.03)) sim.melee(f);
       // a banked mortar strike: call it on somebody far away
       if (f.mortar > 0 && dist > 28 && dist < 105 && this.skill > 0.45 && sim.rng() < 0.012 * this.trickRate) sim.callMortar(f, tgt.x, tgt.z);
       // grenades: lob one at somebody in the open at medium range

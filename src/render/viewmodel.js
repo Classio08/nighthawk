@@ -57,6 +57,12 @@ export class Viewmodel {
     this.cur = id; const g = this.guns[id]; g.visible = true; g.userData.muzzle.add(this.flash);
   }
 
+  /** a melee strike: the gun lunges forward and dips (there is no knife model yet, it is a rifle-butt strike) */
+  slash() {
+    skinReact(0.1);
+    this.kz.impulse(-3.4); this.krx.impulse(-6); this.ry.impulse(2.2);
+  }
+
   /** call when the player fires a shot */
   kick(w) {
     skinReact(0.12);

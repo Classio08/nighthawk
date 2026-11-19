@@ -23,8 +23,9 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 14 | Parachute drop-in: everyone starts in a transport plane, jumps (Space), free-falls (W dives), parachute opens at 60 m, bots choose landing spots, zone waits for the landing; solo + online + prediction | built | `src/sim/drop.js`, `src/sim/world.js`, `src/sim/bot.js`, `src/render/plane-view.js`, `src/render/fighter.js`, `src/ui/hud.js`, `src/net/protocol.js`, `src/net/netsim.js`, `server/src/MatchRoom.js` | `tests/drop.test.js`, `scripts/e2e-drop.mjs`, `scripts/e2e-online-drop.mjs`, `server/test/match.mjs` section 6 |
 | 15 | Operation DUST LANTERN (ChatGPT, merged and verified): offline rescue mission with seeded site, 3 clues (2 needed), escort, extraction hold, alert director, debrief; no zone, no drop | built (offline only) | `src/sim/missions.js`, `src/sim/mission-alert.js`, `src/render/mission-view.js`, `src/ui/hud.js`, `src/main.js` | `tests/missions.test.js`, `tests/mission-alert.test.js`, `scripts/e2e-mission.mjs` |
 | 16 | Smoke grenades: `X` throws a smoke canister that pops into a cloud after 1.5 s; the cloud blocks sight (not bullets) for about 16 s, bots throw them when hurt and under fire; HUD count, screen haze inside the cloud; solo + online + prediction | built | `src/sim/smoke.js`, `src/sim/world.js`, `src/sim/bot.js`, `src/net/protocol.js`, `src/net/netsim.js`, `src/render/smoke-view.js`, `src/ui/hud.js`, `src/main.js` | `tests/smoke.test.js`, `scripts/e2e-smoke.mjs` |
+| 17 | Melee strike: `B` is a quick close-quarters hit (front 48 damage, from behind a kill that ignores armour), 0.85 s cooldown, quiet, lag-compensated like bullets; bots use it at point blank; swing animation on the viewmodel and on other players; solo + online + prediction | built | `src/sim/melee.js`, `src/sim/world.js`, `src/sim/bot.js`, `src/net/protocol.js`, `src/net/netsim.js`, `src/render/viewmodel.js`, `src/render/fighter.js`, `src/main.js` | `tests/melee.test.js`, `scripts/e2e-melee.mjs` |
 
-Run everything: `npm test` (207 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (216 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
@@ -195,6 +196,18 @@ Rules in `src/sim/smoke.js` (graphics-free, deterministic). A smoke grenade is a
 - **Client**: `src/render/smoke-view.js` draws 18 soft sprite puffs per cloud (one shared canvas texture), the HUD shows `GRENADES n · SMOKE m`, and a grey haze (`#smokevig`) fills the screen while you stand inside a cloud.
 - **Settings note**: older saved key layouts do not know the new action; if one of them already uses `X`, the smoke key moves to the first free key instead of the whole layout being reset (regression test in `tests/settings.test.js`).
 - **Not done yet**: other utility grenades (flash, decoy), thermal vision that sees through smoke, smoke from vehicles.
+
+## Stage 17: melee strike
+
+Rules in `src/sim/melee.js` (graphics-free). There is **no knife model yet**: the strike is shown as a lunge of the held gun (viewmodel) and a chop of the gun arm (other players), so it is honestly a "melee" and not a "knife" in the HUD and kill feed (`MELEE`).
+
+- **Key**: `B` (rebindable in SETTINGS). One-shot cmd flag `CF.melee` (4096), one swing per press, 0.85 s cooldown (`f.meleeT`, carried in the private self-state as `mlT` so the predictor and the server agree).
+- **Who gets hit**: the nearest living fighter within 2.2 m (+0.4 m of body), inside a cone of about 57 degrees in front of the swinger, within 1.3 m of height, with no wall between (`losClear`). Fighters in the air or in a vehicle cannot be hit and cannot swing. Positions are rewound by the swinger's lag (`posAt`) exactly like bullets, so a laggy player is not punished.
+- **Damage**: head on 48 (cause `melee`, which armour does **not** soak, Bulwark / Overclock still reduce it); when the target's back is towards the swinger (his forward vector points away by more than a 0.3 cosine) it is 230, a kill. The swing also cancels a medkit and makes a small noise (5 m, a rifle shot is 60+).
+- **Bots**: with a target inside about 1.85 m, a bot strikes at once when it is nearly touching, its gun is reloading or empty, or with a 3% chance per tick otherwise (needs skill above 0.15). Bots that turn their back on a human at close range can now be killed in one strike, and bots can do the same to you.
+- **Network**: the predicting client plays the swing and starts its cooldown but never decides hits (`opts.predictor`); the server's `melee` event (with `hit` and `back`) is ignored for your own swing and used for everybody else's animation and sound. Kill feed and stats record the weapon as `melee`.
+- **Found while testing**: Rapier ray queries only see colliders after the world's first `step`, so a unit test that searches for open ground before stepping finds "clear" everywhere (including inside walls). The new tests, and the smoke tests, step the world once first.
+- **Not done yet**: a knife model and stab animation, takedown prompts, melee against props and vehicles, a knife-only game mode.
 
 ## What to look at next (open items)
 

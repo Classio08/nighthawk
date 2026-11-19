@@ -104,7 +104,7 @@ async function newMatch(online = null, operation = false) {
   playerView.setVisible(thirdPerson && p.alive);
   playerView.label.visible = false;
   viewmodel.setSkin(p.skin);
-  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
+  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.melee = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
   G = { sim, net: online, scene, world, pview, sview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
@@ -186,7 +186,7 @@ function handleEvents() {
       case 'kill': {
         const t = sim.fighters[e.target], you = e.by === p.id, me = e.target === p.id;
         if (you) skinReact(0.7);
-        const wName = e.cause === 'vehicle' ? 'ROADKILL' : e.cause === 'crash' ? 'CRASH' : (WEAPONS[e.w]?.name ?? (e.w === 'grenade' ? 'GRENADE' : e.w === 'barrel' ? 'BARREL' : e.w === 'mortar' ? 'MORTAR' : e.w === 'vehicle' ? 'WRECK' : e.cause === 'zone' ? 'THE ZONE' : 'FALL'));
+        const wName = e.cause === 'vehicle' ? 'ROADKILL' : e.cause === 'crash' ? 'CRASH' : (WEAPONS[e.w]?.name ?? (e.w === 'melee' ? 'MELEE' : e.w === 'grenade' ? 'GRENADE' : e.w === 'barrel' ? 'BARREL' : e.w === 'mortar' ? 'MORTAR' : e.w === 'vehicle' ? 'WRECK' : e.cause === 'zone' ? 'THE ZONE' : 'FALL'));
         hud.addFeed(e.byName === 'The zone' ? `<b>THE ZONE</b> ✕ ${e.name}` : `<b>${e.byName}</b> [${wName}${e.head ? ' ✦' : ''}] ${e.name}`, you || me);
         blood(e.x, e.y + 0.3, e.z, e.dx, e.dy + 0.2, e.dz, 24, 1.3);
         if (settings.gore) G.decals.stain(e.x, 0.02, e.z, 0, 1, 0, 1.1);
@@ -300,6 +300,13 @@ function handleEvents() {
       case 'dry': if (e.by === p.id) audio.play('dry'); break;
       case 'switch': if (e.by === p.id) audio.play('switch'); break;
       case 'throw': { const f = sim.fighters[e.by]; audio.play('throw', e.by === p.id ? {} : { x: f.x, z: f.z, maxD: 45 }); break; }
+      case 'melee': {
+        const f = sim.fighters[e.by];
+        audio.play('melee', e.by === p.id ? { vol: 0.9 } : { x: f.x, z: f.z, maxD: 30 });
+        if (e.by === p.id) viewmodel.slash(); else { const v = views.get(e.by); if (v) v.slash(); }
+        if (e.by === p.id && thirdPerson) playerView.slash();
+        break;
+      }
       case 'smoke': audio.play('smoke', e.by === p.id ? { vol: 0.9 } : { x: e.x, z: e.z, maxD: 60, vol: 0.8 }); break;
       case 'end': {
         if (e.to !== undefined && e.to !== p.id) break;        // somebody else's result
@@ -352,6 +359,7 @@ function handleInput(dt) {
   if (input.actPressed('reload')) cmd.reload = true;
   if (input.actPressed('grenade')) cmd.grenade = true;
   if (input.actPressed('smoke')) { if (p.smokes > 0) cmd.smoke = true; else hud.message('NO SMOKE GRENADES LEFT', '#ffffff', 1); }
+  if (input.actPressed('melee')) cmd.melee = true;
   if (input.actPressed('use')) cmd.use = true;
   if (input.actPressed('heal') && sim.loot?.items.length) {
     if (p.healT > 0) { /* already healing */ } else if (p.meds <= 0) hud.message('NO MEDKITS - LOOT SOME', '#ff4d4d', 1.2);
@@ -437,7 +445,7 @@ function frame(now) {
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
       sim.step(STEP, keys);
-      cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
+      cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.melee = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }

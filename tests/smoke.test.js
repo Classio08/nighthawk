@@ -64,6 +64,7 @@ test('throwing is refused with none left, during the 1.2 s cooldown and while in
 
 test('a cloud between two fighters blocks canSee (bots lose sight), and sight returns when it is gone', async () => {
   const sim = await mk({ bots: 1 }); const a = sim.player, b = sim.fighters.find((f) => f !== a && !f.npc);
+  run(sim, 0.1);                                                    // (ray queries only work after the physics world's first step)
   let found = null;
   for (let z = -60; z <= 60 && !found; z += 7) for (let x = -90; x <= 90 && !found; x += 9) {
     if (sim.losClear(x, 1.6, z, x, 1.3, z - 22)) found = { x, z };
@@ -94,7 +95,7 @@ test('a bot that is hurt and under fire throws a smoke between itself and the sh
     const sim = await mk({ seed, bots: 2 });
     const [bot, foe] = sim.fighters.filter((f) => !f.npc && f !== sim.player).slice(0, 2).concat([null]).filter(Boolean);
     if (!bot?.brain || !foe) { sim.dispose(); continue; }
-    tried++;
+    tried++; run(sim, 0.1);
     let ok = null;
     for (let z = -30; z <= 30 && !ok; z += 6) for (let x = -50; x <= 20 && !ok; x += 7) if (sim.losClear(x, 1.6, z, x + 26, 1.3, z)) ok = { x, z };      // well inside the opening zone circle
     if (!ok) { sim.dispose(); continue; }
