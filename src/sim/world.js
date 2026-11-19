@@ -26,6 +26,7 @@ import { meleeSwing } from './melee.js';
 import { materialForMapKind, materialForPropKind, surfaceImpact, classifyHitZone, hitZoneMultiplier, blastImpulse, hitPushImpulse, shrapnelDirection, soundTransmission } from './physics-correlation.js';
 import { createMission } from './missions.js';
 import { MANTLE, findLedge, mantlePos } from './mantle.js';
+import { integrateBallisticStep, reflectBallisticVelocity, MAX_ACTIVE_PROJECTILES, PROJECTILE_MAX_AGE } from './ballistics.js';
 
 export const GRAV = -22;
 export const OPERATORS = operatorData.operators;
@@ -121,9 +122,9 @@ export class Simulation {
     this.map = buildMap(opts.mapSeed ?? 7);
     this.nav = opts.predictor || opts.nav === false ? null : new NavGrid(this.map);     // bots path around buildings with A* (nav.js); a predicting browser has no bots
     this.navBudget = 0;
-    this.time = 0; this.tick = 0; this.events = []; this.blastSerial = 0;
+    this.time = 0; this.tick = 0; this.events = []; this.blastSerial = 0; this.projectileSerial = 0; this.activeInputSeq = null;
     this.hist = new Array(HIST).fill(null); this.humans = []; this.player = null;
-    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.smokes = [];      // thrown grenades / smoke clouds in the world
+    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.smokes = []; this.projectiles = []; // bounded bullet flight state; grenade bodies remain Rapier dynamics
     this.propByCol = new Map();     // collider handle -> crate / barrel (things bullets can break)
     this.surfaceByCol = new Map(); // collider handle -> physical material for bullet / impact response
     this.destroyed = [];            // ids of broken props (replicated to browsers in every snapshot)
@@ -473,6 +474,159 @@ export class Simulation {
     for (const f of this.fighters) { const i = f.id * 4; h.d[i] = f.x; h.d[i + 1] = f.y; h.d[i + 2] = f.z; h.d[i + 3] = f.alive ? (f.crouch ? 2 : 1) : 0; }
   }
 
+
+  _launchProjectile(f, w, origin, dir, viewTick, shotSeed, pellet) {
+    if (this.projectiles.length >= MAX_ACTIVE_PROJECTILES) return false; // bounded work; caller falls back to the established ray path
+    const speed = w.projectileSpeed;
+    if (!Number.isFinite(speed) || speed <= 0) return false;
+    this.projectiles.push({
+      id: ++this.projectileSerial, owner: f, ownerId: f.id, weaponId: w.id,
+      x: origin.x, y: origin.y, z: origin.z,
+      vx: dir.x * speed, vy: dir.y * speed, vz: dir.z * speed,
+      dragCoefficient: w.dragCoefficient ?? 0, gravityScale: 1,
+      traveled: 0, age: 0, ageTicks: 0, viewTick,
+      energy: 1, penetrationsLeft: 1, ricochetsLeft: 1,
+      ignoredColliderHandle: null, ignoredColliderTicks: 0,
+      seed: shotSeed, pellet, createdSeq: this.activeInputSeq,
+    });
+    return true;
+  }
+
+  /** Fixed-step bullets: collision is swept through Rapier solids and lag-compensated fighter capsules. */
+  _stepProjectiles(dt) {
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i], w = WEAPONS[p.weaponId];
+      if (!w || p.age >= PROJECTILE_MAX_AGE || p.traveled >= w.range) {
+        this.projectiles.splice(i, 1); continue;
+      }
+      const step = integrateBallisticStep(p, dt);
+      const remaining = Math.max(0, w.range - p.traveled);
+      const segmentDistance = Math.min(step.distance, remaining);
+      if (segmentDistance <= 1e-5) { this.projectiles.splice(i, 1); continue; }
+      const fullDistance = step.distance || 1;
+      const dir = {
+        x: (step.to.x - step.from.x) / fullDistance,
+        y: (step.to.y - step.from.y) / fullDistance,
+        z: (step.to.z - step.from.z) / fullDistance,
+      };
+      const origin = step.from;
+      const ray = new RAPIER.Ray(origin, dir);
+      const ignored = p.ignoredColliderTicks > 0 ? p.ignoredColliderHandle : null;
+      const wall = this.world.castRayAndGetNormal(
+        ray, segmentDistance, true, undefined, undefined, p.owner?.col, undefined,
+        (collider) => this.solid.has(collider.handle) && collider.handle !== ignored,
+      );
+      if (p.ignoredColliderTicks > 0 && --p.ignoredColliderTicks <= 0) p.ignoredColliderHandle = null;
+      const wallDistance = wall ? Math.min(segmentDistance, wall.timeOfImpact) : segmentDistance;
+
+      let target = null, targetDistance = wallDistance, targetPos = null;
+      const sampleTick = Math.max(0, Math.floor(p.viewTick + p.ageTicks));
+      for (const fighter of this.fighters) {
+        if (!fighter.alive || fighter === p.owner) continue;
+        const q = this.posAt(fighter, sampleTick);
+        if (!q.alive) continue;
+        const distance = rayCapsule(
+          origin.x, origin.y, origin.z, dir.x, dir.y, dir.z,
+          q.x, q.y - 0.5, q.z, q.y + (q.crouch ? 0.15 : 0.5), 0.4,
+        );
+        if (distance >= 0 && distance < targetDistance && distance <= segmentDistance) {
+          target = fighter; targetDistance = distance; targetPos = q;
+        }
+      }
+
+      const end = {
+        x: origin.x + dir.x * targetDistance,
+        y: origin.y + dir.y * targetDistance,
+        z: origin.z + dir.z * targetDistance,
+      };
+      const event = {
+        t: 'shot', segment: true, by: p.ownerId, w: w.id, first: p.ageTicks === 1,
+        ox: origin.x, oy: origin.y, oz: origin.z,
+        ex: end.x, ey: end.y, ez: end.z,
+        dx: dir.x, dy: dir.y, dz: dir.z, hit: null,
+      };
+
+      if (target) {
+        const zone = classifyHitZone(end.y, targetPos.y - 0.9, targetPos.crouch);
+        const head = zone === 'head';
+        event.hit = 'fighter'; event.target = target.id; event.zone = zone;
+        if (!this.opts.predictor) {
+          const damage = damageAt(w, p.traveled + targetDistance, head) * hitZoneMultiplier(zone) * p.energy;
+          this.damage(target, damage, p.owner, {
+            head, zone, w: w.id, dx: dir.x, dy: dir.y, dz: dir.z,
+            x: end.x, y: end.y, z: end.z, cause: 'bullet',
+          });
+        }
+        this.emit(event);
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      if (wall) {
+        const material = this.surfaceByCol.get(wall.collider.handle) ?? 'concrete';
+        const roll = makeRng((p.seed ^ Math.imul(p.ageTicks, 0x45d9f3b)) | 0)();
+        const impact = surfaceImpact(material, roll);
+        event.hit = 'world'; event.nx = wall.normal.x; event.ny = wall.normal.y; event.nz = wall.normal.z;
+        event.material = material; event.impact = impact.effect;
+        event.surfaceX = end.x; event.surfaceY = end.y; event.surfaceZ = end.z;
+
+        const prop = this.propByCol.get(wall.collider.handle);
+        const vehicle = this.vehicles?.byCol.get(wall.collider.handle);
+        const body = wall.collider.parent();
+        if (!this.opts.predictor) {
+          const impactDamage = damageAt(w, p.traveled + wallDistance, false) * p.energy;
+          if (body && body.isDynamic()) {
+            const impulse = Math.max(0.25, Math.min(14, impactDamage * 0.18));
+            body.applyImpulseAtPoint({ x: dir.x * impulse, y: dir.y * impulse, z: dir.z * impulse }, end, true);
+          }
+          if (vehicle) { event.veh = vehicle.id; this.vehicles.damage(vehicle, impactDamage * (w.pellets > 1 ? 1.2 : 1), p.owner); }
+          if (prop) { event.prop = prop.id; this.damageProp(prop, impactDamage * (w.pellets > 1 ? 1.4 : 1), p.owner); }
+        }
+
+        if (impact.penetrates && p.penetrationsLeft > 0 && impact.thickness > 0) {
+          const advance = impact.thickness + 0.04;
+          event.penetrated = true;
+          p.energy *= impact.damageMultiplier;
+          p.penetrationsLeft--;
+          p.x = end.x + dir.x * advance; p.y = end.y + dir.y * advance; p.z = end.z + dir.z * advance;
+          p.traveled += wallDistance + advance;
+          p.ignoredColliderHandle = wall.collider.handle; p.ignoredColliderTicks = 1;
+          this.emit(event);
+          if (p.traveled >= w.range) this.projectiles.splice(i, 1);
+          continue;
+        }
+
+        if (impact.kind === 'ricochet' && p.ricochetsLeft > 0) {
+          const reflected = reflectBallisticVelocity({ x: p.vx, y: p.vy, z: p.vz }, wall.normal, 0.72);
+          const speed = Math.hypot(reflected.x, reflected.y, reflected.z) || 1;
+          p.vx = reflected.x; p.vy = reflected.y; p.vz = reflected.z;
+          p.energy *= impact.damageMultiplier; p.ricochetsLeft--;
+          p.x = end.x + reflected.x / speed * 0.06;
+          p.y = end.y + reflected.y / speed * 0.06;
+          p.z = end.z + reflected.z / speed * 0.06;
+          p.traveled += wallDistance + 0.06;
+          p.ignoredColliderHandle = wall.collider.handle; p.ignoredColliderTicks = 1;
+          event.ricochet = true;
+          this.emit(event);
+          continue;
+        }
+        this.emit(event);
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      p.x = origin.x + dir.x * segmentDistance;
+      p.y = origin.y + dir.y * segmentDistance;
+      p.z = origin.z + dir.z * segmentDistance;
+      p.traveled += segmentDistance;
+      event.ex = p.x; event.ey = p.y; event.ez = p.z;
+      this.emit(event);
+      if (segmentDistance < step.distance - 1e-5 || p.age >= PROJECTILE_MAX_AGE || p.traveled >= w.range) {
+        this.projectiles.splice(i, 1);
+      }
+    }
+  }
+
   _fire(f) {
     const w = WEAPONS[f.cur], st = f.weapons[f.cur];
     const A = activeAbility(f), deadeye = !!(A && A.shotMul);
@@ -497,6 +651,7 @@ export class Simulation {
       const shotSeed = (this.seed * 31 + f.rngKey * 1009 + f.shotN * 7 + p * 101) | 0;
       const dir = this._aimDir(f, spread, f.human ? makeRng(shotSeed) : this.rng);
       const physicalRng = makeRng((shotSeed ^ 0x4f1bbcdc) | 0);
+      if (!deadeye && this._launchProjectile(f, w, origin, dir, viewTick, shotSeed, p)) continue;
 
       // First collision with the world. Thin wood / glass can transmit one reduced-energy ray.
       const ray = new RAPIER.Ray(origin, dir);
@@ -1072,8 +1227,8 @@ export class Simulation {
     for (const h of this.humans) {
       if (!h.alive) continue;
       const c = getCmd(h.id);
-      if (c) this.stepPlayer(h, c, dt);
-      else this.stepPlayer(h, { ...idleCmd(), yaw: h.yaw, pitch: h.pitch }, dt);    // no input this tick: stand still but keep falling / reloading
+      if (c) { this.activeInputSeq = Number.isInteger(c.seq) ? c.seq : null; this.stepPlayer(h, c, dt); this.activeInputSeq = null; }
+      else { this.activeInputSeq = null; this.stepPlayer(h, { ...idleCmd(), yaw: h.yaw, pitch: h.pitch }, dt); }    // no input this tick: stand still but keep falling / reloading
     }
 
     this.navBudget = 4;                                    // at most 4 path searches per tick across all bots (keeps the tick time flat)
@@ -1096,6 +1251,7 @@ export class Simulation {
 
     if (!this.opts.predictor) this.vehicles.update(dt);
     this.world.step();
+    this._stepProjectiles(dt);
 
     if (!this.opts.predictor) {
       this.mission?.update(dt);
