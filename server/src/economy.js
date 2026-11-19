@@ -14,11 +14,25 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const MAX_BODY = 4096;
 
 function readJson(req) {
+  const contentType = String(req.headers?.['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/json') return Promise.reject(new Error('content type must be application/json'));
   return new Promise((resolveBody, reject) => {
-    let n = 0; const chunks = [];
-    req.on('data', (c) => { n += c.length; if (n > MAX_BODY) { reject(new Error('body too large')); req.destroy(); } else chunks.push(c); });
-    req.on('end', () => { try { resolveBody(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); } catch { reject(new Error('bad json')); } });
-    req.on('error', reject);
+    let n = 0, settled = false; const chunks = [];
+    req.on('data', (chunk) => {
+      if (settled) return;
+      n += chunk.length;
+      if (n > MAX_BODY) { settled = true; reject(new Error('body too large')); req.destroy(); return; }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (settled) return;
+      try {
+        const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
+        if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('body must be an object');
+        settled = true; resolveBody(body);
+      } catch { settled = true; reject(new Error('bad json')); }
+    });
+    req.on('error', (error) => { if (!settled) { settled = true; reject(error); } });
   });
 }
 
@@ -30,11 +44,21 @@ export class ServerEconomy {
     let cfg = sanitizeConfig(raw);
     if (env.NIGHTHAWK_ECONOMY === 'sandbox' && cfg.mode === 'off') cfg = { ...cfg, mode: 'sandbox', features: Object.fromEntries(FEATURES.map((k) => [k, true])) };   // a quick switch for testing; it can NEVER request live
     this.env = env; this.cfg = cfg; this.now = now;
-    const rpc = env.ECONOMY_RPC_URL && env.ECONOMY_NFT_CONTRACT ? { url: env.ECONOMY_RPC_URL, chainId: Number(env.ECONOMY_CHAIN_ID ?? 11155111), contract: env.ECONOMY_NFT_CONTRACT } : null;
+    let rpc = null;
+    if (env.ECONOMY_RPC_URL && env.ECONOMY_NFT_CONTRACT) {
+      try {
+        const endpoint = new URL(env.ECONOMY_RPC_URL);
+        const loopback = ['localhost', '127.0.0.1', '::1'].includes(endpoint.hostname.toLowerCase());
+        const secure = endpoint.protocol === 'https:' || (cfg.mode === 'sandbox' && endpoint.protocol === 'http:' && loopback);
+        const chainId = Number(env.ECONOMY_CHAIN_ID ?? 11155111);
+        if (secure && !endpoint.username && !endpoint.password && /^0x[0-9a-f]{40}$/i.test(env.ECONOMY_NFT_CONTRACT) && Number.isSafeInteger(chainId) && chainId > 0) {
+          rpc = { url: endpoint.toString(), chainId, contract: env.ECONOMY_NFT_CONTRACT };
+        } else console.error('economy: ignored unsafe or malformed NFT RPC configuration');
+      } catch { console.error('economy: ignored malformed NFT RPC URL'); }
+    }
     const domains = (env.ECONOMY_DOMAINS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-    this.autoDomains = domains.length === 0;                                                            // sandbox only: accept the host the page was loaded from
-    const secret = env.ECONOMY_SECRET && /^[0-9a-f]{32,}$/i.test(env.ECONOMY_SECRET) ? Uint8Array.from(Buffer.from(env.ECONOMY_SECRET, 'hex')) : randomBytes(32);
-    this.economy = new Economy({ config: cfg, env, now, secret, domains: domains.length ? domains : ['localhost', '127.0.0.1'], rpc, fetchFn });
+    const secret = env.ECONOMY_SECRET && /^(?:[0-9a-f]{2}){32,}$/i.test(env.ECONOMY_SECRET) ? Uint8Array.from(Buffer.from(env.ECONOMY_SECRET, 'hex')) : randomBytes(32);
+    this.economy = new Economy({ config: cfg, env, now, secret, domains: domains.length ? domains : ['localhost', '127.0.0.1', '::1'], rpc, fetchFn });
     this.dbFile = dbFile ?? env.ECONOMY_DB ?? resolve(ROOT, 'data/economy-sandbox.json');
     this.hits = new Map(); this.timer = null; this.dirty = false;
     if (this.enabled) this._load();
@@ -62,9 +86,19 @@ export class ServerEconomy {
   stop() { if (this.timer) clearInterval(this.timer); this.timer = null; this.save(); }
 
   _limited(req) {
-    const ip = req.ip ?? req.socket?.remoteAddress ?? '?', t = Date.now(); let h = this.hits.get(ip);
-    if (!h || h.reset < t) { h = { n: 0, reset: t + 60000 }; this.hits.set(ip, h); if (this.hits.size > 5000) this.hits.clear(); }
-    return ++h.n > 40;
+    const ip = String(req.ip ?? req.socket?.remoteAddress ?? '?').slice(0, 128), now = Date.now();
+    let bucket = this.hits.get(ip);
+    if (bucket && bucket.reset <= now) { this.hits.delete(ip); bucket = null; }
+    if (!bucket) {
+      if (this.hits.size >= 5000) {
+        for (const [key, entry] of this.hits) if (entry.reset <= now) this.hits.delete(key);
+        // Do not clear every user's bucket when an attacker rotates source addresses.
+        if (this.hits.size >= 5000) return true;
+      }
+      bucket = { n: 0, reset: now + 60000 };
+      this.hits.set(ip, bucket);
+    }
+    return ++bucket.n > 40;
   }
 
   /** mounts /economy/* on the game server's express app */
@@ -84,7 +118,15 @@ export class ServerEconomy {
     app.get('/economy/status', (_req, res) => send(res, 200, this.status()));
     app.post('/economy/wallet/challenge', guard(async (req, res) => {
       const b = await readJson(req), host = String(req.hostname ?? '').toLowerCase();
-      if (this.autoDomains && this.economy.state().mode === 'sandbox' && host && !this.economy.auth.domains.includes(host) && this.economy.auth.domains.length < 20) this.economy.auth.domains.push(host);
+      const origin = req.get?.('origin');
+      if (origin) {
+        let parsed;
+        try { parsed = new URL(origin); } catch { throw new Error('invalid origin'); }
+        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.hostname.toLowerCase() !== host || parsed.username || parsed.password) {
+          throw new Error('origin does not match request host');
+        }
+      }
+      // The domain must already be explicitly configured; never learn/trust domains from Host headers.
       send(res, 200, this.economy.walletChallenge({ domain: host, address: String(b.address ?? ''), chainId: Number(b.chainId) }, randomBytes(16).toString('hex')));
     }));
     app.post('/economy/wallet/verify', guard(async (req, res) => {
