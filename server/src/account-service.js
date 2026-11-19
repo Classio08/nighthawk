@@ -4,7 +4,6 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { defaultProfile, recordMatch, sanitizeProfile } from '../../src/profile.js';
-import { emptyCampaignState, recordCampaignResult, normalizeCampaignState } from '../../src/progression/campaign.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const hash = (token) => createHash('sha256').update(String(token)).digest('hex');
@@ -52,7 +51,7 @@ function safeDatabase(raw) {
           identity: typeof item.equipped.identity === 'string' ? item.equipped.identity : null,
         } : { weaponSkin: null, uniform: null, identity: null },
         safehouses: Array.isArray(item.safehouses) ? [...new Set(item.safehouses.filter((x) => SAFEHOUSE_CATALOG.some((b) => b.id === x)))].slice(0, 3) : [],
-        campaign: normalizeCampaignState(item.campaign),
+        campaign: item.campaign && typeof item.campaign === 'object' && !Array.isArray(item.campaign) ? item.campaign : { completed: [], reputation: {} },
         purchaseRequests: Array.isArray(item.purchaseRequests) ? [...new Set(item.purchaseRequests.filter((x) => typeof x === 'string'))].slice(-200) : [],
       };
     }
@@ -153,7 +152,7 @@ export class AccountService {
         id, displayName: cleanName(displayName) || `Operator-${id.slice(0, 4).toUpperCase()}`,
         createdAt: now, updatedAt: now, profile: defaultProfile(now), intelCredits: 0,
         cosmetics: [], equipped: { weaponSkin: null, uniform: null, identity: null },
-        safehouses: [], campaign: emptyCampaignState(), purchaseRequests: [],
+        safehouses: [], campaign: { completed: [], reputation: {} }, purchaseRequests: [],
       };
       state.accounts[id] = account;
       state.sessions[hash(sessionToken)] = { accountId: id, expiresAt: now + 365 * DAY };
@@ -215,12 +214,6 @@ export class AccountService {
       const creditReward = Math.min(80, 15 + placementReward + Math.min(20, summary.kills * 2) + (summary.won ? 25 : 0));
       account.intelCredits = clampInt(account.intelCredits + creditReward, 0, 1e9);
       account.updatedAt = now;
-      if (typeof result?.missionId === 'string') {
-        const campaignResult = recordCampaignResult(account.campaign, {
-          missionId: result.missionId, won: summary.won, score: result.score, runId: matchId,
-        });
-        if (campaignResult.applied) account.campaign = campaignResult.state;
-      }
       state.processedMatchIds.push(matchId);
       state.processedMatchIds = state.processedMatchIds.slice(-10000);
       state.ledger.push({ id: randomUUID(), accountId, kind: 'match-reward', amount: creditReward, reference: matchId, at: now });
