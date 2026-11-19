@@ -2,35 +2,50 @@
 // arms+gun follow the aim pitch, body bobs, hit flash, a name/health label above the head.
 import * as THREE from 'three';
 import { makeGun } from './guns.js';
+import { bakeBoxes } from './bake.js';
 import { ABILITIES, isCloaked } from '../sim/abilities.js';
 
 const box = new THREE.BoxGeometry(1, 1, 1);
 const SKIN = [0xe0b48f, 0xc68c5e, 0x8d5a3a, 0x6b4128];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-function lambert(c) { return new THREE.MeshLambertMaterial({ color: c }); }
+
+// The soldier's rigid pieces are baked into a few meshes (colours per vertex): body 1, two legs, arms 1 = 4 draw calls instead of 10.
+const DARK = 0x2a2d33, ACCENT = 0x16181c;
+const bodyGeos = new Map();                                              // "team colour|skin tone" -> geometry, shared by every fighter that looks the same
+const LEG = bakeBoxes([[0.19, 0.78, 0.2, 0, -0.39, 0, DARK]]);
+function bodyGeo(color, skin) {
+  const key = color + '|' + skin; let g = bodyGeos.get(key);
+  if (!g) bodyGeos.set(key, g = bakeBoxes([
+    [0.52, 0.6, 0.28, 0, 1.15, 0, color],                                 // torso
+    [0.54, 0.16, 0.3, 0, 0.9, 0, DARK],                                   // belt / vest bottom
+    [0.4, 0.32, 0.06, 0, 1.2, -0.17, DARK],                               // chest plate (front)
+    [0.3, 0.3, 0.3, 0, 1.6, 0, skin],                                     // head
+    [0.34, 0.13, 0.34, 0, 1.74, 0, color],                                // helmet
+    [0.26, 0.07, 0.03, 0, 1.62, -0.155, ACCENT]]));                       // visor
+  return g;
+}
+const armGeos = new Map();
+function armGeo(color) {
+  let g = armGeos.get(color);
+  if (!g) armGeos.set(color, g = bakeBoxes([[0.1, 0.1, 0.62, -0.27, -0.04, -0.3, color, 0.28], [0.1, 0.1, 0.62, 0.27, -0.04, -0.3, color, -0.28]]));
+  return g;
+}
 
 export class FighterView {
   constructor(f, scene) {
     this.f = f; this.scene = scene;
     this.root = new THREE.Group(); scene.add(this.root);
-    const body = lambert(f.color), dark = lambert(0x2a2d33), skin = lambert(SKIN[f.id % SKIN.length]), accent = lambert(0x16181c);
-    this.mats = [body, dark, skin, accent];
-    const part = (m, w, h, d, x, y, z, parent = this.root) => { const o = new THREE.Mesh(box, m); o.scale.set(w, h, d); o.position.set(x, y, z); parent.add(o); return o; };
-
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });       // one material per soldier: the hit flash / cloak / ability glow act on it
+    this.mats = [mat];
     this.body = new THREE.Group(); this.root.add(this.body);                 // everything that bobs
-    part(body, 0.52, 0.6, 0.28, 0, 1.15, 0, this.body);                     // torso
-    part(dark, 0.54, 0.16, 0.3, 0, 0.9, 0, this.body);                      // belt / vest bottom
-    part(dark, 0.4, 0.32, 0.06, 0, 1.2, -0.17, this.body);                  // chest plate (front)
-    part(skin, 0.3, 0.3, 0.3, 0, 1.6, 0, this.body);                        // head
-    part(body, 0.34, 0.13, 0.34, 0, 1.74, 0, this.body);                    // helmet
-    part(accent, 0.26, 0.07, 0.03, 0, 1.62, -0.155, this.body);             // visor
+    this.body.add(new THREE.Mesh(bodyGeo(f.color, SKIN[f.id % SKIN.length]), mat));     // torso, belt, chest plate, head, helmet, visor
     this.legs = [-0.14, 0.14].map((x) => {
       const pivot = new THREE.Group(); pivot.position.set(x, 0.82, 0); this.root.add(pivot);
-      part(dark, 0.19, 0.78, 0.2, 0, -0.39, 0, pivot); return pivot;
+      pivot.add(new THREE.Mesh(LEG, mat)); return pivot;
     });
     this.aim = new THREE.Group(); this.aim.position.set(0, 1.4, 0); this.body.add(this.aim);   // arms + gun pitch together
-    for (const s of [-1, 1]) { const a = part(body, 0.1, 0.1, 0.62, s * 0.27, -0.04, -0.3, this.aim); a.rotation.y = -s * 0.28; }
+    this.aim.add(new THREE.Mesh(armGeo(f.color), mat));
     this.guns = {}; this.gunId = null;
 
     this.flashMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, depthWrite: false, side: THREE.DoubleSide }));

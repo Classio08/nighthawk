@@ -57,7 +57,7 @@ Open the page, type a callsign, press **PLAY ONLINE**, and open a second window 
 ## Check that everything works
 
 ```powershell
-npm test               # 216 unit tests: movement, weapons, bots, zone, ragdolls, props, contracts, vehicles, loot, profile, settings, navigation, multiplayer rules, netcode maths
+npm test               # 223 unit tests: movement, weapons, bots, zone, ragdolls, props, contracts, vehicles, loot, profile, settings, navigation, multiplayer rules, netcode maths
 npm run smoke          # physics + AI engine checks, no browser needed
 npm run server:test    # real server + two real clients with 120 ms fake lag (hits, prediction, leaving)
 npm run build          # makes the website files in the dist folder

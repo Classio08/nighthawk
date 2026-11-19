@@ -22,6 +22,7 @@ import { Hud } from './ui/hud.js';
 import { Atmosphere } from './render/atmosphere.js';
 import { VehiclesView } from './render/vehicles-view.js';
 import { LootView } from './render/loot-view.js';
+import { suppression } from './fx/suppress.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings, QUALITY } from './settings.js';
 import { PlaneView } from './render/plane-view.js';
@@ -112,7 +113,7 @@ async function newMatch(online = null, operation = false) {
   if (sim.weather?.id !== 'clear') hud.message(sim.weather.label, '#cfe3ff', 2.6);
   viewmodel.root.visible = !thirdPerson;
   tracker.reset();
-  window.__nh = { G, sim, cmd, input, hud, camera, audio, viewmodel, net: online };     // handles for the automatic browser test
+  window.__nh = { G, sim, cmd, input, hud, camera, audio, viewmodel, renderer, net: online };     // handles for the automatic browser test
   return G;
 }
 
@@ -165,6 +166,10 @@ function handleEvents() {
         if (e.hit === 'world') {
           decals.hole(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz);
           particles.sparks(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz, 5); particles.dust(e.ex, e.ey, e.ez, e.nx, e.ny, e.nz, 3);
+        }
+        if (e.by !== p.id && p.alive) {                                  // a bullet cracked past my head: shake, dark edges, whizz (client-only, changes nothing in the sim)
+          const k = suppression(e.ox, e.oy, e.oz, e.ex, e.ey, e.ez, p.x, p.eyeY, p.z);
+          if (k > 0) { camfx.add(0.1 + 0.3 * k); hud.suppress(0.18 + 0.4 * k); audio.play('whiz', { vol: 0.5 + 0.5 * k }); }
         }
         void f; break;
       }

@@ -1,8 +1,24 @@
 // Everything you SEE that belongs to the world: sky, ground, buildings, crates, grenades and the shrinking zone wall.
 // It only reads from the Simulation (never changes it).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { bakeGeometries, placed } from './bake.js';
 
 const lambert = (c) => new THREE.MeshLambertMaterial({ color: c });
+
+/** Static meshes that share a material become ONE mesh (one draw call each). Only for things that never move or change: the map's boxes. */
+function mergeStatic(scene, meshes) {
+  const byMat = new Map();
+  for (const m of meshes) {
+    m.updateMatrix();
+    const g = m.geometry.clone().applyMatrix4(m.matrix);
+    const key = m.material.color.getHex();
+    let e = byMat.get(key); if (!e) byMat.set(key, e = { mat: m.material, geos: [] });
+    e.geos.push(g); m.geometry.dispose();
+  }
+  for (const { mat, geos } of byMat.values()) { const merged = mergeGeometries(geos, false); geos.forEach((g) => g.dispose()); const mesh = new THREE.Mesh(merged, mat); mesh.frustumCulled = false; scene.add(mesh); }
+  return byMat.size;
+}
 const KIND_COLORS = {
   block: [0x8d8f93, 0x9a8f7e, 0x7c8591, 0xa39a86, 0x777b80],
   container: [0xb23a2e, 0x2f5f8f, 0x4a6b3a, 0xc08a2d],
@@ -48,26 +64,27 @@ export class WorldView {
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshLambertMaterial({ map: makeSand() }));
     ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
-    let k = 0;
+    let k = 0; const statics = [];
     for (const b of sim.map.boxes) {
       if (b.kind === 'poi-mast') continue; // the detailed cylinder below replaces this collision-only box visually
       const cols = KIND_COLORS[b.kind] ?? KIND_COLORS.block;
       const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), lambert(cols[k++ % cols.length]));
-      m.position.set(b.x, b.y, b.z); scene.add(m);
+      m.position.set(b.x, b.y, b.z); statics.push(m);
       if (b.kind === 'block' || b.kind === 'poi-building') {
         const roof = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.5, 0.35, b.d + 0.5), lambert(0x3d4249));
-        roof.position.set(b.x, b.h + 0.17, b.z); scene.add(roof);
+        roof.position.set(b.x, b.h + 0.17, b.z); statics.push(roof);
         const door = new THREE.Mesh(new THREE.BoxGeometry(Math.min(2.2, b.w * 0.3), 2.4, 0.12), lambert(0x22262b));
-        door.position.set(b.x, 1.2, b.z + b.d / 2 + 0.03); scene.add(door);
+        door.position.set(b.x, 1.2, b.z + b.d / 2 + 0.03); statics.push(door);
         for (const s of [-1, 1]) { // dark windows on two sides
           const win = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.1, Math.min(2.4, b.d * 0.3)), lambert(0x1b2a3a));
-          win.position.set(b.x + s * (b.w / 2 + 0.03), Math.min(b.h - 1, 3), b.z); scene.add(win);
+          win.position.set(b.x + s * (b.w / 2 + 0.03), Math.min(b.h - 1, 3), b.z); statics.push(win);
         }
       } else if (b.kind === 'container' || b.kind === 'poi-container') {
         const stripe = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.04, 0.3, b.d + 0.04), lambert(0x222222));
-        stripe.position.set(b.x, b.y + 0.4, b.z); scene.add(stripe);
+        stripe.position.set(b.x, b.y + 0.4, b.z); statics.push(stripe);
       }
     }
+    this.staticDrawCalls = mergeStatic(scene, statics);     // (the map never changes: roughly 150 meshes become about a dozen draw calls)
 
     // Kavari Basin landmark dressing. These meshes are visual-only; collision remains in sim.map.boxes.
     this.poiMeshes = [];
@@ -108,17 +125,16 @@ export class WorldView {
 
     // loose crates (their bodies are simulated, we just copy their pose)
     const cg = new THREE.BoxGeometry(1.2, 1.2, 1.2);
-    this.crates = sim.crates.map(() => { const m = new THREE.Mesh(cg, lambert(0xa87a3c)); scene.add(m); return m; });   // own material each: it darkens as the crate takes damage
-    // explosive barrels: red drums with a hazard band (they never move, only disappear in a bang)
-    const bg = new THREE.CylinderGeometry(0.42, 0.42, 1.1, 14), band = new THREE.CylinderGeometry(0.435, 0.435, 0.22, 14);
-    const redM = lambert(0xb3281d), yelM = lambert(0xe0b020), topM = lambert(0x6d1710);
-    this.barrels = (sim.barrels ?? []).map((b) => {
-      const g = new THREE.Group(); g.position.set(b.x, b.y, b.z);
-      g.add(new THREE.Mesh(bg, redM)); const y = new THREE.Mesh(band, yelM); y.position.y = 0.12; g.add(y);
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.04, 12), topM); t.position.y = 0.56; g.add(t);
-      scene.add(g); return g;
-    });
-    this.dmgColor = new THREE.Color();
+    // ONE instanced mesh for all crates (one draw call). The material is white; every crate's own colour darkens as it takes damage.
+    this.crates = new THREE.InstancedMesh(cg, new THREE.MeshLambertMaterial({ color: 0xffffff }), Math.max(1, sim.crates.length));
+    this.crates.frustumCulled = false; this.crates.count = sim.crates.length; this.crateDmg = sim.crates.map(() => -1);
+    this._cm = new THREE.Matrix4(); this._cp = new THREE.Vector3(); this._cq = new THREE.Quaternion(); this._cs = new THREE.Vector3(1, 1, 1); this._c0 = new THREE.Vector3(0, 0, 0);
+    scene.add(this.crates);
+    // explosive barrels: red drums with a hazard band (they never move, only disappear in a bang); drum + band + lid are ONE baked mesh
+    const barrelGeo = bakeGeometries([[new THREE.CylinderGeometry(0.42, 0.42, 1.1, 14), 0xb3281d], [placed(new THREE.CylinderGeometry(0.435, 0.435, 0.22, 14), 0, 0.12, 0), 0xe0b020], [placed(new THREE.CylinderGeometry(0.36, 0.36, 0.04, 12), 0, 0.56, 0), 0x6d1710]]);
+    const barrelMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.barrels = (sim.barrels ?? []).map((b) => { const m = new THREE.Mesh(barrelGeo, barrelMat); m.position.set(b.x, b.y, b.z); scene.add(m); return m; });
+    this.dmgColor = new THREE.Color(); this._dmgTo = new THREE.Color();
     this.nadeMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), lambert(0x394a2b));
     this.smokeNadeMat = lambert(0xb9b9b2);      // smoke canisters are pale grey
     this.nades = [];
@@ -137,13 +153,14 @@ export class WorldView {
     const sim = this.sim;
     this.sky.position.set(px, 0, pz);
     for (let i = 0; i < sim.crates.length; i++) {
-      const c = sim.crates[i], m = this.crates[i];
-      if (c.dead) { m.visible = false; continue; }
-      const t = c.body.translation(), r = c.body.rotation();
-      m.position.set(t.x, t.y, t.z); m.quaternion.set(r.x, r.y, r.z, r.w);
-      const dmg = 1 - c.hp / c.maxHp;                                  // wood darkens with damage
-      if (dmg !== m.userData.dmg) { m.userData.dmg = dmg; m.material.color.setHex(0xa87a3c).lerp(this.dmgColor.setHex(0x3b2a14), Math.min(1, dmg * 1.1)); }
+      const c = sim.crates[i];
+      if (c.dead) { this._cm.compose(this._c0, this._cq.identity(), this._c0); }   // a crate that broke: squashed to nothing
+      else { const t = c.body.translation(), r = c.body.rotation(); this._cm.compose(this._cp.set(t.x, t.y, t.z), this._cq.set(r.x, r.y, r.z, r.w), this._cs); }
+      this.crates.setMatrixAt(i, this._cm);
+      const dmg = c.dead ? 0 : 1 - c.hp / c.maxHp;                     // wood darkens with damage
+      if (dmg !== this.crateDmg[i]) { this.crateDmg[i] = dmg; this.crates.setColorAt(i, this.dmgColor.setHex(0xa87a3c).lerp(this._dmgTo.setHex(0x3b2a14), Math.min(1, dmg * 1.1))); }
     }
+    if (sim.crates.length) { this.crates.instanceMatrix.needsUpdate = true; if (this.crates.instanceColor) this.crates.instanceColor.needsUpdate = true; }
     for (let i = 0; i < this.barrels.length; i++) {
       const b = sim.barrels[i], m = this.barrels[i];
       if (b.dead) { m.visible = false; continue; }

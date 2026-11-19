@@ -2,6 +2,7 @@
 // Every gun points down -Z (muzzle at the front). userData: muzzle (Object3D), adsY (height of the sight), len.
 import * as THREE from 'three';
 import { skinMaterial } from './skins.js';
+import { bakeBoxes } from './bake.js';
 
 const DARK = 0x2d3139, MID = 0x4a505a, LIGHT = 0x6d7683, WOOD = 0x7a5534, TAN = 0x9d8a62;
 
@@ -33,6 +34,8 @@ const PARTS = {
 const cache = {};
 const geo = new THREE.BoxGeometry(1, 1, 1);
 function mat(c) { return (cache[c] ??= new THREE.MeshLambertMaterial({ color: c })); }
+const GUN_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });   // the whole gun body is one mesh with the colours baked in
+const bodyCache = new Map();                                            // gun definition -> its merged body geometry (shared by every copy of that gun)
 
 /**
  * @param skin optional skin id (see skins.js): then every part is baked into gun space so the shader pattern runs smoothly over the whole gun
@@ -44,13 +47,19 @@ export function makeGun(id, tint, skin = null) {
   const g = new THREE.Group();
   const sm = skin ? skinMaterial(skin) : null;
   let magMesh = null;
-  def.parts.forEach(([w, h, d, x, y, z, c], i) => {
+  const rest = [];                                                      // everything except the magazine is rigid: bake it into ONE mesh
+  def.parts.forEach((p, i) => {
+    if (i !== def.mag) { rest.push(p); return; }
+    const [w, h, d, x, y, z, c] = p;                                    // the magazine stays its own mesh: the viewmodel slides it during reloads
     let m;
     if (sm) { m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d).translate(x, y, z), sm); }
     else { m = new THREE.Mesh(geo, mat(c)); m.scale.set(w, h, d); m.position.set(x, y, z); }
-    if (i === def.mag) { magMesh = m; m.userData.base = m.position.clone(); }
-    g.add(m);
+    m.userData.base = m.position.clone(); magMesh = m; g.add(m);
   });
+  if (rest.length) {
+    if (sm) g.add(new THREE.Mesh(bakeBoxes(rest, false), sm));          // skinned: baked into gun space so the shader pattern runs smoothly over the whole gun
+    else { let b = bodyCache.get(def); if (!b) bodyCache.set(def, b = bakeBoxes(rest)); g.add(new THREE.Mesh(b, GUN_MAT)); }
+  }
   g.userData.mag = magMesh; g.userData.skin = skin;
   if (tint) { // small colour stripe so each operator's gun looks a bit theirs
     const s = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: tint }));

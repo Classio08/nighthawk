@@ -29,7 +29,7 @@ Rule: every milestone ends with something you can open in a browser and play. St
 | Monetisation | Not implemented | Platform adapters and policy review required |
 | Production deployment | Pending | Deploy and test with players on separate networks; localhost load test done (`npm run load`, `docs/DEPLOY.md` C3), VPS and real-network tests outstanding |
 | Missions | First offline operation built | Operation DUST LANTERN: seeded rescue/recovery/extraction with clues, escort, alert ladder and debrief (offline only; online mission state needs a versioned snapshot and server validation first) |
-| Automated quality | Built | 216 unit tests, smoke checks, server netcode test (retried up to 3x, it is timing-sensitive), 17 browser scripts, production build in `npm run check`; CI workflow merged |
+| Automated quality | Built | 223 unit tests (incl. a source-level purity guard for `src/sim`), smoke checks, server netcode test (retried up to 3x, it is timing-sensitive), 18 browser scripts (incl. a draw-call budget check), production build in `npm run check`; CI workflow merged |
 | Persistent accounts/progression | Not implemented | Guest profile is local only; no cross-device account, mission ledger or server-backed economy |
 | AI long-term memory | Not implemented | Current AI is tactical/utility based plus a mission alert director; no persistent faction intelligence model |
 | Audio/haptics | First pass | ZzFX and gameplay cues exist; full spatial audio and controller/mobile haptics remain open |
@@ -44,6 +44,7 @@ Rule: every milestone ends with something you can open in a browser and play. St
 - **Stage 14:** parachute drop-in (plane, free fall, parachute; solo and online).
 - **Stage 16:** smoke grenades (`X`; blocks line of sight for about 16 s, bots use them, solo and online).
 - **Stage 17:** melee strike (`B`; a kill from behind, bots use it at point blank, solo and online).
+- **Stage 18:** draw-call cut (measured 284-618 -> 160-234 per view with 16 fighters and loot; same look), suppression effect for near-miss bullets (client-only), `src/sim` purity guard test, `scripts/e2e-perf.mjs` budget check.
 - **Operation DUST LANTERN** (ChatGPT, merged and browser-tested): offline rescue mission with an alert director.
 - **Frame-time telemetry:** `window.__nhPerf()` gives rolling p50/p95/p99.
 - **Mission objective extension:** two-stage relay uplink; secure the relay alone, then hold it alone for upload. Existing garrison guards redeploy without spawning extra fighters.

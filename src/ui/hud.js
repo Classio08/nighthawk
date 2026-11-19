@@ -12,12 +12,12 @@ export class Hud {
     this.el = {
       alive: $('alive'), kills: $('kills'), zone: $('zone'), fps: $('fpsn'), ping: $('pingn'), feed: $('feed'), slots: $('slots'), msg: $('msg'),
       hpbar: $('hpbar'), hpn: $('hpn'), opname: $('opname'), wname: $('wname'), mag: $('mag'), nades: $('nades'), rl: $('rl'),
-      vig: $('vig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
+      vig: $('vig'), suppvig: $('suppvig'), zonevig: $('zonevig'), flash: $('flash'), hitm: $('hitm'), dmg: $('dmg'), mini: $('mini'),
       cu: $('cu'), cd: $('cd'), cl: $('cl'), cr: $('cr'), ct: $('ct'), veh: $('veh'), air: $('air'), mission: $('mission'),
       abil: $('abil'), abname: $('abname'), abbar: $('abbar'), abtxt: $('abtxt'), arm: $('arm'), armbar: $('armbar'), armn: $('armn'), medn: $('medn'), kit: $('kit'), heal: $('heal'), pk: $('pk'),
     };
     this.mctx = this.el.mini.getContext('2d');
-    this.hurt = 0; this.hitT = 0; this.msgT = 0; this.flashV = 0; this.pings = [];
+    this.hurt = 0; this.supp = 0; this.hitT = 0; this.msgT = 0; this.flashV = 0; this.pings = [];
     this.arrows = [];
     for (let i = 0; i < 6; i++) { const a = document.createElement('i'); this.el.dmg.appendChild(a); this.arrows.push({ el: a, t: 0, ang: 0 }); }
     this.slotEls = SLOT_ORDER.map((id, i) => { const d = document.createElement('div'); d.className = 'box'; d.textContent = `${i + 1} ${WEAPONS[id].name.split(' ')[0]}`; this.el.slots.appendChild(d); return d; });
@@ -74,6 +74,8 @@ export class Hud {
     while (this.el.feed.children.length > 6) this.el.feed.lastChild.remove();
   }
   hurtFlash(a = 0.6) { this.hurt = Math.min(1, this.hurt + a); }
+  /** a bullet cracked past (client-only): the screen edges darken for a moment */
+  suppress(a) { this.supp = Math.min(0.9, this.supp + a); }
   whiteFlash(a) { this.flashV = Math.max(this.flashV, a); }
   ping(x, z) { this.pings.push({ x, z, t: 1.5 }); }
 
@@ -104,7 +106,8 @@ export class Hud {
     e.cl.style.transform = `translateX(${-gap}px)`; e.cr.style.transform = `translateX(${gap}px)`;
     $('cross').style.opacity = adsK > 0.85 && p.cur === 'dmr' ? 0 : 1;
     // flashes
-    this.hurt = Math.max(0, this.hurt - dt * 1.3);
+    this.hurt = Math.max(0, this.hurt - dt * 1.3); this.supp = Math.max(0, this.supp - dt * 1.4);
+    if (e.suppvig) e.suppvig.style.opacity = this.supp;
     const low = p.hp / p.maxHp < 0.3 ? 0.35 + 0.15 * Math.sin(performance.now() / 160) : 0;
     e.vig.style.opacity = Math.min(1, this.hurt + low);
     e.zonevig.style.opacity = outside ? 0.5 + 0.3 * Math.sin(performance.now() / 150) : 0;
