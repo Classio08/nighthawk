@@ -19,6 +19,7 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 - Jump input is buffered for 150 ms and coyote time is 120 ms. The timers are included in private self-state so prediction can reconcile them.
 - Hard landings emit a physical landing event and retain server-side fall damage. The renderer adds dust and local camera impulse.
 - Explosions apply a distance-squared, upward-biased impulse to dynamic props with mass scaling. Existing blast LOS protection, armour rules, vehicle damage and barrel chaining remain in place.
+- This dependent branch adds bounded, deterministic fragmentation for frag grenades, fuel barrels and mortar impacts. Each blast uses a separate seeded stream, a fixed small ray budget and existing Rapier solid colliders. A fragment only damages the first fighter it reaches before a wall; fragments cannot pass through concrete, rock, sand or other solid cover. Armor absorbs fragment damage and the hit produces the same small server movement response as other impacts.
 - NPCs hear explosions through the existing weather-adjusted hearing path.
 - Material-specific hit effects use the existing pooled particles and decals: sparks, splinters, shatter/dust effects, blood spray and existing death ragdolls.
 - Remote gunshot audio is delayed by source-listener distance / 343 m/s. Hit registration remains instant hitscan; the audio delay is cosmetic and does not alter server timing.
@@ -37,7 +38,7 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 ## Not yet implemented (do not claim otherwise)
 
 1. Full ballistic projectile travel with flight-time damage and curved trajectories. The current weapon simulation is still hitscan; the new material and recoil rules apply to the shared hitscan resolution. A future projectile system needs bounded server-side projectile objects, lag-compensation decisions, collision/material response and a compact snapshot/event representation before going online.
-2. Shrapnel / pellet debris from frag, mortar and barrel explosions. Explosions currently use radial damage and Rapier impulses plus existing chain reactions; no hidden corner-killing fragments have been added.
+2. Physical shrapnel pieces with flight-time, bouncing and replicated fragment meshes. Current fragmentation is an instant deterministic server-side ray trace with a capped number of rays; it does not create persistent fragment bodies or client-side debris.
 3. Fully articulated character rigid-body physics while alive. Fighters still use the existing kinematic capsule for fair multiplayer movement; the death ragdoll is a client-side visual/physical presentation.
 4. Persistent bleeding, bandage inventory, armour plates with separate hit zones, blood pools that grow under bodies, wall blood decals with surface alignment, door hinges, destructible glass shards, water volume forces, sand projectile drag, and moving sandbag cover. The materials table defines room for these responses, but not all are connected to world geometry yet.
 5. Footstep / explosion / gunshot wall occlusion and interior reverb. Distant shot timing is in place; propagation through geometry still needs an audio design pass.
@@ -47,6 +48,7 @@ NIGHTHAWK already uses Rapier 3D, a fixed 60 Hz shared simulation, authoritative
 ## Integration / handoff for Claude
 
 - Preserve `src/sim/physics-correlation.js` as a graphics-free pure module.
+- Fragment rays are bounded per blast (grenade 14, barrel 10, mortar 12) and use a distinct seed derived from match seed, tick, owner and blast serial. Keep this cap until the server tick budget is measured.
 - Preserve the new private state fields in `Fighter.exportSelf/importSelf` and `NetSim.DELEGATED`.
 - If changing network state, extend private self-state only when necessary; avoid sending per-frame physics data for every remote fighter.
 - Do not introduce unseeded randomness or wall-clock time in `src/sim`.
