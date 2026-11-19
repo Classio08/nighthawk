@@ -148,6 +148,19 @@ export class BlackSiteRound {
     this.reportedBodies.add(corpse.id);
     this.stage = 'meeting'; this.meetingT = 18; this.meetingReporter = reporter.id;
     this.votes.clear();
+    // NPCs cast private votes from what the round has shown them; no role map is published.
+    const bots = this.sim.fighters.filter((f) => f.alive && f.id !== reporter.id);
+    for (const bot of bots) {
+      const candidates = bots.filter((f) => f.id !== bot.id);
+      if (!candidates.length) continue;
+      let best = null, bestScore = 0;
+      for (const candidate of candidates) {
+        const score = this.suspicion.get(candidate.id) ?? 0;
+        if (score > bestScore) { best = candidate; bestScore = score; }
+      }
+      if (!best && this.rng() < 0.45) best = candidates[Math.floor(this.rng() * candidates.length)];
+      this.votes.set(bot.id, best?.id ?? null);
+    }
     this.sim.emit({
       t: 'black-site', phase: 'meeting', reporter: reporter.id, body: corpse.id,
       candidates: this.sim.fighters.filter((f) => f.alive).map((f) => ({ id: f.id, name: f.name })),
@@ -155,7 +168,7 @@ export class BlackSiteRound {
   }
 
   vote(voterId, targetId = null) {
-    if (this.stage !== 'meeting' || !this.sim.fighters[voterId]?.alive) return false;
+    if (this.stage !== 'meeting' || !this.sim.fighters[voterId]?.alive || this.votes.has(voterId)) return false;
     if (targetId !== null && (!this.sim.fighters[targetId]?.alive || targetId === voterId)) return false;
     this.votes.set(voterId, targetId);
     this.sim.emit({ t: 'black-site', phase: 'vote-cast', by: voterId });
