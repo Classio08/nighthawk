@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bakeGeometries, placed } from './bake.js';
 import { makeGroundTexture, makeConcreteTexture, makeMetalTexture, mottlePlane, worldUV } from './proc-textures.js';
+import { loadRepeatTexture } from './optional-models.js';
 
 const lambert = (c) => new THREE.MeshLambertMaterial({ color: c });
 
@@ -53,7 +54,9 @@ export class WorldView {
     this.sky.renderOrder = -10; scene.add(this.sky);
 
     const groundTex = makeGroundTexture();
-    const ground = new THREE.Mesh(mottlePlane(new THREE.PlaneGeometry(600, 600, 48, 48), 48), new THREE.MeshLambertMaterial({ map: groundTex, vertexColors: true }));   // procedural sand + large soft patches
+    const sandColor = loadRepeatTexture('/textures/ground/ground087_color.jpg', 48, true);
+    const sandNormal = loadRepeatTexture('/textures/ground/ground087_normal.jpg', 48, false);
+    const ground = new THREE.Mesh(mottlePlane(new THREE.PlaneGeometry(600, 600, 48, 48), 48), new THREE.MeshLambertMaterial({ map: sandColor, normalMap: sandNormal, vertexColors: true }));   // official CC0 Ground087, with the procedural colour patches on top
     ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
     const textures = { concrete: { map: makeConcreteTexture(), metres: 4 }, metal: { map: makeMetalTexture(), metres: 2.4 } };
