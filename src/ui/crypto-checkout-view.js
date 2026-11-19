@@ -97,7 +97,7 @@ export function mountCryptoCheckout(container, serverUrl, {
       card.appendChild(el('small', 'Your wallet will show the recipient, token and exact amount before you confirm.'));
       card.appendChild(action(owned ? 'OWNED' : 'PAY WITH WALLET', async () => {
         status.textContent = 'OPENING YOUR WALLET…';
-        const result = await checkoutCosmetic(serverUrl, item.id, { provider, fetchImpl, storage: walletStorage });
+        const result = await checkoutCosmetic(serverUrl, item.id, { provider, fetchImpl, storage: walletStorage, pendingStorage: storage });
         if (result.pending) {
           status.textContent = `TRANSFER SUBMITTED · WAITING FOR ${result.confirmationsRequired} CONFIRMATIONS`;
           await refreshPending();
