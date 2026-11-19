@@ -82,3 +82,15 @@ Do not attempt all systems in one sprint. Preserve the existing Three.js/Rapier/
 A follow-on branch `feature/dust-lantern-alert-director` (draft PR #22) builds on the first playable DUST LANTERN branch. It adds `MissionAlertDirector` which derives a compact operation-wide threat level from evidence already held by living guard NPC brains: direct visual contact, recent sound investigation, and recent last-known-position reports. The pressure rises faster than it cools, and the HUD reports routine / uneasy / searching / alert / crisis. This system must never reveal hidden player coordinates or grant guards omniscient tracking. Tests cover escalation, observer counts, decay, and exclusion of dead/non-guard NPCs.
 
 Do not merge this follow-on before PR #20 is reviewed; it is based on the PR #20 branch to keep the dependency explicit. The alert director is an initial aggregate signal, not yet a full witness/body discovery, radio network or branching mission director.
+
+## Parallel platform workstream — 19 November 2026
+
+A separate documentation-only branch, `design/economy-creator-cinematic-platform`, defines three adjacent workstreams while the gameplay/asset work proceeds elsewhere:
+
+- `docs/ECONOMY_SECURITY_HARDENING.md`: current economy inventory, service boundaries, double-entry ledger invariants, mintable cosmetic lifecycle, token policy, payment/creator accounting and security threat model.
+- `docs/CREATOR_STREAMER_PLATFORM.md`: streamer privacy mode, replay/clip pipeline, OBS overlay contract, template-based mission creator, moderation and creator programme.
+- `docs/CINEMATICS_CHARACTERS_ROLEPLAY.md`: data-driven in-engine timeline, camera/animation rules, character memory and dialogue model, mission-story template and CGI/VFX budgets.
+
+These documents are proposals and hardening plans, not claims that the described systems exist. The existing economy implementation is already documented in `docs/ECONOMY.md`; inspect it before coding and do not duplicate it. Keep `data/compliance.json` closed by default. No real-value token issuance, deposits, withdrawals, creator payouts, wagering or staking are enabled by this workstream. The draft contracts remain unaudited and undeployed.
+
+The branch is isolated from Claude's work. Do not merge it automatically. No tests, builds, browser sessions, CI, deployment or VPS work were run for this documentation contribution.
