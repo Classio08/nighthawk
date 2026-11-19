@@ -22,6 +22,9 @@ export class MissionAlertDirector {
       } else if (brain.heard && brain.heardT < 3) {
         evidence = Math.max(evidence, 0.68);
         kind = kind === 'visual-contact' ? kind : 'sound-investigation';
+      } else if (brain.evidenceType === 'body' && brain.evidenceT > 0) {
+        evidence = Math.max(evidence, 0.76);
+        kind = kind === 'visual-contact' ? kind : 'body-discovery';
       } else if (brain.lastSeen && brain.lastSeenT < 8) {
         evidence = Math.max(evidence, 0.48);
         kind = kind === 'visual-contact' || kind === 'sound-investigation' ? kind : 'last-known-position';
