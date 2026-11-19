@@ -28,7 +28,7 @@ export const SAFEHOUSE_CATALOG = Object.freeze([
 ]);
 
 function blankDatabase() {
-  return { version: 1, accounts: {}, sessions: {}, roomTickets: {}, ledger: [], processedMatchIds: [] };
+  return { version: 1, accounts: {}, sessions: {}, roomTickets: {}, ledger: [], processedMatchIds: [], cryptoIntents: {}, processedCryptoTxs: [] };
 }
 
 function safeDatabase(raw) {
@@ -51,6 +51,7 @@ function safeDatabase(raw) {
           identity: typeof item.equipped.identity === 'string' ? item.equipped.identity : null,
         } : { weaponSkin: null, uniform: null, identity: null },
         safehouses: Array.isArray(item.safehouses) ? [...new Set(item.safehouses.filter((x) => SAFEHOUSE_CATALOG.some((b) => b.id === x)))].slice(0, 3) : [],
+        wallets: Array.isArray(item.wallets) ? [...new Set(item.wallets.filter((x) => typeof x === 'string' && /^0x[a-f0-9]{40}$/i.test(x)).map((x) => x.toLowerCase()))].slice(0, 8) : [],
         campaign: item.campaign && typeof item.campaign === 'object' && !Array.isArray(item.campaign) ? item.campaign : { completed: [], reputation: {} },
         purchaseRequests: Array.isArray(item.purchaseRequests) ? [...new Set(item.purchaseRequests.filter((x) => typeof x === 'string'))].slice(-200) : [],
       };
@@ -76,6 +77,26 @@ function safeDatabase(raw) {
     reference: String(entry.reference ?? '').slice(0, 80), at: clampInt(entry.at, 0, 4e12),
   })) : [];
   db.processedMatchIds = Array.isArray(raw.processedMatchIds) ? [...new Set(raw.processedMatchIds.filter((x) => typeof x === 'string'))].slice(-10000) : [];
+  db.processedCryptoTxs = Array.isArray(raw.processedCryptoTxs) ? [...new Set(raw.processedCryptoTxs.filter((x) => typeof x === 'string' && /^0x[a-f0-9]{64}$/i.test(x)).map((x) => x.toLowerCase()))].slice(-10000) : [];
+  if (raw.cryptoIntents && typeof raw.cryptoIntents === 'object' && !Array.isArray(raw.cryptoIntents)) {
+    for (const [id, row] of Object.entries(raw.cryptoIntents)) {
+      if (!/^[0-9a-f-]{36}$/i.test(id) || !row || typeof row !== 'object' || !db.accounts[row.accountId]) continue;
+      if (!COSMETIC_CATALOG.some((item) => item.id === row.cosmeticId)) continue;
+      if (!/^0x[a-f0-9]{40}$/i.test(row.walletAddress ?? '') || !/^0x[a-f0-9]{40}$/i.test(row.tokenAddress ?? '') || !/^0x[a-f0-9]{40}$/i.test(row.treasuryAddress ?? '')) continue;
+      if (!/^\\d{1,78}$/.test(String(row.amountUnits ?? '')) || !Number.isInteger(row.chainId) || row.chainId < 1) continue;
+      db.cryptoIntents[id] = {
+        id, accountId: row.accountId, cosmeticId: row.cosmeticId,
+        walletAddress: row.walletAddress.toLowerCase(), tokenAddress: row.tokenAddress.toLowerCase(), treasuryAddress: row.treasuryAddress.toLowerCase(),
+        amountUnits: String(row.amountUnits), symbol: String(row.symbol ?? 'TOKEN').slice(0, 12), decimals: clampInt(row.decimals, 0, 18),
+        chainId: row.chainId, confirmations: clampInt(row.confirmations, 1, 256),
+        createdAt: clampInt(row.createdAt, 0, 4e12), expiresAt: clampInt(row.expiresAt, 0, 4e12),
+        status: ['pending', 'paid', 'expired'].includes(row.status) ? row.status : 'pending',
+        txHash: /^0x[a-f0-9]{64}$/i.test(row.txHash ?? '') ? row.txHash.toLowerCase() : null,
+        blockNumber: Number.isInteger(row.blockNumber) ? clampInt(row.blockNumber, 0, 1e12) : null,
+        confirmedAt: clampInt(row.confirmedAt, 0, 4e12),
+      };
+    }
+  }
   return db;
 }
 
@@ -89,6 +110,7 @@ function publicAccount(account) {
     cosmetics: account.cosmetics,
     equipped: account.equipped,
     safehouses: account.safehouses.map((id) => SAFEHOUSE_CATALOG.find((base) => base.id === id)).filter(Boolean),
+    wallets: [...account.wallets],
     campaign: account.campaign,
   };
 }
@@ -152,7 +174,7 @@ export class AccountService {
         id, displayName: cleanName(displayName) || `Operator-${id.slice(0, 4).toUpperCase()}`,
         createdAt: now, updatedAt: now, profile: defaultProfile(now), intelCredits: 0,
         cosmetics: [], equipped: { weaponSkin: null, uniform: null, identity: null },
-        safehouses: [], campaign: { completed: [], reputation: {} }, purchaseRequests: [],
+        safehouses: [], wallets: [], campaign: { completed: [], reputation: {} }, purchaseRequests: [],
       };
       state.accounts[id] = account;
       state.sessions[hash(sessionToken)] = { accountId: id, expiresAt: now + 365 * DAY };
@@ -232,6 +254,7 @@ export class AccountService {
       if (typeof requestId !== 'string' || !/^[a-zA-Z0-9_-]{8,80}$/.test(requestId)) return { ok: false, status: 400, error: 'invalid-request-id' };
       if (account.purchaseRequests.includes(requestId)) return { ok: true, duplicate: true, account: publicAccount(account) };
       if (account.cosmetics.includes(cosmeticId)) return { ok: false, status: 409, error: 'already-owned' };
+      if (Object.values(state.cryptoIntents).some((intent) => intent.accountId === account.id && intent.cosmeticId === cosmeticId && intent.status === 'pending' && intent.expiresAt > now)) return { ok: false, status: 409, error: 'crypto-checkout-pending' };
       if (account.intelCredits < item.cost) return { ok: false, status: 409, error: 'not-enough-intel-credits' };
       account.intelCredits -= item.cost;
       account.cosmetics.push(cosmeticId);
@@ -267,6 +290,105 @@ export class AccountService {
       state.ledger.push({ id: randomUUID(), accountId: account.id, kind: 'safehouse-deed', amount: -base.cost, reference: safehouseId, at: now });
       state.ledger = state.ledger.slice(-2000);
       return { ok: true, safehouse: base, account: publicAccount(account) };
+    });
+  }
+
+  async createCryptoIntent(sessionToken, quote) {
+    const now = this.now();
+    return this._mutate((state) => {
+      const account = this._session(state, sessionToken);
+      const item = COSMETIC_CATALOG.find((entry) => entry.id === quote?.cosmeticId);
+      if (!account) return { ok: false, status: 401, error: 'session-expired' };
+      if (!item) return { ok: false, status: 404, error: 'unknown-cosmetic' };
+      if (account.cosmetics.includes(item.id)) return { ok: false, status: 409, error: 'already-owned' };
+      if (Object.values(state.cryptoIntents).some((intent) => intent.accountId === account.id && intent.cosmeticId === item.id && intent.status === 'pending' && intent.expiresAt > now)) {
+        return { ok: false, status: 409, error: 'crypto-checkout-pending' };
+      }
+      const address = (value) => typeof value === 'string' && /^0x[a-f0-9]{40}$/i.test(value);
+      if (!address(quote.walletAddress) || !address(quote.tokenAddress) || !address(quote.treasuryAddress)) return { ok: false, status: 400, error: 'invalid-wallet-quote' };
+      if (!/^\\d{1,78}$/.test(String(quote.amountUnits ?? '')) || BigInt(quote.amountUnits) <= 0n) return { ok: false, status: 400, error: 'invalid-payment-amount' };
+      if (!Number.isInteger(quote.chainId) || quote.chainId < 1) return { ok: false, status: 400, error: 'invalid-payment-chain' };
+      const id = randomUUID();
+      const intent = {
+        id, accountId: account.id, cosmeticId: item.id,
+        walletAddress: quote.walletAddress.toLowerCase(),
+        tokenAddress: quote.tokenAddress.toLowerCase(),
+        treasuryAddress: quote.treasuryAddress.toLowerCase(),
+        amountUnits: String(quote.amountUnits),
+        symbol: String(quote.symbol ?? 'TOKEN').slice(0, 12),
+        decimals: clampInt(quote.decimals, 0, 18),
+        chainId: quote.chainId,
+        confirmations: clampInt(quote.confirmations, 1, 256),
+        createdAt: now,
+        expiresAt: now + clampInt(quote.ttlMs, 60_000, 30 * 60_000),
+        status: 'pending', txHash: null, blockNumber: null, confirmedAt: 0,
+      };
+      state.cryptoIntents[id] = intent;
+      return {
+        ok: true,
+        intent: {
+          id, cosmetic: { id: item.id, name: item.name },
+          chainId: intent.chainId, tokenAddress: intent.tokenAddress,
+          treasuryAddress: intent.treasuryAddress, walletAddress: intent.walletAddress,
+          amountUnits: intent.amountUnits, symbol: intent.symbol, decimals: intent.decimals,
+          confirmations: intent.confirmations, expiresAt: intent.expiresAt,
+        },
+      };
+    });
+  }
+
+  async getCryptoIntent(sessionToken, intentId) {
+    return this._read((state) => {
+      const account = this._session(state, sessionToken);
+      if (!account) return null;
+      const intent = state.cryptoIntents[intentId];
+      if (!intent || intent.accountId !== account.id) return null;
+      return {
+        id: intent.id, cosmeticId: intent.cosmeticId, status: intent.status,
+        amountUnits: intent.amountUnits, symbol: intent.symbol, decimals: intent.decimals,
+        txHash: intent.txHash, blockNumber: intent.blockNumber,
+        confirmations: intent.confirmations, expiresAt: intent.expiresAt,
+      };
+    });
+  }
+
+  async confirmCryptoIntent(sessionToken, intentId, txHash, verified) {
+    const now = this.now();
+    return this._mutate((state) => {
+      const account = this._session(state, sessionToken);
+      if (!account) return { ok: false, status: 401, error: 'session-expired' };
+      const intent = state.cryptoIntents[intentId];
+      if (!intent || intent.accountId !== account.id) return { ok: false, status: 404, error: 'payment-intent-not-found' };
+      const hashValue = String(txHash ?? '').toLowerCase();
+      if (!/^0x[a-f0-9]{64}$/.test(hashValue)) return { ok: false, status: 400, error: 'invalid-transaction-hash' };
+      if (intent.status === 'paid' && intent.txHash === hashValue) return { ok: true, duplicate: true, account: publicAccount(account), intent: { id: intent.id, status: intent.status, txHash: intent.txHash } };
+      if (intent.status !== 'pending') return { ok: false, status: 409, error: 'payment-intent-not-pending' };
+      if (intent.expiresAt <= now) { intent.status = 'expired'; return { ok: false, status: 410, error: 'payment-intent-expired' }; }
+      if (state.processedCryptoTxs.includes(hashValue)) return { ok: false, status: 409, error: 'transaction-already-used' };
+      const same = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
+      if (!verified || verified.success !== true || verified.chainId !== intent.chainId ||
+          !same(verified.from, intent.walletAddress) || !same(verified.tokenAddress, intent.tokenAddress) ||
+          !same(verified.recipient, intent.treasuryAddress) || String(verified.amountUnits) !== intent.amountUnits ||
+          !Number.isInteger(verified.confirmations) || verified.confirmations < intent.confirmations) {
+        return { ok: false, status: 409, error: 'payment-verification-mismatch' };
+      }
+      const item = COSMETIC_CATALOG.find((entry) => entry.id === intent.cosmeticId);
+      if (!item) return { ok: false, status: 409, error: 'cosmetic-no-longer-available' };
+      if (!account.cosmetics.includes(item.id)) account.cosmetics.push(item.id);
+      if (item.type === 'weapon-skin') account.equipped.weaponSkin = item.id;
+      if (item.type === 'uniform') account.equipped.uniform = item.id;
+      if (item.type === 'identity') account.equipped.identity = item.id;
+      if (!account.wallets.includes(intent.walletAddress)) account.wallets.push(intent.walletAddress);
+      account.wallets = account.wallets.slice(0, 8);
+      account.updatedAt = now;
+      intent.status = 'paid'; intent.txHash = hashValue; intent.blockNumber = verified.blockNumber ?? null; intent.confirmedAt = now;
+      state.processedCryptoTxs.push(hashValue); state.processedCryptoTxs = state.processedCryptoTxs.slice(-10000);
+      state.ledger.push({
+        id: randomUUID(), accountId: account.id, kind: 'crypto-cosmetic-purchase', amount: 0,
+        reference: item.id, at: now, asset: intent.symbol, tokenUnits: intent.amountUnits, txHash: hashValue,
+      });
+      state.ledger = state.ledger.slice(-2000);
+      return { ok: true, duplicate: false, item, account: publicAccount(account), intent: { id: intent.id, status: intent.status, txHash: intent.txHash } };
     });
   }
 
