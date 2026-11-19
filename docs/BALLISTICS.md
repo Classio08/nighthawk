@@ -8,8 +8,8 @@
 - The shared 60 Hz Simulation launches bullets as bounded, deterministic projectile records. The integrator applies gravity and velocity drag with a fixed timestep.
 - Collision uses a swept segment against existing Rapier world colliders and the same fighter capsule helper used by the hitscan system. The server decides fighter damage, props, vehicles and hit outcomes.
 - Fighter samples use the shooter's rewind tick plus projectile flight ticks. This keeps lag compensation tied to the time the shooter saw, while allowing damage to arrive after flight time.
-- Thin wood and glass can transmit one reduced-energy projectile using the existing material response table. Metal can cause one energy-reduced ricochet. Solid concrete, rock and sand stop the shot.
-- A projectile emits compact tracer-segment events rather than a high-frequency position snapshot. The existing event buffer forwards those segments with normal match snapshots; the renderer adds each segment to the existing pooled tracer system.
+- Thin wood and glass can transmit one reduced-energy projectile using the existing material response table. Metal can cause one energy-reduced ricochet. Solid concrete, rock and sand stop the shot. Vehicle collider handles are now explicitly registered as metal so they use the same projectile impact response.
+- A projectile emits compact tracer-segment events at the existing 20 Hz snapshot cadence, rather than a high-frequency position snapshot. Impact events are emitted immediately within the next snapshot; the renderer adds each segment to the existing pooled tracer system.
 - Prediction tags projectiles with the input sequence. During server reconciliation, already-acknowledged in-flight rounds are kept and only unacknowledged rounds are discarded before input replay.
 - A fixed 512-projectile cap bounds work. If the cap is reached, the firing path falls back to the previous ray-based path rather than allowing unbounded projectile growth.
 
