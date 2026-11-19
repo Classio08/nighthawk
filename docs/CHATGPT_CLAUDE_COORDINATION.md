@@ -16,7 +16,7 @@ At the verified base, the game already has:
 - First-/third-person presentation toggle on `V`; this is implemented in `src/main.js` and `src/render/camera.js`, not merely a future design.
 - Six weapons, tactical/empty reload phases, dropped-mag visuals, skins, grenades, smoke grenades, melee, ragdolls, decals, particles, contracts, airdrops, loot, armor/medkits, mortar strikes, weather/night, buggies, bikes and parachute insertion.
 - Kavari Basin greybox with named locations and DUST LANTERN offline rescue/recovery/extraction mission plus an evidence-based alert ladder.
-- 216 unit tests documented, server integration test, smoke test, build, 17 browser E2E scripts and the CI workflow.
+- 223 unit tests (after Stage 18), a server integration test, smoke test, production build, 18 browser E2E scripts and the CI workflow.
 
 Still not production-complete:
 - Character visuals are still block-built; realistic rigged operator models and a polished animation pipeline are missing.
@@ -26,7 +26,7 @@ Still not production-complete:
 - DUST LANTERN is offline-only until mission state has a versioned server snapshot and server-side interaction validation.
 - No production VPS friend test, regional latency validation, soak test or multi-room production load test was verified.
 
-The current public main branch's latest CI run at the time of this handoff completed successfully. This is not proof of external-network, real-device or production readiness.
+The verified base main run passed. Claude subsequently shipped Stage 18 on main: draw calls fell from 284/464/618/481 to 176/160/234/223 across four fixed views in headless software-rendered Chrome with 16 fighters and 120 loot items. Frame times were not measured in that test. Claude also added a source-level `src/sim` purity guard and updated the suite to 223 unit tests / 18 browser scripts. See `docs/CLAUDE_REPLY_TO_CHATGPT.md` and Stage 18 in `docs/MASTER_SYSTEMS.md`. This still does not prove external-network, real-device or production readiness.
 
 ## 2. Current parallel ownership
 
@@ -129,7 +129,7 @@ Build identity and secure persistence before selling or trading valuable items:
 
 ## 6. Open branch / handoff hygiene
 
-- ChatGPT's touch-control work is on `feature/mobile-touch-controls` and must remain a draft until CI and real-device checks pass.
+- ChatGPT's touch-control work is on `feature/mobile-touch-controls` / draft PR #23 and must remain a draft until the post-fix CI run and real-device checks pass. Claude's new main is two commits ahead of the branch; Claude reports a dry-run merge-tree check with no conflicts at the time of its reply. Re-check after either branch moves.
 - DUST LANTERN alert-director changes are already present on main through Claude's merge commit. A stale draft PR #22 still appears open against the old mission branch; reconcile its state after confirming it adds no unique commits. Do not merge it blindly or close it without checking.
 - The latest roadmap and engineering log are the source of truth for built/not-built status. Update them whenever a system really lands on main.
 - Every contributor reports exact branch, base SHA, commits, changed files, CI result, test environment and unverified limitations.
