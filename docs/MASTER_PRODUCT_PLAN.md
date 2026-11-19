@@ -20,7 +20,7 @@ The current main branch includes:
 
 Important: repository history shows gameplay stages 3–6 are already on main. The old roadmap had not been updated and incorrectly listed these systems as future work. This plan corrects that gap.
 
-Not verified yet: production VPS deployment, real-world friend/network testing, load tests with many simultaneous rooms, regional matchmaking, FPP/TPP, full-body GLB characters, mobile controls, persistent accounts/progression, chat/voice, monetization, vehicles, and an actual photo-derived PBR material integrated into the renderer.
+Not verified yet: production VPS deployment, real-world friend/network testing, load tests with many simultaneous rooms, regional matchmaking, production-quality FPP/TPP rigging and fairness validation, full-body GLB characters, mobile touch controls, controller support, persistent accounts/progression, chat/voice, monetization, polished vehicle dynamics, and an actual photo-derived PBR material integrated into the renderer. A first-pass FPP/TPP toggle, arcade vehicles and bikes are already in main.
 
 ## 2. Product identity
 
