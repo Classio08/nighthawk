@@ -79,12 +79,17 @@ test('NFT: ABI encoding of balanceOf, uint parsing, token ids map only to skins 
 test('NFT: read-only eth_call flow with a fake RPC; wrong chain and RPC errors are refused', async () => {
   const me = '0x2c7536E3605D9C16a7a3D7b1898e529396a65c23', contract = '0x' + 'cc'.repeat(20), calls = [];
   const rpc = (chain, owns) => async (_url, init) => {
-    const q = JSON.parse(init.body); calls.push(q.method);
+    const q = JSON.parse(init.body); calls.push(q.method); assert.ok(init.signal, 'RPC calls are bounded by an abort timeout');
     const result = q.method === 'eth_chainId' ? '0x' + chain.toString(16) : (owns.includes(parseInt(q.params[0].data.slice(-64), 16)) ? '0x' + '0'.repeat(63) + '1' : '0x' + '0'.repeat(64));
     return { ok: true, json: async () => ({ jsonrpc: '2.0', id: 1, result }) };
   };
   const r = await ownedCosmetics({ rpcUrl: 'x', chainId: 11155111, contract, address: me }, rpc(11155111, [1, 3]));
   assert.deepEqual(r.tokens, [1, 3]); assert.deepEqual(r.skins, ['gold', 'reactive']); assert.ok(calls.every((m) => m === 'eth_chainId' || m === 'eth_call'), 'only read-only methods: ' + calls.join(','));
+  await assert.rejects(ownedCosmetics({ rpcUrl: 'x', chainId: 11155111, contract, address: me }, async () => ({ ok: true, json: async () => ({ jsonrpc: '2.0', id: 9, result: '0xaa36a7' }) })), /invalid JSON-RPC response/);
+  await assert.rejects(ownedCosmetics({ rpcUrl: 'x', chainId: 11155111, contract, address: me }, async (_url, init) => {
+    const q = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ jsonrpc: '2.0', id: 1, result: q.method === 'eth_chainId' ? '0xaa36a7' : 'not-hex' }) };
+  }), /invalid balance result/);
   await assert.rejects(ownedCosmetics({ rpcUrl: 'x', chainId: 11155111, contract, address: me }, rpc(1, [1])), /different chain/);
   await assert.rejects(ownedCosmetics({ rpcUrl: 'x', chainId: 1, contract, address: me }, async () => ({ ok: false, status: 500 })), /rpc http 500/);
 });
