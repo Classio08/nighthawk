@@ -13,7 +13,7 @@ export class BlackSiteRound {
     this.name = 'BLACK SITE';
     this.rng = makeRng(((sim.seed | 0) ^ 0xB1AC51E7) >>> 0 || 29);
     this.roles = new Map();
-    this.playerRole = requestedPlayerRole === 'infiltrator' || requestedPlayerRole === 'random' ? requestedPlayerRole : 'operative';
+    this.playerRole = requestedPlayerRole === 'infiltrator' ? 'infiltrator' : requestedPlayerRole === 'random' ? (this.rng() < 0.2 ? 'infiltrator' : 'operative') : 'operative';
     this.stage = 'tasks';
     this.elapsed = 0;
     this.finished = false;
