@@ -211,8 +211,19 @@ function handleEvents() {
       case 'propHit': break;
       case 'mission': {
         if (e.phase === 'clue') { hud.message(`EVIDENCE RECOVERED · ${e.count}/2`, '#ffcf4d', 1.8); audio.play('pickup', { vol: 0.9 }); }
-        else if (e.phase === 'identified') { hud.message(`SITE IDENTIFIED · ${sim.mission?.targetSite.name ?? 'TARGET AREA'}`, '#58d8ff', 2.6); audio.play('contract', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); }
+        else if (e.phase === 'identified') { hud.message(`SITE IDENTIFIED · ${sim.mission?.targetSite?.name ?? 'TARGET AREA'}`, '#58d8ff', 2.6); audio.play('contract', { x: e.x, z: e.z, maxD: 120, vol: 0.9 }); }
         else if (e.phase === 'rescued') { hud.message('TECHNICIAN SECURED · MOVE TO EXTRACTION', '#5be37a', 2.8); audio.play('healend', { vol: 0.9 }); }
+        else if (e.phase === 'transmitter') { hud.message(`TRANSMITTER LOCATED · ${e.count}/3`, '#53d9ff', 1.8); audio.play('pickup', { vol: 0.8, rate: 1.2 }); }
+        else if (e.phase === 'trace-unlocked') { hud.message('ALL SIGNALS LOCATED · TRACE THE RELAY', '#53d9ff', 2.4); audio.play('contract', { x: e.x, z: e.z, maxD: 90, vol: 0.9 }); }
+        else if (e.phase === 'trace-started') { hud.message('SIGNAL TRACE ACTIVE · HOLD THE TERMINAL AREA', '#53d9ff', 2.4); audio.play('contract', { vol: 0.9 }); }
+        else if (e.phase === 'trace-complete') { hud.message('GHOST FREQUENCY DECRYPTED · EXTRACT', '#5be37a', 2.4); audio.play('healend', { vol: 0.9 }); }
+        else if (e.phase === 'uplink-started') { hud.message('RELAY UPLINK INITIALISED · DEFEND THE TERMINAL', '#53d9ff', 2.4); audio.play('contract', { x: e.x, z: e.z, maxD: 90, vol: 0.9 }); }
+        else if (e.phase === 'uplink-live') { hud.message('UPLOAD COMPLETE · HOLD THE RELAY', '#5be37a', 2.4); audio.play('contract', { x: e.x, z: e.z, maxD: 90, vol: 0.9 }); }
+        else if (e.phase === 'uplink-secured') { hud.message('RELAY SECURED · PROCEED TO EXTRACTION', '#5be37a', 2.4); audio.play('healend', { vol: 0.9 }); }
+        break;
+      }
+      case 'intel': {
+        if (e.kind === 'body-found') { hud.message('BODY DISCOVERED · GUARD SEARCHES INBOUND', '#ffad55', 2.2); audio.play('contract', { x: e.x, z: e.z, maxD: 70, vol: 0.55 }); }
         break;
       }
       case 'contract': {                                       // airdrop / hardpoint / bounty came, landed, was cashed in or ran out
