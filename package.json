@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
     "server": "node server/src/index.js",
-    "load":"node scripts/load-test.mjs","server:test": "node scripts/retry.mjs 3 node server/test/match.mjs",
+    "load": "node scripts/load-test.mjs",
+    "server:test": "node scripts/retry.mjs 3 node server/test/match.mjs",
     "e2e": "node scripts/e2e.mjs",
     "server:dev": "node --watch server/src/index.js",
     "check": "npm test && npm run smoke && npm run server:test && npm run build"
@@ -31,5 +32,8 @@
     "vite": "^8.3.8"
   },
   "type": "module",
-  "private": "true"
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  }
 }

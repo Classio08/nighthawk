@@ -98,7 +98,7 @@ export class Simulation {
   /** @param {{seed?:number, bots?:number, operator?:string}} opts */
   constructor(opts = {}) {
     this.opts = opts;
-    this.seed = opts.seed ?? ((Math.random() * 1e9) | 0);
+    this.seed = opts.seed ?? ((Math.random() * 1e9) | 0);   // purity-ok: the ONE entropy source, only to pick a fresh match seed; everything after it is seeded
     this.rng = makeRng(this.seed);
     this.map = buildMap(opts.mapSeed ?? 7);
     this.nav = opts.predictor || opts.nav === false ? null : new NavGrid(this.map);     // bots path around buildings with A* (nav.js); a predicting browser has no bots
