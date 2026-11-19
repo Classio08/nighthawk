@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { makeGun } from './guns.js';
 import { bakeBoxes } from './bake.js';
+import { buildOperatorBodyParts, buildOperatorLegParts, buildOperatorArmParts } from './operator-kit.js';
 import { ABILITIES, isCloaked } from '../sim/abilities.js';
 
 const box = new THREE.BoxGeometry(1, 1, 1);
@@ -12,23 +13,22 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // The soldier's rigid pieces are baked into a few meshes (colours per vertex): body 1, two legs, arms 1 = 4 draw calls instead of 10.
 const DARK = 0x2a2d33, ACCENT = 0x16181c;
-const bodyGeos = new Map();                                              // "team colour|skin tone" -> geometry, shared by every fighter that looks the same
-const LEG = bakeBoxes([[0.19, 0.78, 0.2, 0, -0.39, 0, DARK]]);
-function bodyGeo(color, skin) {
-  const key = color + '|' + skin; let g = bodyGeos.get(key);
-  if (!g) bodyGeos.set(key, g = bakeBoxes([
-    [0.52, 0.6, 0.28, 0, 1.15, 0, color],                                 // torso
-    [0.54, 0.16, 0.3, 0, 0.9, 0, DARK],                                   // belt / vest bottom
-    [0.4, 0.32, 0.06, 0, 1.2, -0.17, DARK],                               // chest plate (front)
-    [0.3, 0.3, 0.3, 0, 1.6, 0, skin],                                     // head
-    [0.34, 0.13, 0.34, 0, 1.74, 0, color],                                // helmet
-    [0.26, 0.07, 0.03, 0, 1.62, -0.155, ACCENT]]));                       // visor
+const bodyGeos = new Map();                                              // colour + skin + operator kit -> one baked body mesh
+function bodyGeo(color, skin, operatorId) {
+  const key = `${color}|${skin}|${operatorId}`; let g = bodyGeos.get(key);
+  if (!g) bodyGeos.set(key, g = bakeBoxes(buildOperatorBodyParts(color, skin, operatorId)));
+  return g;
+}
+const legGeos = new Map();
+function legGeo(operatorId) {
+  let g = legGeos.get(operatorId);
+  if (!g) legGeos.set(operatorId, g = bakeBoxes(buildOperatorLegParts(operatorId)));
   return g;
 }
 const armGeos = new Map();
-function armGeo(color) {
-  let g = armGeos.get(color);
-  if (!g) armGeos.set(color, g = bakeBoxes([[0.1, 0.1, 0.62, -0.27, -0.04, -0.3, color, 0.28], [0.1, 0.1, 0.62, 0.27, -0.04, -0.3, color, -0.28]]));
+function armGeo(color, operatorId) {
+  const key = `${color}|${operatorId}`; let g = armGeos.get(key);
+  if (!g) armGeos.set(key, g = bakeBoxes(buildOperatorArmParts(color, operatorId)));
   return g;
 }
 
@@ -39,13 +39,13 @@ export class FighterView {
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });       // one material per soldier: the hit flash / cloak / ability glow act on it
     this.mats = [mat];
     this.body = new THREE.Group(); this.root.add(this.body);                 // everything that bobs
-    this.body.add(new THREE.Mesh(bodyGeo(f.color, SKIN[f.id % SKIN.length]), mat));     // torso, belt, chest plate, head, helmet, visor
+    this.body.add(new THREE.Mesh(bodyGeo(f.color, SKIN[f.id % SKIN.length], f.op?.id), mat));     // torso, belt, chest plate, head, helmet, visor
     this.legs = [-0.14, 0.14].map((x) => {
       const pivot = new THREE.Group(); pivot.position.set(x, 0.82, 0); this.root.add(pivot);
-      pivot.add(new THREE.Mesh(LEG, mat)); return pivot;
+      pivot.add(new THREE.Mesh(legGeo(f.op?.id), mat)); return pivot;
     });
     this.aim = new THREE.Group(); this.aim.position.set(0, 1.4, 0); this.body.add(this.aim);   // arms + gun pitch together
-    this.aim.add(new THREE.Mesh(armGeo(f.color), mat));
+    this.aim.add(new THREE.Mesh(armGeo(f.color, f.op?.id), mat));
     this.guns = {}; this.gunId = null;
 
     this.flashMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
