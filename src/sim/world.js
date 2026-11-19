@@ -650,7 +650,7 @@ export class Simulation {
   }
 
   /** one explosion for grenades AND barrels: pushes loose crates, hurts fighters (walls shield), breaks props, sets nearby barrels off */
-  _shrapnel(x, y, z, kind, owner) {
+  _shrapnel(x, y, z, kind, owner, except = null) {
     // A deliberately small, server-authoritative fragment budget. Fragments are instant,
     // seeded traces (not replicated rigid bodies); every ray stops at the first Rapier wall.
     // This gives cover a real effect without a hidden "kill around corners" rule.
@@ -730,7 +730,7 @@ export class Simulation {
 
     // Fragments are separate from the pressure wave: a fragment must have a clear ray to a target.
     // The fixed per-kind budget and separate seeded RNG keep explosion cost and match determinism bounded.
-    this._shrapnel(x, y, z, w, owner);
+    this._shrapnel(x, y, z, w, owner, except);
 
     // props: crates near the blast splinter, barrels go off in a wave (the further away, the later)
     for (const c of this.crates) {
