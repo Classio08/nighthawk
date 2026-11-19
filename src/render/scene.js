@@ -99,7 +99,11 @@ export class WorldView {
     this.poiMeshes = [];
     const addPoiMesh = (mesh) => { scene.add(mesh); this.poiMeshes.push(mesh); return mesh; };
     const riverTex = groundTex.clone(); riverTex.repeat.set(13 / 8, 34 / 8); riverTex.needsUpdate = true;    // the same procedural sand, darker and greyer = gravel (one tile is 8 m)
-    const padMat = new THREE.MeshLambertMaterial({ color: 0xa09c92, map: riverTex }), paintMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b5 });
+    const riverPbr = highQualityPbr ? makeSurfacePbrMaps('gravel', 256) : null;
+    const padMat = highQualityPbr
+      ? new THREE.MeshStandardMaterial({ color: 0xa09c92, map: riverTex, normalMap: riverPbr.normalMap, roughnessMap: riverPbr.roughnessMap, roughness: 0.96, metalness: 0 })
+      : new THREE.MeshLambertMaterial({ color: 0xa09c92, map: riverTex });
+    const paintMat = new THREE.MeshBasicMaterial({ color: 0xd8d0b5 });
     // Dry River: a shallow, winding gravel wash through the centre of the arena.
     const riverSegments = [
       [-20, -48, -0.18], [-13, -20, 0.12], [0, 8, 0.22], [13, 37, -0.12], [18, 66, -0.28],
