@@ -30,7 +30,7 @@ class RemoteFighter {
   get eyeY() { return this.y + (this.crouch ? 0.2 : 0.72); }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit', 'crouch', 'air', 'airT', 'smokes'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit', 'crouch', 'air', 'airT', 'smokes', 'recoilPitch', 'recoilYaw', 'jumpBufferT', 'coyoteT', 'hitPushX', 'hitPushZ', 'hitPushT', 'limpT'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
