@@ -42,9 +42,11 @@ export function mountCryptoCheckout(container, serverUrl, {
   const pending = el('div', undefined, 'nh-crypto-pending');
   container.append(heading, status, note, walletChoice, list, pending);
 
-  const action = (label, handler, disabled = false) => {
+  const action = (label, handler, disabled = false, requiresWallet = false) => {
     const button = el('button', label, 'nh-economy-action');
-    button.type = 'button'; button.dataset.locked = disabled ? 'true' : 'false'; button.disabled = disabled || busy;
+    button.type = 'button'; button.dataset.locked = disabled ? 'true' : 'false';
+    button.dataset.walletRequired = requiresWallet ? 'true' : 'false';
+    button.disabled = disabled || busy || (requiresWallet && walletProviders.length === 0);
     button.addEventListener('click', async () => {
       if (busy) return;
       busy = true; redrawDisabled();
@@ -56,7 +58,10 @@ export function mountCryptoCheckout(container, serverUrl, {
   };
 
   function redrawDisabled() {
-    for (const button of container.querySelectorAll('button')) button.disabled = busy || button.dataset.locked === 'true';
+    for (const button of container.querySelectorAll('button')) {
+      button.disabled = busy || button.dataset.locked === 'true' ||
+        (button.dataset.walletRequired === 'true' && walletProviders.length === 0);
+    }
   }
 
 
@@ -73,6 +78,7 @@ export function mountCryptoCheckout(container, serverUrl, {
     }
     walletChoice.value = selectedWalletId;
     walletChoice.hidden = walletProviders.length < 2;
+    redrawDisabled();
   }
 
   async function refreshWalletChoices() {
@@ -115,12 +121,12 @@ export function mountCryptoCheckout(container, serverUrl, {
   async function refresh() {
     status.textContent = 'CHECKING THE SERVER’S CRYPTO PAYMENT GATE…';
     config = await fetchCryptoCheckoutConfig(serverUrl, { fetchImpl });
-    await refreshWalletChoices();
     if (config.enabled !== true) {
       status.textContent = `CRYPTO CHECKOUT UNAVAILABLE · ${config.reason ?? 'DISABLED'}`;
       list.replaceChildren();
       return;
     }
+    await refreshWalletChoices();
     await ensureGuestSession(serverUrl, { fetchImpl, storage: walletStorage });
     account = await getAccount(serverUrl, { fetchImpl, storage: walletStorage });
     const cosmetics = await getStoreCatalog(serverUrl, { fetchImpl, storage: walletStorage });
@@ -152,7 +158,7 @@ export function mountCryptoCheckout(container, serverUrl, {
           account = result.account;
           await refresh();
         }
-      }, owned || walletProviders.length === 0));
+      }, owned, true));
       list.appendChild(card);
     }
     await refreshPending();
