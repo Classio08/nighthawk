@@ -2,7 +2,7 @@
 
 The local asset-ingestion pass described by the project owner used:
 
-- Repository workspace: `C:\\Dev\\nighthawk`
+- Repository workspace: `C:\Dev\nighthawk`
 - Source archives: `raw-zips/`
 - Extracted and sorted files: `sorted-assets/`
 - Generator entry point: `scripts/unpack-and-catalog.mjs`
