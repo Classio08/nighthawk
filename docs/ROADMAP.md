@@ -1,65 +1,68 @@
 # Roadmap
 
-Rule: every milestone ends with something you can open in a browser and play. The statuses below are based on the current `main` branch history as checked 18 November 2026. "Built" means code exists; it does not mean production deployment, load testing or external playtesting is complete.
+Rule: every milestone ends with something you can open in a browser and play. Status is based on `main` commit `27e84f29` (19 November 2026). "Built" means code exists and has automated coverage; it does not mean production deployment, load testing or external playtesting is complete.
 
 ## Current verified baseline
 
 | Area | Status | Evidence / limitation |
 |---|---|---|
-| Offline BR simulation | Built | 16-fighter simulation, six weapons, bots, zone, ragdolls, HUD |
-| Online multiplayer | Built locally | Colyseus authoritative room, prediction/reconciliation, interpolation, lag-compensated hits; real VPS/friend test pending |
-| Bot AI | Built first pass | Utility scoring, personalities, squads, radio, flanking and outpost guards |
-| Weapon feel | Built first pass | Tactical/empty reload, dropped-mag visuals, five shader skins |
-| Destruction | Built first pass | Crates/props, explosive barrels, chain reactions |
-| Match events | Built first pass | Contracts, airdrops, hardpoint, bounty, mortar, weather/night/fog/rain |
-| Character visuals | Design only | Five likeness references documented; renderer still uses block-built fighters |
-| Environment art | Prototype only | Procedural sand canvas + Lambert world materials; no selected PBR set integrated |
-| FPP/TPP | Prototype built | V toggles first/third person (collision-safe boom camera); vehicle chase camera takes over while driving; online fairness tests still to do (camera never changes aim origin or hit rules) |
-| Profiles/progression | Not implemented | No persistent cross-device player account system verified |
-| Vehicles | Built first pass | Buggies + bikes, E to enter, roadkill, bots drive, server-authoritative with prediction; unit, netcode and browser tests |
-| Loot and inventory | Built first pass | Guns, ammo, armor LV1-3, medkits, death drops, airdrop crates, hot-zone loot at named places; server-authoritative pickups |
-| Map | Greybox | Kavari Basin: Basin Yard, Dry River, Relay Ridge, Forward Outpost, Extraction Pad with minimap labels; still blocks, no real art |
-| Operators | Abilities built | Eight operators selectable; all eight active abilities (Q) work, server-validated, bots use them; art and passives still to do |
-| Bots | Navigation + difficulty built | A* routes round buildings, four difficulty levels (easy/normal/hard/brutal); smoke grenades and a training range still to do |
-| Server safety | Hardened | Rate limits, kicks, payload and room caps, reconnect window, health + metrics; still to do: load test with real players, per-IP limits in the proxy, rejoin after a page refresh |
-| Settings | Built | Sensitivity, FOV, volume, graphics, difficulty, key rebinding, saved in the browser; accessibility options and a progression profile still to do |
-| Movement | Crouch + fall damage built | C crouch, fall damage; slide, mantle/vault and melee still to do |
-| Chat/voice | Not implemented | Own-site only after moderation; portal builds may prohibit it |
-| Monetisation | Not implemented | Platform adapters and policy review required |
-| Production deployment | Pending | Deploy and test with players on separate networks; load tests outstanding |
+| Offline battle royale | Built | 16-fighter simulation, six weapons, bots, zone, ragdolls, HUD |
+| Online multiplayer | Built locally | Colyseus authoritative room, 60 Hz simulation, 20 Hz snapshots, prediction/reconciliation, interpolation, lag-compensated hits |
+| Bot AI | Built first pass | Utility scoring, personalities, squads, radio, cover response, A* navigation, four difficulty levels |
+| Contracts | Built first pass | Airdrop, hardpoint, bounty and two-stage relay uplink; relay mobilises existing garrison |
+| Destruction | Built first pass | Destructible crates, explosive barrels and chain reactions |
+| Vehicles | Built first pass | Arcade buggies and bikes; not yet realistic wheel/suspension simulation |
+| Loot/inventory | Built first pass | Ground weapons, ammo, armour, medkits, grenades, death drops and airdrop crates |
+| Operators | Gameplay built | Eight selectable operators and server-validated active abilities |
+| Movement | First pass | Sprint, crouch, jump and fall damage; slide, vault/mantle and melee remain open |
+| FPP/TPP | Prototype built | Camera toggle and collision-aware third-person camera; needs broad fairness/playtesting |
+| World/map | Greybox | Kavari Basin landmarks; renderer still needs realistic GLB/PBR asset integration |
+| Character visuals | Design only | Five likeness references documented; current fighter renderer remains procedural/block-built |
+| Atmosphere | First pass | Weather, night, fog, rain and storm |
+| Settings | Built | Sensitivity, FOV, volume, graphics, difficulty and key rebinding saved locally |
+| Server safety | Hardened first pass | Rate limits, kicks, payload/room caps, reconnect window, health and metrics endpoints |
+| Automated quality | Built | 150 unit tests, smoke checks, server netcode tests and production build in `npm run check`; CI workflow merged |
+| Persistent accounts/progression | Not implemented | No cross-device account, profile, mission ledger or server-backed economy |
+| Full mission campaign | Not implemented | Contract building blocks exist; no objective-graph mission director yet |
+| AI long-term memory | Not implemented | Current AI is tactical/utility based; no persistent faction intelligence model |
+| Audio/haptics | First pass | ZzFX and gameplay cues exist; full spatial audio and controller/mobile haptics remain open |
+| Production deployment | Pending | VPS, friend test, real-world latency and load tests outstanding |
+| Monetisation / wallet | Not implemented | Compliance, identity, economy and payment-provider review required before launch |
 
-## Built so far (milestones 0 to 1.5 plus stages 2-8 of `MASTER_SYSTEMS.md`)
+## Completed engineering stages
 
-| # | Milestone | Done when | Status |
+- **Stages 0–8:** playable BR foundation, multiplayer, utility AI, weapon handling/skins, destruction, contracts, vehicles and loot.
+- **Stage 9:** eight operator abilities, crouch, fall damage and related netcode.
+- **Stages 10–11:** A* bot navigation, difficulty settings and key rebinding.
+- **Stage 12:** server hardening, rate limits, room/payload caps, reconnect handling, health and metrics.
+- **Mission objective extension:** two-stage relay uplink; secure the relay alone, then hold it alone for upload. Existing garrison guards redeploy without spawning extra fighters.
+- **CI:** GitHub Actions runs `npm ci` and `npm run check`.
+
+See `docs/MASTER_SYSTEMS.md` for the detailed engineering map and tests.
+
+## Next milestones — updated direction
+
+| Priority | Milestone | Deliverable | Gate |
 |---|---|---|---|
-| 0 | **Tech proof** | Move, jump, shoot, grenades, physics crates, AI bots, tests, build | DONE |
-| 0.5 | **Multiplayer spike** | Colyseus 0.18 server runs Rapier; two fake clients join, move, get blocked by a wall, and shoot each other with server-validated hits | DONE (replaced by Milestone 1) |
-| 0.7 | **Battle-royale core (offline)** | Rules split into a graphics-free `Simulation` (`src/sim/`); 6 data-driven weapons with recoil / ADS / reload; bots with line-of-sight, hearing, cover, grenades; shrinking zone; win/lose + play again; zzfx sounds, blood/spark particles, bullet holes, ragdoll deaths, screen shake, HUD + minimap; 25 tests + 22-step browser test | DONE |
-| 1 | **Two tabs, one match** | Server-authoritative Colyseus room runs the real `Simulation`; browser prediction + reconciliation, interpolation, lag-compensated capsule hits, lobby with bots filling slots, leaver replaced by a bot, Dockerfile + `DEPLOY.md`. Tested with a real server and two real browsers. **Still to do: deploy to a VPS and test with a friend on another network** | DONE (code) / deploy pending |
-| 1.5 | **Systems wave (Master Prompt)** | Utility AI + personalities + squads + garrison guards; tactical/empty reloads, dropped mags, GLSL weapon skins; destructible cover + explosive barrels; contracts (airdrop / hardpoint / bounty / two-stage relay uplink), mortar killstreak, weather + night, gore toggle; arcade buggy + bike with roadkill and bots that drive; loot on the ground (guns, ammo, armor, medkits, grenades), death drops, airdrop crates, bots that loot and heal. 91 unit tests, server test, 8 browser checks. Details: `MASTER_SYSTEMS.md` | DONE |
+| P0 | Production multiplayer validation | Deploy test server; friend joins from another network; test 2/8/16 clients, reconnect, jitter and packet loss | Measurements and incident notes, not just "it works" |
+| P1 | **Tactical mission foundation** | Data-driven objective graph and one complete 5–8 minute rescue/recovery/extraction mission | Server-authoritative objectives, seeded tests, playable browser build |
+| P2 | Living faction response | Patrol schedules, suspicion, witness reports, search, reinforcements, withdrawal and scoped memory | NPC knowledge is evidence-based and fair; deterministic scenario suite |
+| P3 | Combat/movement feel | Input buffering, acceleration, slide/vault prototype, weapon animation state machine, spatial sound and haptics | Before/after responsiveness and performance measurements |
+| P4 | Visual vertical slice | One realistic operator, weapon, modular building kit and Southern African PBR environment | LODs, collision review, asset licences and minimum-device benchmark |
+| P5 | Identity/progression | Guest-first profile, optional sign-in, server XP/inventory/mission ledger, account linking and recovery | Security/privacy review and migration tests |
+| P6 | Operations/social | Extraction/co-op matchmaking, parties, mission rotation, reporting/moderation and replay tools | Abuse controls and real-player playtest |
+| P7 | Fair economy | Direct-purchase cosmetics, earnable soft currency and auditable server ledger | No pay-to-win; payment-provider and regional policy approval |
+| P8 | Optional wallet proof | Wallet-linked cosmetic ownership proof only | Legal, privacy, platform and security review; never ask for seed phrases |
+| Later | Wagering / token prizes | Not scheduled or approved | No implementation without written legal advice, licensing analysis and region-specific compliance |
 
-## Next milestones
+## Performance and release gates
 
-| # | Milestone | Done when | Status |
-|---|---|---|---|
-| 7 | **Production multiplayer validation** | Deploy server to a test VPS; friend joins from another network; reconnect, packet loss, jitter, 2/8/16 clients and many-room tests documented | NEXT (needs you: a VPS) |
-| 8 | **Operator abilities + movement polish** | Eight active abilities (server-validated, cooldown HUD, bots use them), crouch, fall damage DONE (Stage 9); slide, mantle/vault, melee and accessibility controls still open | IN PROGRESS |
-| 9 | **First real visual slice** | One CC0 PBR ground set integrated; one modular environment kit; one realistic GLB operator with shared rig, LODs and animation; browser performance measured | NEXT (needs asset downloads) |
-| 10 | **One complete map** | Kavari Basin vertical slice with three routes per POI, cover, navmesh/AI, story props, weather presets and a working extraction point | PLANNED (greybox exists) |
-| 11 | **Mission modes** | Extraction contracts and a short Black Site social-deduction PvPvE mode with evidence, sabotage, counterplay and replayable objectives | PLANNED |
-| 12 | **Profiles and progression** | Guest-first profile, local save, settings menu, optional account linking, XP, weapon mastery and cosmetics; privacy policy and migration tests | PLANNED |
-| 13 | **Replay and creator tools** | Short replay buffer, kill snapshot export, streamer mode, custom lobby links, consent-based sharing | PLANNED |
-| 14 | **Platform readiness** | Low-end performance pass, mobile touch UI, portal-specific builds/SDK adapters, policy and privacy review | PLANNED |
-| 15 | **Monetisation** | Cosmetics-only store/battle pass after retention evidence; platform-specific ads/IAP compliance; no pay-to-win | PLANNED |
-| 16 | **Expansion** | Extra maps, named boss events, wildlife, advanced gadgets, mobile/desktop builds and optional Web3 research only after core metrics justify them | LATER |
+- Preserve server authority for position, damage, inventory, objectives, rewards and match results.
+- Run unit tests, server tests, browser E2E and build after gameplay changes.
+- Record frame-time p50/p95/p99, first playable time, draw calls, memory, input latency, RTT, jitter, packet loss and server tick cost.
+- Profile named devices and exact commit SHAs before claiming optimisation.
+- Keep the initial load small; stream optional maps, operators, skins and audio.
+- Record every external asset and its licence in `ASSETS.md`.
+- Do not add real-money betting, crypto wagering or cash-out as a shortcut to monetisation.
 
-## Quality gates
-
-- Preserve server authority for all gameplay outcomes.
-- Run unit tests, server tests, browser E2E and build after each gameplay stage.
-- Measure real FPS, load time, memory, RTT, jitter and packet loss on target hardware.
-- Every external asset must be logged in `ASSETS.md` with its exact licence.
-- Do not merge a feature just because it compiles; playtest it.
-- Keep the first-frame download small and load map/character assets on demand.
-
-See `MASTER_SYSTEMS.md` for the complete product architecture and `ASSET_CATALOG.md` for candidate material sources.
+See `docs/EXPANSION_ARCHITECTURE.md` for the research-backed product, AI, physics, rendering, audio, UX, account, economy and delivery architecture.
