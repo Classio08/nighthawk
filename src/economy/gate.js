@@ -12,7 +12,11 @@ export const MODES = ['off', 'sandbox', 'live'];
 export const FEATURES = ['wallet', 'nft', 'earn', 'wager'];
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const isDate = (s) => typeof s === 'string' && ISO_DATE.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+const isDate = (s) => {
+  if (typeof s !== 'string' || !ISO_DATE.test(s)) return false;
+  const ms = Date.parse(`${s}T00:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === s;
+};
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 const intIn = (v, lo, hi, d) => (Number.isSafeInteger(v) && v >= lo && v <= hi ? v : d);
 
@@ -48,12 +52,16 @@ export function liveBlockers(cfg, env = {}, today = '1970-01-01') {
   const b = [], L = cfg.licence;
   if (cfg.mode !== 'live') b.push('compliance.json mode is not "live"');
   if (env.NIGHTHAWK_ECONOMY_LIVE !== '1') b.push('server was not started with NIGHTHAWK_ECONOMY_LIVE=1');
+  const secret = typeof env.ECONOMY_SECRET === 'string' ? env.ECONOMY_SECRET : '';
+  if (!/^(?:[0-9a-f]{2}){32,}$/i.test(secret)) b.push('ECONOMY_SECRET must be a persistent hex secret of at least 32 bytes');
   if (!L.reference) b.push('no licence reference recorded');
   if (!L.issuer) b.push('no licence issuer recorded');
   if (!L.approvedBy) b.push('no named approver recorded');
   if (!isDate(L.approvedOn)) b.push('licence approvedOn is missing or not YYYY-MM-DD');
-  if (!isDate(L.expiresOn)) b.push('licence expiresOn is missing or not YYYY-MM-DD');
+  if (!isDate(L.expiresOn)) b.push('licence expiresOn is missing or not a real YYYY-MM-DD date');
   else if (L.expiresOn < today) b.push(`licence expired on ${L.expiresOn}`);
+  if (isDate(L.approvedOn) && isDate(today) && L.approvedOn > today) b.push('licence approval date is in the future');
+  if (isDate(L.approvedOn) && isDate(L.expiresOn) && L.expiresOn < L.approvedOn) b.push('licence expires before its approval date');
   if (!FEATURES.some((k) => cfg.features[k] && L.scope.includes(k))) b.push('licence scope covers none of the enabled features');
   if (!cfg.jurisdictions.allow.length) b.push('no allowed jurisdictions listed');
   if (!cfg.chains.live.length) b.push('no live chain ids listed');
