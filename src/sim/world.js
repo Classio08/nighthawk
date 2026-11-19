@@ -23,7 +23,7 @@ import { BotBrain } from './bot.js';
 import { startDrop, stepAir } from './drop.js';
 import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { meleeSwing } from './melee.js';
-import { materialForMapKind, materialForPropKind, surfaceImpact, classifyHitZone, hitZoneMultiplier, blastImpulse, hitPushImpulse } from './physics-correlation.js';
+import { materialForMapKind, materialForPropKind, surfaceImpact, classifyHitZone, hitZoneMultiplier, blastImpulse, hitPushImpulse, shrapnelDirection } from './physics-correlation.js';
 import { createMission } from './missions.js';
 import { MANTLE, findLedge, mantlePos } from './mantle.js';
 
@@ -41,7 +41,7 @@ const REGEN_DELAY = 6, REGEN_RATE = 5, REGEN_CAP = 0.65;
 const GRENADE_FUSE = 2.2, GRENADE_R = 9, GRENADE_DMG = 150;
 const CRATE_HP = 70, BARREL_HP = 40, BARREL_R = 8, BARREL_DMG = 130;   // props: bullets and blasts wear them down
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const ARMORED = new Set(['bullet', 'explosion']);        // which kinds of damage armor helps against (not the zone, falls or crashes)
+const ARMORED = new Set(['bullet', 'explosion', 'shrapnel']);        // which kinds of damage armor helps against (not the zone, falls or crashes)
 const HIST = 64;                // how many ticks of fighter positions we remember (for lag compensation)
 export const MAX_LAG_TICKS = 30; // never rewind more than 0.5 s
 
@@ -120,7 +120,7 @@ export class Simulation {
     this.map = buildMap(opts.mapSeed ?? 7);
     this.nav = opts.predictor || opts.nav === false ? null : new NavGrid(this.map);     // bots path around buildings with A* (nav.js); a predicting browser has no bots
     this.navBudget = 0;
-    this.time = 0; this.tick = 0; this.events = [];
+    this.time = 0; this.tick = 0; this.events = []; this.blastSerial = 0;
     this.hist = new Array(HIST).fill(null); this.humans = []; this.player = null;
     this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.smokes = [];      // thrown grenades / smoke clouds in the world
     this.propByCol = new Map();     // collider handle -> crate / barrel (things bullets can break)
@@ -650,6 +650,64 @@ export class Simulation {
   }
 
   /** one explosion for grenades AND barrels: pushes loose crates, hurts fighters (walls shield), breaks props, sets nearby barrels off */
+  _shrapnel(x, y, z, kind, owner) {
+    // A deliberately small, server-authoritative fragment budget. Fragments are instant,
+    // seeded traces (not replicated rigid bodies); every ray stops at the first Rapier wall.
+    // This gives cover a real effect without a hidden "kill around corners" rule.
+    const profiles = {
+      grenade: { count: 14, damage: 9, range: 13 },
+      barrel: { count: 10, damage: 7, range: 10 },
+      mortar: { count: 12, damage: 7, range: 14 },
+    };
+    const profile = profiles[kind];
+    if (!profile || this.opts.predictor) return;
+    const serial = ++this.blastSerial;
+    const rng = makeRng((this.seed * 73856093 ^ this.tick * 19349663 ^ serial * 83492791 ^ ((owner?.id ?? 0) * 2654435761)) | 0);
+    const alreadyHit = new Set();
+
+    for (let i = 0; i < profile.count; i++) {
+      const dir = shrapnelDirection(rng);
+      const wall = this.world.castRay(
+        new RAPIER.Ray({ x, y, z }, dir),
+        profile.range,
+        true,
+        undefined, undefined, undefined, undefined,
+        (collider) => this.solid.has(collider.handle),
+      );
+      const wallDistance = wall ? wall.timeOfImpact : profile.range;
+      let target = null, targetDistance = wallDistance, targetPos = null;
+
+      for (const fighter of this.fighters) {
+        if (!fighter.alive || fighter === except || alreadyHit.has(fighter.id)) continue;
+        const distance = rayCapsule(
+          x, y, z, dir.x, dir.y, dir.z,
+          fighter.x, fighter.y - 0.5, fighter.z,
+          fighter.y + (fighter.crouch ? 0.15 : 0.5), 0.4,
+        );
+        if (distance >= 0 && distance < targetDistance) {
+          target = fighter;
+          targetDistance = distance;
+          targetPos = {
+            x: x + dir.x * distance,
+            y: y + dir.y * distance,
+            z: z + dir.z * distance,
+          };
+        }
+      }
+
+      if (!target) continue;
+      alreadyHit.add(target.id);
+      const zone = classifyHitZone(targetPos.y, target.y - 0.9, target.crouch);
+      const damage = profile.damage * (1 - 0.45 * (targetDistance / profile.range));
+      this.damage(target, damage, owner, {
+        head: zone === 'head', zone, w: kind,
+        dx: dir.x, dy: dir.y, dz: dir.z,
+        x: targetPos.x, y: targetPos.y, z: targetPos.z,
+        cause: 'shrapnel',
+      });
+    }
+  }
+
   _blast(x, y, z, R, maxDmg, owner, w, except = null) {
     this.emit({ t: 'explosion', x, y, z, r: R, w, by: owner ? owner.id : -1 });
     for (const c of this.crates) {
@@ -669,6 +727,11 @@ export class Simulation {
       const l = d || 1;
       this.damage(f, dmg, owner, { head: false, w, dx: dx / l, dy: dy / l + 0.4, dz: dz / l, x: f.x, y: f.y + 0.4, z: f.z, cause: 'explosion' });
     }
+
+    // Fragments are separate from the pressure wave: a fragment must have a clear ray to a target.
+    // The fixed per-kind budget and separate seeded RNG keep explosion cost and match determinism bounded.
+    this._shrapnel(x, y, z, w, owner);
+
     // props: crates near the blast splinter, barrels go off in a wave (the further away, the later)
     for (const c of this.crates) {
       if (c.dead) continue;
@@ -736,7 +799,7 @@ export class Simulation {
 
     // A hit nudges a kinematic character through normal movement on subsequent ticks.
     const zone = info.zone ?? (info.head ? 'head' : 'torso');
-    if (info.cause === 'bullet' || info.cause === 'explosion' || info.cause === 'melee') {
+    if (info.cause === 'bullet' || info.cause === 'explosion' || info.cause === 'shrapnel' || info.cause === 'melee') {
       const pushDamage = info.cause === 'explosion' ? amount * 1.55 : amount;
       const push = hitPushImpulse(pushDamage, { x: info.dx ?? 0, z: info.dz ?? 0 }, zone);
       target.hitPushX = clamp(target.hitPushX + push.x, -2.2, 2.2);
