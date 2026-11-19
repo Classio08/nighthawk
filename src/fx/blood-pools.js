@@ -35,6 +35,7 @@ export class BloodPools {
     this.rotation = new THREE.Quaternion();
     this.matrix = new THREE.Matrix4();
     this.color = new THREE.Color();
+    this.up = new THREE.Vector3(0, 1, 0);
     for (let i = 0; i < this.max; i++) {
       this.matrix.compose(this.position.set(0, -100, 0), this.rotation.identity(), this.scale.set(0, 0, 1));
       this.mesh.setMatrixAt(i, this.matrix);
@@ -88,10 +89,9 @@ export class BloodPools {
       const fadeStart = this.lifeSeconds - 7;
       const fade = item.age <= fadeStart ? 0 : Math.min(1, (item.age - fadeStart) / 7);
       const radius = item.radius * (0.16 + 0.84 * growth);
-      const c = BLOOD.clone().lerp(DUST, fade);
-      this.color.copy(c);
+      this.color.copy(BLOOD).lerp(DUST, fade);
       this.position.set(item.x, 0.026, item.z);
-      this.rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), item.angle);
+      this.rotation.setFromAxisAngle(this.up, item.angle);
       this.scale.set(radius * 2, radius * 2 * item.oval, 1);
       this.matrix.compose(this.position, this.rotation, this.scale);
       this.mesh.setMatrixAt(i, this.matrix);
