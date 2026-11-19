@@ -30,6 +30,7 @@ import { renderProfile, renderGain } from './ui/profile-view.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { thirdPersonCameraPosition } from './render/camera.js';
 import { ABILITIES } from './sim/abilities.js';
+import { FrameMetrics } from './perf/frame-metrics.js';
 
 const STEP = 1 / 60;
 const $ = (id) => document.getElementById(id);
@@ -398,9 +399,14 @@ function updateCamera(dt, alpha) {
 }
 
 let fpsSmooth = 60, last = performance.now();
+const frameMetrics = new FrameMetrics(240);
+// Read-only development telemetry: window.__nhPerf() returns rolling frame-time percentiles.
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const frameMs = Math.max(0, now - last); last = now;
+  frameMetrics.record(frameMs); // sample the unclamped render interval so long stalls remain visible
+  const dt = Math.min(0.1, frameMs / 1000);
+  window.__nhPerf = () => frameMetrics.snapshot();
   fpsSmooth = lerp(fpsSmooth, 1 / Math.max(dt, 1e-4), 0.05);
   if (!G || !started) { return; }
   const { sim } = G, p = sim.player;
