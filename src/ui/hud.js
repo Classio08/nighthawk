@@ -257,7 +257,7 @@ export class Hud {
       g.save(); g.beginPath(); g.rect(0, 0, S, S); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283, true);
       g.fillStyle = 'rgba(255,40,40,.32)'; g.fill('evenodd'); g.restore();
     }
-    if (!sim.mission) {
+    if (!sim.mission && !sim.blackSite) {
       g.lineWidth = 1.5; g.strokeStyle = '#fff'; g.beginPath(); g.arc(S / 2 + z.cx * k, S / 2 + z.cz * k, Math.max(0.5, z.radius * k), 0, 6.283); g.stroke();
       if (!z.done && z.nextR < z.radius - 0.5) { g.strokeStyle = '#4aa3ff'; g.setLineDash([3, 3]); g.beginPath(); g.arc(S / 2 + z.nextX * k, S / 2 + z.nextZ * k, z.nextR * k, 0, 6.283); g.stroke(); g.setLineDash([]); }
     }
