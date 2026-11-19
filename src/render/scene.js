@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bakeGeometries, placed } from './bake.js';
-import { makeGroundTexture, makeConcreteTexture, makeMetalTexture, mottlePlane, worldUV } from './proc-textures.js';
+import { makeGroundTexture, makeConcreteTexture, makeMetalTexture, makeRockTexture, mottlePlane, worldUV } from './proc-textures.js';
 
 const lambert = (c) => new THREE.MeshLambertMaterial({ color: c });
 
@@ -56,13 +56,13 @@ export class WorldView {
     const ground = new THREE.Mesh(mottlePlane(new THREE.PlaneGeometry(600, 600, 48, 48), 48), new THREE.MeshLambertMaterial({ map: groundTex, vertexColors: true }));   // procedural sand + large soft patches
     ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
-    const textures = { concrete: { map: makeConcreteTexture(), metres: 4 }, metal: { map: makeMetalTexture(), metres: 2.4 } };
+    const textures = { concrete: { map: makeConcreteTexture(), metres: 4 }, metal: { map: makeMetalTexture(), metres: 2.4 }, rock: { map: makeRockTexture(), metres: 3.4 } };
     let k = 0; const statics = [];
     for (const b of sim.map.boxes) {
       if (b.kind === 'poi-mast') continue; // the detailed cylinder below replaces this collision-only box visually
       const cols = KIND_COLORS[b.kind] ?? KIND_COLORS.block;
       const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), lambert(cols[k++ % cols.length]));
-      m.position.set(b.x, b.y, b.z); m.userData.tex = b.kind === 'container' || b.kind === 'poi-container' ? 'metal' : 'concrete'; statics.push(m);
+      m.position.set(b.x, b.y, b.z); m.userData.tex = b.kind === 'poi-rock' ? 'rock' : b.kind === 'container' || b.kind === 'poi-container' ? 'metal' : 'concrete'; statics.push(m);
       if (b.kind === 'block' || b.kind === 'poi-building') {
         const roof = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.5, 0.35, b.d + 0.5), lambert(0x3d4249));
         roof.position.set(b.x, b.h + 0.17, b.z); roof.userData.tex = 'concrete'; statics.push(roof);
