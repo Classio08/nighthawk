@@ -31,6 +31,8 @@ async function signIn(w) {
 }
 
 // ---- 1. gate and sign-in
+const noContentType = await fetch(BASE + '/economy/wallet/challenge', { method: 'POST', body: '{}' });
+check('wallet challenge rejects requests without application/json', noContentType.status === 400);
 const st = await call('/economy/status');
 check('status: sandbox, play money, no real value, test chain only', st.json.mode === 'sandbox' && st.json.currency === 'PLAY' && st.json.realValue === false && st.json.chains.every((c) => [11155111, 84532, 80002].includes(c)) && !st.json.chains.includes(1), JSON.stringify(st.json));
 const A = newWallet(), B = newWallet(), C = newWallet();
