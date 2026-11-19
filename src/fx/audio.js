@@ -82,6 +82,13 @@ class Audio {
    * `vol` multiplies, `rate` changes pitch/speed (1 = normal).
    */
   play(name, o = {}) {
+    // Gunshot reports arrive at the listener after sound travel time; simulation and damage remain instantaneous hitscan.
+    const delay = Number(o.delay) || 0;
+    if (delay > 0.01) {
+      const arrived = { ...o, delay: 0 };
+      setTimeout(() => this.play(name, arrived), Math.min(2, delay) * 1000);
+      return;
+    }
     if (!this.ok || this.active > 22) return;
     const def = SOUNDS[name]; if (!def) return;
     let vol = (o.vol ?? 1), pan = 0;
