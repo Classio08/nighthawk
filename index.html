@@ -95,8 +95,8 @@
   .btn{pointer-events:auto;cursor:pointer;padding:12px 30px;border:2px solid var(--accent);color:var(--accent);background:rgba(0,0,0,.4);font:inherit;font-size:16px;letter-spacing:4px;border-radius:4px}
   .btn:hover{background:var(--accent);color:#000}
   #operatorbox{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:13px;padding:9px 12px;border-radius:4px;text-align:center;width:226px;letter-spacing:1px}
-  #operatorbox option,#operationselect option{background:#111820;color:#fff}
-  #operationselect{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:12px;padding:9px 12px;border-radius:4px;text-align:center;width:min(310px,90vw);letter-spacing:1px}
+  #operatorbox option,#operationselect option,#blacksite-role option,#meetingtarget option{background:#111820;color:#fff}
+  #operationselect,#blacksite-role,#meetingtarget{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:12px;padding:9px 12px;border-radius:4px;text-align:center;width:min(310px,90vw);letter-spacing:1px}
   #operatorinfo{max-width:360px;min-height:52px;padding:8px 12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-radius:4px;font-size:11px;line-height:1.55;letter-spacing:.5px}
   #operatorinfo b{color:var(--accent)}
   #namebox{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);color:#fff;font:inherit;font-size:14px;padding:8px 12px;border-radius:4px;text-align:center;width:200px;letter-spacing:2px;user-select:text}
@@ -163,6 +163,9 @@
   <label for="operationselect" style="font-size:11px;letter-spacing:2px;opacity:.7">SELECT AN OPERATION</label>
   <select id="operationselect" aria-label="Select operation"><option value="dust-lantern">DUST LANTERN · RESCUE</option><option value="relay-uplink">RELAY UPLINK · DEFEND</option><option value="ghost-frequency">GHOST FREQUENCY · SIGNAL HUNT</option></select>
   <button class="btn" id="operationbtn">LAUNCH OPERATION</button>
+  <label for="blacksite-role" style="font-size:11px;letter-spacing:2px;opacity:.7">BLACK SITE ROLE</label>
+  <select id="blacksite-role" aria-label="Select Black Site role"><option value="operative">OPERATIVE · COMPLETE TASKS / EXTRACT</option><option value="infiltrator">INFILTRATOR · SABOTAGE / ELIMINATE</option><option value="random">CLASSIFIED · RANDOM ROLE</option></select>
+  <button class="btn" id="blacksitebtn">BLACK SITE · SECRET FACTIONS</button>
   <button class="btn" id="onlinebtn">PLAY ONLINE</button>
   <button class="btn" id="startsettings">SETTINGS</button>
   <details id="profile"><summary>LV 1 RECRUIT</summary></details>
@@ -176,6 +179,7 @@
 </div>
 <div id="lobby" class="ov"><h2>FINDING A MATCH</h2><p id="lobbytxt">connecting...</p><p style="opacity:.6;font-size:12px">empty slots are filled with bots, so you always get a full match</p><button class="btn" id="lobbycancel">CANCEL</button></div>
 <div id="pause" class="ov"><h2>PAUSED</h2><p>Click RESUME or press Esc again to keep playing.</p><button class="btn" id="resumebtn">RESUME</button><button class="btn" id="pausesettings">SETTINGS</button></div>
+<div id="meeting" class="ov"><h2>EMERGENCY MEETING</h2><p id="meetingreason">An operative reported a body.</p><select id="meetingtarget" aria-label="Vote for a suspect"></select><button class="btn" id="meetingvote">CAST VOTE</button></div>
 <div id="settings" class="ov" role="dialog" aria-label="Settings"><h2>SETTINGS</h2><div id="settingsbody"></div><button class="btn" id="settingsback">BACK</button></div>
 <div id="end" class="ov">
   <h1 id="endtitle">ELIMINATED</h1>
