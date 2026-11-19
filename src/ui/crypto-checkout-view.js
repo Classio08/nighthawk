@@ -89,7 +89,9 @@ export function mountCryptoCheckout(container, serverUrl, {
     status.textContent = `MERCHANT CHECKOUT · ${config.tokenSymbol} ON CHAIN ${config.chainId} · GUEST ${account.displayName}`;
     list.replaceChildren();
 
-    for (const item of config.catalog ?? []) {
+    const enabledItems = config.catalog ?? [];
+    if (!enabledItems.length) list.appendChild(el('p', 'No cosmetic items are currently configured for token checkout.'));
+    for (const item of enabledItems) {
       const card = el('article', undefined, 'nh-economy-card');
       const owned = account.cosmetics.includes(item.id);
       const details = cosmetics.find((cosmetic) => cosmetic.id === item.id);
