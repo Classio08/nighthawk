@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { makeRng } from '../src/sim/rng.js';
 import {
   MATERIALS, materialForMapKind, materialForPropKind, surfaceImpact,
-  classifyHitZone, hitZoneMultiplier, blastImpulse, projectileDrop, gunshotDelay, hitPushImpulse,
+  classifyHitZone, hitZoneMultiplier, blastImpulse, projectileDrop, gunshotDelay, hitPushImpulse, shrapnelDirection,
 } from '../src/sim/physics-correlation.js';
 
 test('map and prop geometry resolve to consistent physical materials', () => {
@@ -46,4 +47,13 @@ test('projectile drop and distant gunshot delay scale with range', () => {
 test('hit pushes stay small and bounded for playable character movement', () => {
   assert.ok(hitPushImpulse(34, { x: 1, z: 0 }).magnitude < 1);
   assert.ok(hitPushImpulse(500, { x: 1, z: 0 }).magnitude <= 1.8);
+});
+
+test('shrapnel directions are deterministic, normalized and evenly spread over a sphere', () => {
+  const a = makeRng(42), b = makeRng(42);
+  for (let i = 0; i < 32; i++) {
+    const first = shrapnelDirection(a), second = shrapnelDirection(b);
+    assert.deepEqual(first, second);
+    assert.ok(Math.abs(Math.hypot(first.x, first.y, first.z) - 1) < 1e-9);
+  }
 });
