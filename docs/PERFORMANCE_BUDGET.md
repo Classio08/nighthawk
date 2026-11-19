@@ -51,3 +51,16 @@ These are provisional targets for measurement, not claims about current performa
 ## Texture compression decision
 
 KTX2/Basis can reduce GPU memory pressure because the texture remains in a compressed GPU-friendly representation, but compression settings affect visual quality. Test at least one colour map and one normal map on the minimum supported hardware before converting the entire library.
+
+
+## Live frame-time telemetry
+
+A development build exposes a read-only rolling sample through the browser console:
+
+```js
+window.__nhPerf()
+```
+
+The sampler keeps the most recent 240 render intervals and reports mean, p50, p95 and p99 frame time in milliseconds, plus FPS derived from the mean. It records the **unclamped** render interval, while the simulation continues to clamp its own delta to protect fixed-step stability. This makes long browser stalls visible instead of hiding them behind the simulation clamp.
+
+Use this alongside the profiling protocol above. It measures render-loop intervals, not GPU-only time, input-to-photon latency, network RTT, server tick or dropped frames on another device. Record the device, browser, quality preset and commit SHA with every comparison. Do not treat one browser session as a release benchmark.
