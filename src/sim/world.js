@@ -632,7 +632,7 @@ export class Simulation {
       target.result = { to: target.id, won: false, placement: left + 1, kills: target.kills, time: this.time };
       this.emit({ t: 'end', ...target.result });
     }
-    if (this.state === 'playing' && (left <= 1 || !this.humans.some((h) => h.alive))) this._finish();
+    if (this.state === 'playing' && (this.mission ? !this.humans.some((h) => h.alive) : (left <= 1 || !this.humans.some((h) => h.alive)))) this._finish();
   }
 
   /** the match is over: crown the last fighter standing */
