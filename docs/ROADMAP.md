@@ -63,3 +63,12 @@ Rule: every milestone ends with something you can open in a browser and play. Th
 - Keep the first-frame download small and load map/character assets on demand.
 
 See `MASTER_SYSTEMS.md` for the complete product architecture and `ASSET_CATALOG.md` for candidate material sources.
+
+## 19 November 2026 — owner-approved direction update
+
+The owner has approved a wider African-rooted tactical shooter direction and the first offline mission vertical slice. See root `CLAUDE.md` and `docs/PROJECT_DIRECTION_AND_CHAT_NOTES.md` for the durable product brief and hard engineering/legal constraints.
+
+- **First operation:** Operation DUST LANTERN is in draft PR #20 on `feature/dust-lantern-first-playable`. It adds an offline mission director, clues, rescue interaction, escort following, extraction hold, dedicated HUD/view and deterministic tests. It is not merged or yet declared release-ready.
+- **Online mission mode:** intentionally deferred until mission state has a versioned snapshot protocol and server-side validation.
+- **Next:** review CI and playtest the first operation; then improve the captive AI, alternate mission outcomes and faction response. Continue the PBR/operator visual slice in parallel only on a separate branch.
+- **Accounts/economy/wallet:** guest-first accounts and server-backed progression are future milestones. Crypto wagering remains blocked pending written legal and licensing approval in Namibia and every launch market.
