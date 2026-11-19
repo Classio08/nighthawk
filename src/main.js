@@ -149,8 +149,12 @@ function handleEvents() {
     switch (e.t) {
       case 'fire': {
         const f = sim.fighters[e.by], w = WEAPONS[e.w];
-        const soundDistance = e.by === p.id ? 0 : Math.hypot(f.x - p.x, f.z - p.z);
-        audio.play(e.w, e.by === p.id ? { vol: 1 } : { x: f.x, z: f.z, maxD: w.noise * 1.6, delay: soundDistance / 343 });
+        const soundDistance = e.by === p.id ? 0 : Math.hypot(f.x - p.x, f.eyeY - p.eyeY, f.z - p.z);
+        const soundOcclusion = e.by === p.id ? 1 : sim.soundPathGain(f.x, f.eyeY, f.z, p.x, p.eyeY, p.z);
+        audio.play(e.w, e.by === p.id ? { vol: 1 } : {
+          x: f.x, z: f.z, maxD: w.noise * 1.6,
+          delay: soundDistance / 343, occlusion: soundOcclusion,
+        });
         if (e.by === p.id) {
           viewmodel.kick(w); camfx.add(0.05 + w.kick * 0.045);
           particles.casing(camera.position.x + Math.cos(cmd.yaw) * 0.25, camera.position.y - 0.15, camera.position.z - Math.sin(cmd.yaw) * 0.25, Math.cos(cmd.yaw), -Math.sin(cmd.yaw));
@@ -299,7 +303,12 @@ function handleEvents() {
       case 'explosion': {
         particles.explosion(e.x, e.y, e.z, e.r);
         decals.holes.add(e.x, 0.03, e.z, 0, 1, 0, 3.6);
-        audio.play('explosion', { x: e.x, z: e.z, maxD: 160, vol: 1.2 });
+        const explosionDistance = Math.hypot(e.x - p.x, e.y - p.eyeY, e.z - p.z);
+        const explosionOcclusion = sim.soundPathGain(e.x, e.y, e.z, p.x, p.eyeY, p.z);
+        audio.play('explosion', {
+          x: e.x, z: e.z, maxD: 160, vol: 1.2,
+          delay: explosionDistance / 343, occlusion: explosionOcclusion,
+        });
         const d = Math.hypot(e.x - p.x, e.z - p.z);
         camfx.add(clamp(1 - d / 32, 0, 1) * 0.9);
         if (d < 10 && p.alive) hud.whiteFlash(0.7 * (1 - d / 10));
