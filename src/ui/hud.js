@@ -91,9 +91,9 @@ export class Hud {
     e.hpbar.style.background = p.hp / p.maxHp > 0.5 ? '#5be37a' : p.hp / p.maxHp > 0.25 ? '#ffcf4d' : '#ff4d4d';
     e.hpn.textContent = Math.ceil(Math.max(0, p.hp)); e.opname.textContent = p.name.toUpperCase();
     const own = sim.loot && sim.loot.items.length > 0, haveKey = own ? SLOT_ORDER.map((k) => (p.weapons[k].have ? 1 : 0)).join('') : '';
-    const key = `${p.cur}${st.ammo}${st.reserve}${p.nades}|${p.mortar}|${p.streak % 3}|${haveKey}`;
+    const key = `${p.cur}${st.ammo}${st.reserve}${p.nades}/${p.smokes}|${p.mortar}|${p.streak % 3}|${haveKey}`;
     if (key !== this.lastKey) {
-      this.lastKey = key; e.wname.textContent = w.name; e.mag.innerHTML = `${st.ammo} <small>/ ${st.reserve}</small>`; e.nades.innerHTML = `GRENADES ${p.nades}` + (p.mortar > 0 ? ` &nbsp;·&nbsp; <b style="color:#ff7a4d">MORTAR ${p.mortar} [T]</b>` : p.streak % 3 > 0 ? ` &nbsp;·&nbsp; <span style="opacity:.65">STREAK ${p.streak % 3}/3</span>` : '');
+      this.lastKey = key; e.wname.textContent = w.name; e.mag.innerHTML = `${st.ammo} <small>/ ${st.reserve}</small>`; e.nades.innerHTML = `GRENADES ${p.nades} &nbsp;·&nbsp; SMOKE ${p.smokes ?? 0}` + (p.mortar > 0 ? ` &nbsp;·&nbsp; <b style="color:#ff7a4d">MORTAR ${p.mortar} [T]</b>` : p.streak % 3 > 0 ? ` &nbsp;·&nbsp; <span style="opacity:.65">STREAK ${p.streak % 3}/3</span>` : '');
       this.slotEls.forEach((d, i) => { d.classList.toggle('on', SLOT_ORDER[i] === p.cur); d.classList.toggle('no', own && !p.weapons[SLOT_ORDER[i]].have); });
     }
     e.mag.style.color = st.ammo <= w.mag * 0.25 ? '#ff6b6b' : '#fff';

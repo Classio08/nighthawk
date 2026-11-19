@@ -60,7 +60,7 @@ export class BotBrain {
     this.target = null; this.visible = false; this.engageT = 0;
     this.lastSeen = null; this.lastSeenT = 99;
     this.heard = null; this.heardT = 99;
-    this.lastHurtBy = null; this.hurtT = 99;
+    this.lastHurtBy = null; this.hurtT = 99; this.smokeCool = 0;
     this.lookAt = null;
     this.scanT = sim.rng() * 0.25;
     this.aimT = 0; this.offY = 0; this.offP = 0;
@@ -203,7 +203,7 @@ export class BotBrain {
     this.roamGoal = { x: z.nextX, z: z.nextZ }; this.roamT = 0;
   }
 
-  _throwAt(tx, ty, tz) {
+  _throwAt(tx, ty, tz, smoke = false) {
     const { sim, f } = this;
     const dx = tx - f.x, dz = tz - f.z, R = Math.hypot(dx, dz);
     if (R < 7) return false;
@@ -212,7 +212,20 @@ export class BotBrain {
     const e = (1 - this.skill) * 0.08;
     const vx = (dx / R) * vh * (1 + (sim.rng() - 0.5) * e), vz = (dz / R) * vh * (1 + (sim.rng() - 0.5) * e);
     const sp = Math.hypot(vx, vy, vz);
-    return sim.throwGrenade(f, { x: vx / sp, y: vy / sp, z: vz / sp }, sp);
+    return sim.throwGrenade(f, { x: vx / sp, y: vy / sp, z: vz / sp }, sp, smoke);
+  }
+
+  /** under fire and running for cover: pop a smoke between me and the shooter so he loses sight of me (a skilled, cautious bot does it first) */
+  _smokeScreen(th) {
+    const { sim, f } = this;
+    if (f.smokes <= 0 || f.nadeT > 0 || this.smokeCool > 0 || this.skill < 0.3 || !th) return false;
+    const d = Math.hypot(th.x - f.x, th.z - f.z);
+    if (d < 14 || d > 60) return false;
+    for (const s of sim.smokes) if (Math.hypot(s.x - f.x, s.z - f.z) < 14) return false;      // already hidden
+    const k = clamp(8 / d, 0.1, 0.5);                                                          // about 8 m towards the shooter
+    const ok = this._throwAt(f.x + (th.x - f.x) * k, 0.4, f.z + (th.z - f.z) * k, true);
+    if (ok) this.smokeCool = 25 + sim.rng() * 15;
+    return ok;
   }
 
   _chooseWeapon(dist) {
@@ -345,7 +358,7 @@ export class BotBrain {
     if (sim.opts.loot) { this.mainT -= dt; if (this.mainT <= 0) { this.mainT = 1; this._refreshMain(); } }
     this.hurtT += dt; this.lastSeenT += dt; this.heardT += dt;
     this.coverT = Math.max(0, this.coverT - dt); this.coverCool = Math.max(0, this.coverCool - dt);
-    this.jumpCool = Math.max(0, this.jumpCool - dt); this.nadeCool = Math.max(0, this.nadeCool - dt);
+    this.jumpCool = Math.max(0, this.jumpCool - dt); this.nadeCool = Math.max(0, this.nadeCool - dt); this.smokeCool = Math.max(0, this.smokeCool - dt);
     if (this.lookAt) { this.lookAt.t -= dt; if (this.lookAt.t <= 0) this.lookAt = null; }
     if (this.unstick) { this.unstick.t -= dt; if (this.unstick.t <= 0) this.unstick = null; }
     if (this.target && !this.target.alive) { this.target = null; this.visible = false; }
@@ -377,6 +390,7 @@ export class BotBrain {
         const th = tgt ?? this.lastSeen ?? (this.lastHurtBy ? { x: this.lastHurtBy.x, z: this.lastHurtBy.z } : null);
         this.coverCool = 1.6;
         if (th) { const pt = findCover(sim.map, f, th, 28); if (pt) { this.coverPt = pt; this.coverT = 4.5 + sim.rng() * 2; } }
+        if (th && (hurtBadly || underFire) && sim.rng() < 0.35 + 0.4 * pers.caution) this._smokeScreen(th);
       }
     }
     if (this.coverT > 0 && hpF > 0.6 && f.weapons[f.cur].ammo > WEAPONS[f.cur].mag * 0.5) this.coverT = 0;

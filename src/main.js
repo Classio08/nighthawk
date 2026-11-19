@@ -25,6 +25,7 @@ import { LootView } from './render/loot-view.js';
 import { ContractsView } from './render/contracts-view.js';
 import { settings, QUALITY } from './settings.js';
 import { PlaneView } from './render/plane-view.js';
+import { SmokeView } from './render/smoke-view.js';
 import { loadProfile, saveProfile, resetProfile, recordMatch, MatchTracker, skinUnlocked, levelInfo, SKIN_UNLOCK } from './profile.js';
 import { renderProfile, renderGain } from './ui/profile-view.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
@@ -92,6 +93,7 @@ async function newMatch(online = null, operation = false) {
   particles.onBloodLand = (x, z) => { if (settings.gore) decals.stain(x, 0.02, z, 0, 1, 0, 0.35 + Math.random() * 0.4); };
   const atmo = new Atmosphere(scene, world, camera, sim.weather, audio), cview = new ContractsView(scene, sim), vview = new VehiclesView(scene, sim), lview = sim.loot ? new LootView(scene, sim) : null;
   const pview = sim.plane ? new PlaneView(scene, sim.plane) : null;
+  const sview = new SmokeView(scene, sim);
   const rag = new RagdollWorld(sim.map, { max: 10, life: 9 });
   const mview = sim.mission ? new MissionView(scene, sim) : null;
   const mags = new MagDrops(scene, (x, z) => audio.play('magdrop', { x, z, maxD: 30, vol: 0.9 }));
@@ -102,8 +104,8 @@ async function newMatch(online = null, operation = false) {
   playerView.setVisible(thirdPerson && p.alive);
   playerView.label.visible = false;
   viewmodel.setSkin(p.skin);
-  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
-  G = { sim, net: online, scene, world, pview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
+  cmd.yaw = p.yaw; cmd.pitch = 0; cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;
+  G = { sim, net: online, scene, world, pview, sview, mview, t0: performance.now(), windT: 0, atmo, cview, vview, lview, engT: 0, freeLookT: 0, particles, decals, tracers, rag, mags, later: [], ragViews: [], views, playerView, acc: 0, over: false, deadT: -1, killer: null,
     prev: { x: p.x, y: p.y, z: p.z }, cur: { x: p.x, y: p.y, z: p.z }, recoil: 0, stepT: 0, lastZone: '', zonePhase: 0, deathCamT: 0, lastTorso: null, adsK: 0, fov: settings.fov, roll: 0 };
   if (!hud) hud = new Hud(sim.map); else { hud.setMap(sim.map); hud.reset(); }
   hud.hideEnd();
@@ -298,6 +300,7 @@ function handleEvents() {
       case 'dry': if (e.by === p.id) audio.play('dry'); break;
       case 'switch': if (e.by === p.id) audio.play('switch'); break;
       case 'throw': { const f = sim.fighters[e.by]; audio.play('throw', e.by === p.id ? {} : { x: f.x, z: f.z, maxD: 45 }); break; }
+      case 'smoke': audio.play('smoke', e.by === p.id ? { vol: 0.9 } : { x: e.x, z: e.z, maxD: 60, vol: 0.8 }); break;
       case 'end': {
         if (e.to !== undefined && e.to !== p.id) break;        // somebody else's result
         G.over = true;
@@ -348,6 +351,7 @@ function handleInput(dt) {
   }
   if (input.actPressed('reload')) cmd.reload = true;
   if (input.actPressed('grenade')) cmd.grenade = true;
+  if (input.actPressed('smoke')) { if (p.smokes > 0) cmd.smoke = true; else hud.message('NO SMOKE GRENADES LEFT', '#ffffff', 1); }
   if (input.actPressed('use')) cmd.use = true;
   if (input.actPressed('heal') && sim.loot?.items.length) {
     if (p.healT > 0) { /* already healing */ } else if (p.meds <= 0) hud.message('NO MEDKITS - LOOT SOME', '#ff4d4d', 1.2);
@@ -433,7 +437,7 @@ function frame(now) {
     while (G.acc >= STEP) {
       G.prev = G.cur; G.cur = { x: p.x, y: p.y, z: p.z };
       sim.step(STEP, keys);
-      cmd.reload = false; cmd.grenade = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
+      cmd.reload = false; cmd.grenade = false; cmd.smoke = false; cmd.mortar = false; cmd.use = false; cmd.heal = false; cmd.ability = false; cmd.slot = 0;     // one-shot keys are used up after ONE tick (the sim no longer edits our cmd)
       G.cur = { x: p.x, y: p.y, z: p.z };
       G.acc -= STEP;
     }
@@ -466,6 +470,7 @@ function frame(now) {
   G.playerView.setVisible(showBody);
   if (showBody) { G.playerView.update(dt, 0); G.playerView.label.visible = false; }
 
+  if (G.sview) { G.sview.update(dt); const dp = G.sview.depthAt(p.x, p.eyeY, p.z); $('smokevig').style.opacity = Math.min(0.92, dp * 1.6); }
   if (G.pview) G.pview.update(G.net ? G.net.planeT() : sim.time);   // the plane (offline: the sim clock; online: the server clock)
   if (p.air === 2) { G.windT -= dt; if (G.windT <= 0) { G.windT = 0.32; audio.play('wind', { vol: 0.5 + Math.min(0.7, -p.vy / 70) }); } camfx.add(0.004); }
   // fighters, ragdolls, effects

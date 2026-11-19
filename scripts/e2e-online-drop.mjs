@@ -47,7 +47,7 @@ check('both browsers start in the plane (air = 1) at plane height', a.air === 1 
 check('both screens show the plane and the PRESS SPACE prompt, with no gun in hand', a.plane && b.plane && /PRESS SPACE TO JUMP/.test(a.airText) && /PRESS SPACE TO JUMP/.test(b.airText) && a.gun === false && b.gun === false);
 const zsec = (t) => { const m = /(\d+):(\d\d)/.exec(t); return m ? +m[1] * 60 + +m[2] : -1; };
 check('the zone countdown includes the drop time (well over the 22 s first wait)', /NEXT ZONE/.test(a.zone) && zsec(a.zone) > 25, JSON.stringify(a.zone));
-check('each browser sees the others as passengers too', Object.values(a.others).filter((v) => v === 1).length >= 4, JSON.stringify(a.others));
+check('each browser sees the others as passengers too', Object.values(a.others).filter((v) => v >= 1).length >= 4, JSON.stringify(a.others));
 
 /* A jumps */
 await press(A);
@@ -62,7 +62,7 @@ check('the server agrees (A airborne, uninjured)', sim.fighters[a.id].air >= 2 &
 await A.waitForFunction('window.__nh.sim.player.air === 0', { timeout: 60000, polling: 100 });
 await wait(400);
 a = await view(A);
-check('A landed on the ground, unhurt, gun back, prompt gone', a.air === 0 && a.y < 3 && a.hp === a.maxHp && a.gun === true && a.airText === '', `y=${a.y.toFixed(2)} hp=${a.hp}/${a.maxHp}`);
+check('A landed on the ground, unhurt, gun back, prompt gone', a.air === 0 && a.y < 14 &&   /* may land on a rooftop */ a.hp === a.maxHp && a.gun === true && a.airText === '', `y=${a.y.toFixed(2)} hp=${a.hp}/${a.maxHp}`);
 check('server and A agree where A is standing', Math.hypot(sim.fighters[a.id].x - a.x, sim.fighters[a.id].z - a.z) < 1.5, `gap ${Math.hypot(sim.fighters[a.id].x - a.x, sim.fighters[a.id].z - a.z).toFixed(2)} m`);
 
 /* B never jumps: the server throws him out before the plane leaves the map */

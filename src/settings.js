@@ -11,10 +11,12 @@ const PORTAL = !!import.meta.env?.VITE_PORTAL;
 export const ACTIONS = [
   ['forward', 'Move forward', 'KeyW'], ['back', 'Move back', 'KeyS'], ['left', 'Strafe left', 'KeyA'], ['right', 'Strafe right', 'KeyD'],
   ['jump', 'Jump', 'Space'], ['sprint', 'Sprint (hold)', 'ShiftLeft'], ['crouch', 'Crouch (hold)', 'KeyC'],
-  ['reload', 'Reload', 'KeyR'], ['grenade', 'Grenade', 'KeyG'], ['use', 'Use / enter vehicle', 'KeyE'], ['heal', 'Medkit', 'KeyH'],
+  ['reload', 'Reload', 'KeyR'], ['grenade', 'Grenade', 'KeyG'], ['smoke', 'Smoke grenade', 'KeyX'], ['use', 'Use / enter vehicle', 'KeyE'], ['heal', 'Medkit', 'KeyH'],
   ['ability', 'Operator ability', 'KeyQ'], ['mortar', 'Mortar strike', 'KeyT'], ['flashlight', 'Flashlight', 'KeyF'], ['camera', 'First / third person', 'KeyV'],
 ];
 export const DEFAULT_KEYS = Object.fromEntries(ACTIONS.map(([id, , k]) => [id, k]));
+/** where a newly added action goes when an older save already uses its default key (first free one wins) */
+const SPARE_KEYS = ['KeyZ', 'KeyB', 'KeyN', 'KeyM', 'KeyY', 'KeyJ', 'KeyK', 'KeyL', 'KeyU', 'KeyI', 'KeyO', 'KeyP'];
 const ACTION_IDS = new Set(ACTIONS.map(([id]) => id));
 /** keys that may not be bound (they are the browser's or the game's own: Escape pauses, digits pick weapons, Tab / F-keys belong to the browser) */
 const RESERVED = (code) => code === 'Escape' || code === 'Tab' || /^Digit[1-6]$/.test(code) || /^F\d+$/.test(code) || /^(Meta|OS|Context)/.test(code);
@@ -41,7 +43,18 @@ export function sanitize(raw, base = state) {
   if (raw.fov !== undefined) out.fov = clampNum(raw.fov, LIMITS.fov, out.fov);
   if (raw.volume !== undefined) out.volume = clampNum(raw.volume, LIMITS.volume, out.volume);
   if (QUALITY[raw.quality]) out.quality = raw.quality;
-  if (raw.keys && typeof raw.keys === 'object') for (const id of ACTION_IDS) if (validCode(raw.keys[id])) out.keys[id] = raw.keys[id];
+  if (raw.keys && typeof raw.keys === 'object') {
+    const given = new Set();
+    for (const id of ACTION_IDS) if (validCode(raw.keys[id])) { out.keys[id] = raw.keys[id]; given.add(id); }
+    // an older save knows nothing about actions added later (e.g. the smoke grenade): if such an action's default key is already taken by something
+    // the player bound, give it a free key instead of throwing the whole layout away below
+    for (const [id, , def] of ACTIONS) {
+      if (given.has(id) || !Object.entries(out.keys).some(([o, c]) => o !== id && c === def)) continue;
+      const used = new Set(Object.values(out.keys));
+      const free = SPARE_KEYS.find((c) => !used.has(c));
+      if (free) out.keys[id] = free;
+    }
+  }
   // two actions on one key would make both fire at once (only a hand-edited save can do this: rebind() swaps): fall back to the default layout
   if (new Set(Object.values(out.keys)).size !== ACTIONS.length) out.keys = { ...DEFAULT_KEYS };
   return out;

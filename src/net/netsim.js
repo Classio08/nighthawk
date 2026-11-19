@@ -25,12 +25,12 @@ class RemoteFighter {
     this.alive = true; this.kills = 0; this.x = 0; this.y = 0.9; this.z = 0; this.yaw = 0; this.pitch = 0;
     this.speedH = 0; this.grounded = true; this.ads = false; this.sprinting = false; this.cur = r.weapon; this.reloadT = 0;
     this.weapons = {}; this.nades = 0; this.fireT = 0; this.switchT = 0; this.bloom = 0;
-    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false; this.crouch = false; this.air = 0; this.airT = 0;      // operator ability tells (flags from the snapshot)
+    this.abOn = false; this.cloaked = false; this.stunned = false; this.dashing = false; this.crouch = false; this.air = 0; this.airT = 0; this.smokes = 0;      // operator ability tells (flags from the snapshot)
   }
   get eyeY() { return this.y + (this.crouch ? 0.2 : 0.72); }
 }
 
-const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit', 'crouch', 'air', 'airT'];
+const DELEGATED = ['yaw', 'pitch', 'ads', 'sprinting', 'speedH', 'grounded', 'cur', 'weapons', 'reloadT', 'reloadTot', 'reloadEmpty', 'switchT', 'fireT', 'bloom', 'nades', 'nadeT', 'vy', 'mortar', 'streak', 'veh', 'seat', 'armor', 'armorLv', 'meds', 'healT', 'abCd', 'abT', 'dashT', 'dashVx', 'dashVz', 'stunT', 'dashHit', 'crouch', 'air', 'airT', 'smokes'];
 
 /** YOUR fighter: movement + weapon state come from the predictor, health/kills/alive from the server */
 class Me {
@@ -58,7 +58,7 @@ export class NetSim {
     this.ready = false; this.inbox = []; this.onLobby = null; this.onOver = null; this.onClose = null;
     this.seq = 0; this.pending = []; this.outbox = []; this.err = { x: 0, y: 0, z: 0 };
     this.snaps = []; this.clockOff = null; this.evq = [];
-    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.humans = []; this.nDestroyed = 0; this.contracts = { list: [] }; this.strikes = []; this.vehicles = { list: [], byId: new Map() }; this.seated = false;
+    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.smokes = []; this.humans = []; this.nDestroyed = 0; this.contracts = { list: [] }; this.strikes = []; this.vehicles = { list: [], byId: new Map() }; this.seated = false;
     this.time = 0; this.tick = 0; this.state = 'playing'; this.result = null; this.rtt = 0; this.stats = { snaps: 0, corrections: 0, maxErr: 0, lastErr: 0 };
     this._wait = new Promise((res, rej) => { this._resolve = res; this._reject = rej; });
     this._ping = null;
@@ -166,7 +166,8 @@ export class NetSim {
       if (f === this.me) { f.hp = a[6]; f.kills = a[10]; f.alive = !!(a[7] & 1); } else { f.hp = a[6]; f.kills = a[10]; f.alive = !!(a[7] & 1); }
     }
     // grenades: draw them where the server says (they only live a couple of seconds)
-    this.grenades = s.g.map((g) => ({ body: { translation: () => ({ x: g[0], y: g[1], z: g[2] }) } }));
+    this.grenades = s.g.map((g) => ({ body: { translation: () => ({ x: g[0], y: g[1], z: g[2] }) }, smoke: g[3] === 1 }));
+    this.smokes = (s.sm ?? []).map((c) => ({ x: c[0], y: c[1], z: c[2], age: c[3] }));      // smoke clouds (the browser draws them; bots live on the server)
     // broken crates / exploded barrels: apply to my copy of the world so my own movement collides with the same things the server has
     if (s.pd && s.pd.length !== this.nDestroyed) { this.predictor.syncDestroyed(s.pd); this.predictor.world.propagateModifiedBodyPositionsToColliders(); this.nDestroyed = s.pd.length; }
     if (s.vh) this.predictor.vehicles.applyState(s.vh, true);      // vehicle poses (their colliders move too, so my predicted walking bumps into the same things)

@@ -11,6 +11,7 @@
   #game{position:fixed;inset:0;width:100%;height:100%;display:block}
   #hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 1px 3px #000}
   #vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 45%,rgba(160,0,0,.85) 100%);opacity:0}
+  #smokevig{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(188,186,176,.55),rgba(150,148,140,.95));opacity:0;pointer-events:none}
   #zonevig{position:absolute;inset:0;box-shadow:inset 0 0 120px 30px rgba(255,60,40,.55);opacity:0}
   #flash{position:absolute;inset:0;background:#fff;opacity:0}
   /* crosshair: four ticks that spread while moving/firing */
@@ -127,7 +128,7 @@
 <body>
 <canvas id="game"></canvas>
 <div id="hud">
-  <div id="zonevig"></div><div id="vig"></div><div id="flash"></div>
+  <div id="zonevig"></div><div id="smokevig"></div><div id="vig"></div><div id="flash"></div>
   <div id="dmg"></div>
   <div id="cross"><i class="dot"></i><i id="cu"></i><i id="cd"></i><i id="cl" class="h"></i><i id="cr" class="h"></i></div>
   <div id="hitm"><i></i><i></i><i></i><i></i></div>
@@ -154,7 +155,7 @@
 <div id="start" class="ov show">
   <h1>NIGHTHAWK</h1>
   <p>TACTICAL OPERATIONS · KAVARI BASIN · FIRST / THIRD PERSON</p>
-  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim &nbsp;<small style="opacity:.6">(rebind in SETTINGS)</small><br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E interact / enter / exit vehicle</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
+  <p>WASD move &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; <b>C crouch (hold)</b> &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Mouse aim &nbsp;<small style="opacity:.6">(rebind in SETTINGS)</small><br>Left click fire &nbsp;·&nbsp; <b>Right click aim down sights</b> &nbsp;·&nbsp; R reload<br>1-6 or wheel switch weapon &nbsp;·&nbsp; G grenade &nbsp;·&nbsp; <b>X smoke grenade</b> &nbsp;·&nbsp; <b>T mortar strike</b> (3 kills in a row) &nbsp;·&nbsp; <b>E interact / enter / exit vehicle</b> &nbsp;·&nbsp; <b>H medkit</b> &nbsp;·&nbsp; <b>Q operator ability</b> &nbsp;·&nbsp; F flashlight<br><b>V switch first-/third-person camera</b> &nbsp;·&nbsp; Esc pause</p>
   <p style="font-size:12px;opacity:.7"><b>Every match starts in the plane:</b> press <b>Space</b> to jump, hold <b>W</b> to dive, the parachute opens by itself at 60 m (Space opens it early) &middot; you land with a pistol: <b>loot guns, armor and medkits</b> (walk over them) &middot; grab airdrops &#9635; &middot; hold hardpoints &#9678; &middot; hunt the bounty &#9670;</p>
   <button class="btn" id="playbtn">PLAY SOLO (WITH BOTS)</button>
   <button class="btn" id="operationbtn">OPERATION: DUST LANTERN</button>

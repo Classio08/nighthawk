@@ -22,8 +22,9 @@ All gameplay rules live in `src/sim/` (no graphics). That one engine runs in you
 | 13 | Guest profile: XP, levels and ranks, career stats, 14 badges, weapon skins unlocked by level (cosmetic only), saved in the browser | built | `src/profile.js`, `src/ui/profile-view.js`, `src/main.js` | `tests/profile.test.js`, `scripts/e2e-profile.mjs` |
 | 14 | Parachute drop-in: everyone starts in a transport plane, jumps (Space), free-falls (W dives), parachute opens at 60 m, bots choose landing spots, zone waits for the landing; solo + online + prediction | built | `src/sim/drop.js`, `src/sim/world.js`, `src/sim/bot.js`, `src/render/plane-view.js`, `src/render/fighter.js`, `src/ui/hud.js`, `src/net/protocol.js`, `src/net/netsim.js`, `server/src/MatchRoom.js` | `tests/drop.test.js`, `scripts/e2e-drop.mjs`, `scripts/e2e-online-drop.mjs`, `server/test/match.mjs` section 6 |
 | 15 | Operation DUST LANTERN (ChatGPT, merged and verified): offline rescue mission with seeded site, 3 clues (2 needed), escort, extraction hold, alert director, debrief; no zone, no drop | built (offline only) | `src/sim/missions.js`, `src/sim/mission-alert.js`, `src/render/mission-view.js`, `src/ui/hud.js`, `src/main.js` | `tests/missions.test.js`, `tests/mission-alert.test.js`, `scripts/e2e-mission.mjs` |
+| 16 | Smoke grenades: `X` throws a smoke canister that pops into a cloud after 1.5 s; the cloud blocks sight (not bullets) for about 16 s, bots throw them when hurt and under fire; HUD count, screen haze inside the cloud; solo + online + prediction | built | `src/sim/smoke.js`, `src/sim/world.js`, `src/sim/bot.js`, `src/net/protocol.js`, `src/net/netsim.js`, `src/render/smoke-view.js`, `src/ui/hud.js`, `src/main.js` | `tests/smoke.test.js`, `scripts/e2e-smoke.mjs` |
 
-Run everything: `npm test` (196 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
+Run everything: `npm test` (207 tests), `npm run smoke`, `npm run server:test`, then (with `npx vite build` and `npx vite preview --port 4173` running) the `scripts/e2e-*.mjs` browser checks.
 
 ## Controls (all of them)
 
@@ -181,6 +182,19 @@ The rules live in `src/sim/drop.js` (graphics-free and deterministic, so the bro
 - **Client**: `src/render/plane-view.js` (low-poly transport plane), a striped canopy and a belly-down free-fall pose on `FighterView`, a wider field of view in free fall, wind / chute / thud sounds, an `#air` prompt (PRESS SPACE TO JUMP with the exit countdown, FREE FALL altitude, PARACHUTE altitude) and the plane's flight line plus marker on the minimap.
 - **URL switches**: `?drop=0` skips the drop (handy for testing), `?drop=1` forces it. Automated browsers (`navigator.webdriver`) default to **no drop** so the older browser scripts keep working; the drop has its own two (`e2e-drop.mjs`, `e2e-online-drop.mjs`).
 - **Found while building it**: a lethal fall crashed the physics ("unreachable" inside Rapier) because `_kill` removes the rigid body and the movement code touched it afterwards; both movement paths now stop as soon as the fighter dies, with a regression test.
+
+## Stage 16: smoke grenades
+
+Rules in `src/sim/smoke.js` (graphics-free, deterministic). A smoke grenade is a second grenade type: it costs a **smoke** (not a frag), and it hides people from each other without stopping bullets.
+
+- **Throwing**: `X` (rebindable in SETTINGS). Everyone starts with 2 smokes in a no-loot match, loot matches start with 1 and guards with 0. Same 1.2 s throw cooldown as frags, not allowed in the air. Throwing makes noise (radius 12) like any grenade, so bots hear it.
+- **The cloud**: the canister flies like a frag, pops after `SMOKE.FUSE` (1.5 s) into one cloud (radius 7.5 m, grows over 1.8 s, stays about 12 s, thins out and is gone after 16 s). At most 8 clouds exist at once (the oldest goes first).
+- **What it does**: `canSee()` (the sight test bots use to find a target) also fails when the line passes through a cloud (segment against a sphere of 0.9 of the current radius; very thin clouds are ignored), and standing inside one blinds you. **Bullets, explosions and hearing are not affected**: smoke is concealment, not cover.
+- **Bots**: when hurt badly or under fire from 14 to 60 m, a bot with skill 0.3 or more may throw a smoke about 8 m towards the shooter (35% to 75% chance depending on caution, then a 25 to 40 s cooldown) and moves to cover. A bot already near a cloud does not throw another.
+- **Network**: the key is command flag `CF.smoke` (2048); the smoke count rides the private self-state (`sn`), clouds ride the snapshot as `sm: [[x, y, z, age]]` (only when a cloud exists, so empty snapshots did not grow), and a canister in flight is a grenade entry marked `1`. The predicting client plays the throw and spends the smoke but never creates a cloud (the server does, `updateSmokes` is skipped when `opts.predictor`).
+- **Client**: `src/render/smoke-view.js` draws 18 soft sprite puffs per cloud (one shared canvas texture), the HUD shows `GRENADES n · SMOKE m`, and a grey haze (`#smokevig`) fills the screen while you stand inside a cloud.
+- **Settings note**: older saved key layouts do not know the new action; if one of them already uses `X`, the smoke key moves to the first free key instead of the whole layout being reset (regression test in `tests/settings.test.js`).
+- **Not done yet**: other utility grenades (flash, decoy), thermal vision that sees through smoke, smoke from vehicles.
 
 ## What to look at next (open items)
 

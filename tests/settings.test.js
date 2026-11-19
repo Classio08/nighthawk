@@ -57,3 +57,12 @@ test('difficulty table: ordered easy < normal < hard < brutal, normal changes no
   assert.deepEqual([DIFFICULTY.normal.skill, DIFFICULTY.normal.react, DIFFICULTY.normal.aim, DIFFICULTY.normal.tricks], [0, 1, 1, 1]);
   assert.equal(diffOf('nonsense'), DIFFICULTY.normal); assert.equal(diffOf(undefined), DIFFICULTY.normal);
 });
+
+test('sanitize: an older save that already uses a newer action\'s default key keeps its layout (the new action moves to a free key)', () => {
+  const out = sanitize({ keys: { forward: 'KeyZ', back: 'KeyX', left: 'KeyN', right: 'KeyM' } }, { ...base() });
+  assert.equal(out.keys.forward, 'KeyZ'); assert.equal(out.keys.back, 'KeyX');
+  assert.notEqual(out.keys.smoke, 'KeyX'); assert.equal(new Set(Object.values(out.keys)).size, ACTIONS.length, 'no duplicates');
+  // a save that does name every action (and has a real clash) still falls back to the defaults
+  const clash = sanitize({ keys: { ...Object.fromEntries(ACTIONS.map(([id, , k]) => [id, k])), back: 'KeyX' } }, base());
+  assert.deepEqual(clash.keys, Object.fromEntries(ACTIONS.map(([id, , k]) => [id, k])));
+});

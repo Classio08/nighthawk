@@ -120,6 +120,7 @@ export class WorldView {
     });
     this.dmgColor = new THREE.Color();
     this.nadeMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), lambert(0x394a2b));
+    this.smokeNadeMat = lambert(0xb9b9b2);      // smoke canisters are pale grey
     this.nades = [];
 
     // the zone: a red see-through wall + a white ring where the NEXT circle will be
@@ -152,7 +153,7 @@ export class WorldView {
     // grenades come and go
     while (this.nades.length < sim.grenades.length) { const m = this.nadeMesh.clone(); this.scene.add(m); this.nades.push(m); }
     while (this.nades.length > sim.grenades.length) this.scene.remove(this.nades.pop());
-    sim.grenades.forEach((g, i) => { const t = g.body.translation(); this.nades[i].position.set(t.x, t.y, t.z); });
+    sim.grenades.forEach((g, i) => { const t = g.body.translation(); this.nades[i].position.set(t.x, t.y, t.z); this.nades[i].material = g.smoke ? this.smokeNadeMat : this.nadeMesh.material; });
     const z = sim.zone;
     this.zoneWall.position.x = z.cx; this.zoneWall.position.z = z.cz; this.zoneWall.scale.set(z.radius, 1, z.radius);
     this.zoneRing.position.x = z.nextX; this.zoneRing.position.z = z.nextZ; this.zoneRing.scale.set(z.nextR, z.nextR, 1);

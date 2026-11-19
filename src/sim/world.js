@@ -21,6 +21,7 @@ import { rayCapsule } from './geom.js';
 import { idleCmd } from './cmd.js';
 import { BotBrain } from './bot.js';
 import { startDrop, stepAir } from './drop.js';
+import { SMOKE, popSmoke, updateSmokes, smokeBlocks } from './smoke.js';
 import { DustLanternMission } from './missions.js';
 
 export const GRAV = -22;
@@ -52,7 +53,7 @@ export class Fighter {
     this.weapons = {}; this.cur = op.weapon;
     for (const id2 of SLOT_ORDER) this.weapons[id2] = { ammo: WEAPONS[id2].mag, reserve: WEAPONS[id2].reserve, have: true };
     this.fireT = 0; this.reloadT = 0; this.reloadTot = 1; this.reloadEmpty = false; this.skin = null; this.mortar = 0; this.streak = 0; this.switchT = 0; this.bloom = 0; this.wasFiring = false; this.shotsInBurst = 0;
-    this.nades = 2; this.nadeT = 0;
+    this.nades = 2; this.nadeT = 0; this.smokes = 2;       // smoke grenades (smoke.js)
     this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;       // loot: armor points left, medkits carried, seconds left of the medkit being used
     this.abCd = 0; this.abT = 0; this.dashT = 0; this.dashVx = 0; this.dashVz = 0; this.dashHit = []; this.stunT = 0;   // operator ability: cooldown left, effect time left, dash, stunned
     this.noHurtT = 0; this.zoneAcc = 0;
@@ -64,11 +65,11 @@ export class Fighter {
   /** loot matches: you start with a pistol and nothing else */
   loadoutLoot() {
     for (const k of SLOT_ORDER) this.weapons[k] = k === 'pistol' ? { ammo: WEAPONS.pistol.mag, reserve: 45, have: true } : { ammo: 0, reserve: 0, have: false };
-    this.cur = 'pistol'; this.nades = 0; this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;
+    this.cur = 'pistol'; this.nades = 0; this.smokes = 1; this.armor = 0; this.armorLv = 0; this.meds = 0; this.healT = 0;
   }
   /** the garrison: an SMG and a light vest (they guard the best spot, so they should be a bit hard to take out) */
   loadoutGuard() {
-    this.weapons.smg = { ammo: WEAPONS.smg.mag, reserve: WEAPONS.smg.reserve, have: true }; this.cur = 'smg'; this.armor = 40; this.armorLv = 1; this.nades = 1;
+    this.weapons.smg = { ammo: WEAPONS.smg.mag, reserve: WEAPONS.smg.reserve, have: true }; this.cur = 'smg'; this.armor = 40; this.armorLv = 1; this.nades = 1; this.smokes = 0;
   }
   get haveBits() { let b = 0; SLOT_ORDER.forEach((k, i) => { if (this.weapons[k].have) b |= 1 << i; }); return b; }
 
@@ -77,7 +78,7 @@ export class Fighter {
     const w = {}; for (const k of SLOT_ORDER) w[k] = [this.weapons[k].ammo, this.weapons[k].reserve];
     return { yaw: this.yaw, x: this.x, y: this.y, z: this.z, vy: this.vy, gr: this.grounded ? 1 : 0, cur: this.cur, w,
       fireT: this.fireT, reloadT: this.reloadT, rt: this.reloadTot, re: this.reloadEmpty ? 1 : 0, switchT: this.switchT, bloom: this.bloom, wf: this.wasFiring ? 1 : 0,
-      nades: this.nades, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
+      nades: this.nades, sn: this.smokes, nadeT: this.nadeT, shotN: this.shotN, hv: this.haveBits, ar: this.armor, al: this.armorLv, md: this.meds, hl: this.healT, mt: this.mortar, ks: this.streak, sv: this.veh ? this.veh.id : -1, ss: this.seat, air: [this.air, this.airT, this.avx, this.avz, this.jumpPrev ? 1 : 0], ab: [this.abCd, this.abT, this.dashT, this.dashVx, this.dashVz, this.stunT], cr: this.crouch ? 1 : 0, ads: this.ads ? 1 : 0, spr: this.sprinting ? 1 : 0, sp: this.speedH };
   }
   importSelf(s) {
     this.x = s.x; this.y = s.y; this.z = s.z; this.vy = s.vy; this.grounded = !!s.gr; this.cur = s.cur;
@@ -87,7 +88,7 @@ export class Fighter {
     this.crouch = !!s.cr;
     if (s.air) { this.air = s.air[0]; this.airT = s.air[1]; this.avx = s.air[2]; this.avz = s.air[3]; this.jumpPrev = !!s.air[4]; }
     if (s.ab) { this.abCd = s.ab[0]; this.abT = s.ab[1]; this.dashT = s.ab[2]; this.dashVx = s.ab[3]; this.dashVz = s.ab[4]; this.stunT = s.ab[5]; }
-    this.nades = s.nades; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
+    this.nades = s.nades; if (s.sn !== undefined) this.smokes = s.sn; this.nadeT = s.nadeT; this.shotN = s.shotN; this.mortar = s.mt ?? 0; this.streak = s.ks ?? 0; this.ads = !!s.ads; this.sprinting = !!s.spr; this.speedH = s.sp;
     if (this.rb) { this.rb.setTranslation({ x: this.x, y: this.y, z: this.z }, true); this.rb.setNextKinematicTranslation({ x: this.x, y: this.y, z: this.z }); }
   }
 }
@@ -103,7 +104,7 @@ export class Simulation {
     this.navBudget = 0;
     this.time = 0; this.tick = 0; this.events = [];
     this.hist = new Array(HIST).fill(null); this.humans = []; this.player = null;
-    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = [];
+    this.fighters = []; this.crates = []; this.barrels = []; this.grenades = []; this.smokes = [];      // thrown grenades / smoke clouds in the world
     this.propByCol = new Map();     // collider handle -> crate / barrel (things bullets can break)
     this.destroyed = [];            // ids of broken props (replicated to browsers in every snapshot)
     this.colMap = new Map();        // collider handle -> Fighter
@@ -372,7 +373,7 @@ export class Simulation {
       let diff = Math.abs(((ang - a.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       if (diff > fov / 2) return false;
     }
-    return this.losClear(a.x, a.eyeY, a.z, b.x, b.y + 0.35, b.z);
+    return this.losClear(a.x, a.eyeY, a.z, b.x, b.y + 0.35, b.z) && !smokeBlocks(this.smokes, a.x, a.eyeY, a.z, b.x, b.y + 0.35, b.z);      // smoke clouds block sight (not bullets)
   }
 
   makeNoise(src, radius) {
@@ -507,17 +508,19 @@ export class Simulation {
 
   /* ---------------- grenades and damage ---------------- */
 
-  throwGrenade(f, dir, speed = 15) {
-    if (f.nades <= 0 || f.nadeT > 0) return false;
-    f.nades--; f.nadeT = 1.2;
-    if (this.opts.predictor) { this.emit({ t: 'throw', by: f.id }); return true; }   // a predicting browser only plays the throw; the server owns the grenade
+  /** `smoke`: throw a smoke canister instead of a fragmentation grenade */
+  throwGrenade(f, dir, speed = 15, smoke = false) {
+    if ((smoke ? f.smokes : f.nades) <= 0 || f.nadeT > 0 || f.air) return false;
+    if (smoke) f.smokes--; else f.nades--;
+    f.nadeT = 1.2;
+    if (this.opts.predictor) { this.emit({ t: 'throw', by: f.id, smoke }); return true; }   // a predicting browser only plays the throw; the server owns the grenade
     const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(f.x + dir.x * 0.9, f.eyeY + dir.y * 0.9, f.z + dir.z * 0.9)
       .setLinvel(dir.x * speed, dir.y * speed + 3.5, dir.z * speed).setAngvel({ x: 6, y: 2, z: 3 }));
     const col = this.world.createCollider(RAPIER.ColliderDesc.ball(0.15).setRestitution(0.55).setFriction(0.6).setDensity(1.2), body);
-    this.grenades.push({ body, col, t: 0, owner: f });
-    this.emit({ t: 'throw', by: f.id });
-    this.makeNoise(f, 30);
+    this.grenades.push({ body, col, t: 0, owner: f, smoke });
+    this.emit({ t: 'throw', by: f.id, smoke });
+    this.makeNoise(f, smoke ? 12 : 30);
     return true;
   }
 
@@ -718,6 +721,7 @@ export class Simulation {
     if (!p.alive) return;                                                 // (a lethal landing ends the turn)
     if (cmd.slot) this.switchWeapon(p, SLOT_ORDER[cmd.slot - 1]);
     if (cmd.grenade) this.throwGrenade(p, this._aimDir(p, 0));
+    if (cmd.smoke) this.throwGrenade(p, this._aimDir(p, 0), 15, true);
     if (cmd.mortar) this.callMortarFromView(p);
     if (cmd.use && !this.mission?.interact(p)) this.vehicles.enter(p);  // E: mission interaction first, otherwise enter/exit a vehicle
     p.nadeT = Math.max(0, p.nadeT - dt);
@@ -799,8 +803,10 @@ export class Simulation {
     }
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i]; g.t += dt;
-      if (g.t >= GRENADE_FUSE) { this._explode(g); this.grenades.splice(i, 1); }
+      if (g.smoke) { if (g.t >= SMOKE.FUSE) { const t = g.body.translation(); popSmoke(this, t.x, t.y, t.z, g.owner); this.world.removeRigidBody(g.body); this.grenades.splice(i, 1); } }
+      else if (g.t >= GRENADE_FUSE) { this._explode(g); this.grenades.splice(i, 1); }
     }
+    if (!this.opts.predictor) updateSmokes(this, dt);
     this.tick++;
     this._record();
   }
